@@ -1,0 +1,240 @@
+#include "global.h"
+
+#include <climits>
+
+#include "cvar.h"
+
+// unfortunately std::from_chars for doubles doesn't have great support on compilers...
+// so you need a pretty decent version of gcc or clang...
+// I want this because I can use non-null terminating strings for cvar_read....
+//#include <charconv>
+
+std::map<const char*, V_cvar&, cmp_str>& get_convars()
+{
+	static std::map<const char*, V_cvar&, cmp_str> convars;
+	return convars;
+}
+
+cvar_int::cvar_int(
+	const char* key, int value, const char* comment, int type, const char* file, int line)
+: V_cvar(key, comment, type, file, line)
+, data(value)
+{
+	auto [it, success] = get_convars().try_emplace(key, *this);
+    (void)success;
+	// this shouldn't be possible.
+	ASSERT(success && "cvar already registered");
+}
+bool cvar_int::cvar_read(const char* buffer)
+{
+	char* end_ptr;
+
+	pop_errno_t pop_errno;
+
+    // unfortunatly there is no strtoi, and longs could be 4 or 8 bytes...
+	// NOLINTNEXTLINE(google-runtime-int)
+	long value = strtol(buffer, &end_ptr, 10);
+
+    const int cmax = std::numeric_limits<int>::max();
+	const int cmin = std::numeric_limits<int>::min();
+
+	if(errno == ERANGE)
+	{
+		serrf("Error: cvar value out of range: \"+%s %s\"\n", cvar_key, buffer);
+		return false;
+	}
+    if(value > cmax || value < cmin)
+	{
+		serrf(
+			"Error: cvar value out of range: \"+%s %s\" min: %d, max: %d, result: %ld\n",
+			cvar_key,
+			buffer,
+			cmin,
+			cmax,
+			value);
+		return false;
+	}
+	if(end_ptr == buffer)
+	{
+		serrf("Error: cvar value not valid numeric input: \"+%s %s\"\n", cvar_key, buffer);
+		return false;
+	}
+
+	if(*end_ptr != '\0')
+	{
+		slogf("warning: cvar value extra characters on input: \"+%s %s\"\n", cvar_key, buffer);
+	}
+
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	data = value;
+
+	return true;
+}
+std::string cvar_int::cvar_write()
+{
+	std::ostringstream oss;
+	oss << data;
+	return oss.str();
+}
+
+cvar_double::cvar_double(
+	const char* key, double value, const char* comment, int type, const char* file, int line)
+: V_cvar(key, comment, type, file, line)
+, data(value)
+{
+	auto [it, success] = get_convars().try_emplace(key, *this);
+    (void)success;
+	// this shouldn't be possible.
+	ASSERT(success && "cvar already registered");
+}
+bool cvar_double::cvar_read(const char* buffer)
+{
+	char* end_ptr;
+
+	pop_errno_t pop_errno;
+	double value = strtod(buffer, &end_ptr);
+	if(errno == ERANGE)
+	{
+		serrf("Error: cvar value out of range: \"+%s %s\"\n", cvar_key, buffer);
+		return false;
+	}
+	if(end_ptr == buffer)
+	{
+		serrf("Error: cvar value not valid numeric input: \"+%s %s\"\n", cvar_key, buffer);
+		return false;
+	}
+
+	if(*end_ptr != '\0')
+	{
+		slogf("warning: cvar value extra characters on input: \"+%s %s\"\n", cvar_key, buffer);
+	}
+
+	data = value;
+	// slogf("%s = %f\n", cvar_key, data);
+
+	return true;
+}
+std::string cvar_double::cvar_write()
+{
+	std::ostringstream oss;
+	oss << data;
+	return oss.str();
+}
+
+cvar_string::cvar_string(
+	const char* key, std::string value, const char* comment, int type, const char* file, int line)
+: V_cvar(key, comment, type, file, line)
+, data(std::move(value))
+{
+	auto [it, success] = get_convars().try_emplace(key, *this);
+    (void)success;
+	// this shouldn't be possible.
+	ASSERT(success && "cvar already registered");
+}
+bool cvar_string::cvar_read(const char* buffer)
+{
+	ASSERT(buffer);
+	data = buffer;
+	return true;
+}
+std::string cvar_string::cvar_write()
+{
+	return data;
+}
+
+void cvar_init()
+{
+	for(const auto& it : get_convars())
+	{
+		it.second.cvar_default_value = it.second.cvar_write();
+	}
+}
+
+bool cvar_args(int argc, const char* const* argv)
+{
+	for(int i = 0; i < argc; ++i)
+	{
+		if(argv[i][0] != '+')
+		{
+			serrf(
+				"ERROR: cvar option must start with a '+'\n"
+				"expression: `%s`\n",
+				argv[i]);
+			return false;
+		}
+
+		const char* name = argv[i] + 1;
+		auto it = get_convars().find(name);
+		if(it == get_convars().end())
+		{
+			serrf("ERROR: cvar not found: `%s`\n", name);
+			return false;
+		}
+
+		V_cvar& cv = it->second;
+
+		// go to next argument.
+		i++;
+		if(i >= argc)
+		{
+			serrf("ERROR: cvar assignment missing: `%s`\n", name);
+			return false;
+		}
+
+		if(cv.cvar_type == CVAR_DISABLED)
+		{
+			slogf("warning: cvar disabled: `%s`\n", name);
+			continue;
+		}
+
+		if(cv.cvar_type == CVAR_READONLY)
+		{
+			slogf("warning: cvar read only: `%s`\n", name);
+			continue;
+		}
+
+		if(!cv.cvar_read(argv[i]))
+		{
+			return false;
+		}
+
+		slogf("%s = %s\n", name, argv[i]);
+	}
+	return true;
+}
+
+void cvar_list(bool debug)
+{
+	slog("cvar types:\n"
+		 "-CVAR_DEFAULT:\t"
+		 "normal, changes should take effect\n"
+		 "-[S] CVAR_STARTUP:\t"
+		 "requires the app to be restarted\n"
+		 "-[G] CVAR_GAME:\t"
+		 "requires the game to be restarted (if there is a game)\n"
+		 "-[R] CVAR_READONLY:\t"
+		 "the value cannot be set\n"
+		 "-[D] CVAR_DISABLED\t"
+		 "the value cannot be read or set\n");
+	for(const auto& it : get_convars())
+	{
+		std::string value = it.second.cvar_write();
+		const char* type = NULL;
+		switch(it.second.cvar_type)
+		{
+		case CVAR_DEFAULT: type = ""; break;
+		case CVAR_STARTUP: type = "[S]"; break;
+		case CVAR_GAME: type = "[G]"; break;
+		case CVAR_READONLY: type = "[R]"; break;
+		case CVAR_DISABLED: type = "[D]"; break;
+		default: ASSERT("unreachable" && false);
+		}
+		slogf("%s %s: \"%s\"\n", it.second.cvar_key, type, value.c_str());
+		if(debug)
+		{
+			slogf("\tFile: %s\n", it.second.cvar_debug_file);
+			slogf("\tLine: %d\n", it.second.cvar_debug_line);
+		}
+		slogf("\t%s\n", it.second.cvar_comment);
+	}
+}

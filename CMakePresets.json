@@ -1,0 +1,78 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 21,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "default",
+            "description": "Default build",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/../${sourceDirName}_${presetName}/build",
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "${sourceDir}/../prefix_shared/",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/../${sourceDirName}_${presetName}/install",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true
+            }
+        },
+        {
+            "name": "platform",
+            "description": "linux build",
+            "inherits": "default",
+            "hidden": true,
+            "generator": "Unix Makefiles",
+            "cacheVariables": {
+                "USE_OLD_SDL2": true
+            },
+            "vendor": {
+                "microsoft.com/VisualStudioSettings/CMake/1.0": {
+                    "hostOS": [
+                        "Linux"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "platform",
+            "description": "msvc build",
+            "inherits": "default",
+            "hidden": true,
+            "generator": "Ninja",
+            "vendor": {
+                "microsoft.com/VisualStudioSettings/CMake/1.0": {
+                    "hostOS": [
+                        "Windows"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "debug",
+            "description": "debug",
+            "inherits": "platform",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "reldeb",
+            "description": "release with debug info",
+            "inherits": "platform",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "release",
+            "description": "release",
+            "inherits": "platform",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        }
+    ],
+    "buildPresets": [],
+    "testPresets": []
+}

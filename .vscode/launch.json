@@ -1,0 +1,69 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+		{
+            "name": "(Windows) Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "environment": [
+                //put the workspace folder in PATH
+                //because it may hold files that I need to access
+                {"name":"PATH","value":"${workspaceFolder};%PATH%"},
+                {"name": "ASAN_OPTIONS","value": "windows_hook_rtl_allocators=true"}],
+            "stopAtEntry": false,
+            //I assume the build directory is in the install directory
+            "cwd": "${command:cmake.launchTargetDirectory}",
+            //I think internalConsole is bad because it wont flush stdout on abort, 
+            //but I forgot which one was the good one.
+            "console": "internalConsole",
+            //consider setting symbolSearchPath somehow
+        },
+        {
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": ["+cv_string_pt", "16", "+cv_string_font","NotoSansCJK-Regular.ttc", "+cv_string", "010$'\\n'犬大好き綿湯名暑い着く歩く走る通", "+cv_debug_opengl", "1"],
+            "stopAtEntry": false,
+            "cwd": "${command:cmake.launchTargetDirectory}",
+            "environment": [
+                //put the workspace folder in PATH
+                //because it may hold files that I need to access
+                {"name":"PATH","value":"${workspaceFolder}:$PATH"},
+                //path to /usr/lib/llvm-12/bin needed for UBSAN_OPTIONS=print_stacktrace=1
+                {"name":"PATH","value":"/usr/lib/llvm-12/bin:$PATH"},
+                {"name":"UBSAN_OPTIONS","value":"print_stacktrace=1"},
+                {"name":"ASAN_OPTIONS","value":"detect_leaks=0:strict_string_checks=1:detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1"}],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "type": "cppdbg",
+            "request": "launch",
+            "name": "Open a core dump(c/c++)",
+            "program": "${command:cmake.launchTargetPath}",
+            "coreDumpPath": "${input:coreFileName}",
+            "cwd": "${command:cmake.launchTargetDirectory}",
+            "MIMode": "gdb"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "coreFileName",
+            "type": "promptString",
+            "description": "Enter core file path"
+        }
+    ]
+}
