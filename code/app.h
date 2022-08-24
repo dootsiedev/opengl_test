@@ -15,3 +15,5 @@ extern App_Info g_app;
 extern cvar_int cv_screen_width;
 extern cvar_int cv_screen_height;
 extern cvar_int cv_fullscreen;
+
+extern cvar_int cv_debug_opengl;

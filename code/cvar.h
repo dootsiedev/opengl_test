@@ -5,13 +5,18 @@
 #include <map>
 #include <string>
 
-enum
+enum class CVAR_T
 {
-	CVAR_DEFAULT, // you can modify this during runtime and changes should take effect
-	CVAR_STARTUP, // requires the app to be restarted
-	CVAR_GAME, // requires the game to be restarted (if there is a game)
-	CVAR_DISABLED, // warn when this setting is attempted to be set
-	CVAR_READONLY
+	// requires the app to be restarted
+	STARTUP,
+	// requires the game to be restarted (if there is a game)
+	GAME,
+	// you can modify this during runtime and changes should take effect
+	RUNTIME,
+	// warn when this setting is attempted to be set
+	DISABLED,
+	// the variable was never meant to be written
+	READONLY
 };
 
 class V_cvar
@@ -19,7 +24,7 @@ class V_cvar
 public:
 	const char* cvar_key;
 	const char* cvar_comment;
-	int cvar_type;
+	CVAR_T cvar_type;
 	const char* cvar_debug_file;
 	int cvar_debug_line;
 
@@ -27,7 +32,7 @@ public:
 	// because the constructor gets called before the default value is set.
 	std::string cvar_default_value;
 
-	V_cvar(const char* key, const char* comment, int type, const char* file, int line)
+	V_cvar(const char* key, const char* comment, CVAR_T type, const char* file, int line)
 	: cvar_key(key)
 	, cvar_comment(comment)
 	, cvar_type(type)
@@ -56,7 +61,8 @@ struct cmp_str
 // std::map is perfect since it sorts all cvars for you.
 std::map<const char*, V_cvar&, cmp_str>& get_convars();
 void cvar_init(); // sets the default
-bool cvar_args(int argc, const char* const* argv);
+//flags_req must be either CVAR_STARTUP,CVAR_GAME,CVAR_RUNTIME.
+bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv);
 void cvar_list(bool debug);
 
 // to define an option for a single source file use this:
@@ -78,7 +84,7 @@ public:
 	int data;
 
 	// you should use REGISTER_CVAR_ to fill in file and line.
-	cvar_int(const char* key, int value, const char* comment, int type, const char* file, int line);
+	cvar_int(const char* key, int value, const char* comment, CVAR_T type, const char* file, int line);
 
 	bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;
@@ -91,7 +97,7 @@ public:
 
 	// you should use REGISTER_CVAR_ to fill in file and line.
 	cvar_double(
-		const char* key, double value, const char* comment, int type, const char* file, int line);
+		const char* key, double value, const char* comment, CVAR_T type, const char* file, int line);
 
 	bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;
@@ -107,7 +113,7 @@ public:
 		const char* key,
 		std::string value,
 		const char* comment,
-		int type,
+		CVAR_T type,
 		const char* file,
 		int line);
 

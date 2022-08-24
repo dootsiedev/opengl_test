@@ -54,7 +54,7 @@
 #include "../3rdparty/stb_textedit.h"
 
 static REGISTER_CVAR_DOUBLE(
-	cv_prompt_scroll_rate, 3, "scroll rate factor of size of a row", CVAR_DEFAULT);
+	cv_prompt_scroll_rate, 3, "scroll rate factor of size of a row", CVAR_T::RUNTIME);
 
 bool text_prompt_wrapper::init(
 	std::string_view contents, font_sprite_batcher* batcher_, TEXTP_FLAG flags_)
@@ -73,8 +73,7 @@ bool text_prompt_wrapper::init(
 	}
 
 	space_advance_cache = batcher->GetAdvance(' ');
-	ASSERT(!isnan(space_advance_cache));
-	return true;
+    return CHECK(!isnan(space_advance_cache));
 }
 
 bool text_prompt_wrapper::replace_string(std::string_view contents)
@@ -973,8 +972,6 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 {
 	ASSERT(batcher != NULL);
 
-	SDL_Keycode key_shift_mod = ((e.key.keysym.mod & KMOD_SHIFT) != 0 ? STB_TEXTEDIT_K_SHIFT : 0);
-	SDL_Keycode key_ctrl_mod = ((e.key.keysym.mod & KMOD_CTRL) != 0 ? STB_TEXTEDIT_K_CONTROL : 0);
 	switch(e.type)
 	{
 	// lazy scroll
@@ -1086,7 +1083,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				return TEXT_PROMPT_RESULT::EAT;
 			}
 
-			if(x_scrollable() && internal_scroll_x_inside(mouse_x, mouse_y))
+			if(!single_line() && x_scrollable() && internal_scroll_x_inside(mouse_x, mouse_y))
 			{
 				x_scrollbar_held = true;
 				internal_scroll_x_to(mouse_x);
@@ -1289,12 +1286,17 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 
 		return TEXT_PROMPT_RESULT::EAT;
 #endif
-	case SDL_KEYDOWN:
+	case SDL_KEYDOWN: {
 		if(!text_focus)
 		{
 			break;
 		}
 		mouse_held = false;
+
+		SDL_Keycode key_shift_mod =
+			((e.key.keysym.mod & KMOD_SHIFT) != 0 ? STB_TEXTEDIT_K_SHIFT : 0);
+		SDL_Keycode key_ctrl_mod =
+			((e.key.keysym.mod & KMOD_CTRL) != 0 ? STB_TEXTEDIT_K_CONTROL : 0);
 		switch(e.key.keysym.sym)
 		{
 		// Handle backspace
@@ -1338,10 +1340,10 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				if(STB_TEXT_HAS_SELECTION(&stb_state))
 				{
-					auto start = text_data.begin() +
-								 std::min(stb_state.select_start, stb_state.select_end);
-					auto end = text_data.begin() +
-							   std::max(stb_state.select_start, stb_state.select_end);
+					auto start =
+						text_data.begin() + std::min(stb_state.select_start, stb_state.select_end);
+					auto end =
+						text_data.begin() + std::max(stb_state.select_start, stb_state.select_end);
 					std::string out;
 					for(; start != end; ++start)
 					{
@@ -1370,10 +1372,10 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				if(STB_TEXT_HAS_SELECTION(&stb_state))
 				{
 					scroll_to_cursor = true;
-					auto start = text_data.begin() +
-								 std::min(stb_state.select_start, stb_state.select_end);
-					auto end = text_data.begin() +
-							   std::max(stb_state.select_start, stb_state.select_end);
+					auto start =
+						text_data.begin() + std::min(stb_state.select_start, stb_state.select_end);
+					auto end =
+						text_data.begin() + std::max(stb_state.select_start, stb_state.select_end);
 					std::string out;
 					for(; start != end; ++start)
 					{
@@ -1407,7 +1409,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				scroll_to_cursor = true;
 
 				auto sdl_del = [](void* ptr) { SDL_free(ptr); };
-				std::unique_ptr<char[], decltype(sdl_del)> utext{SDL_GetClipboardText(), sdl_del};
+				std::unique_ptr<char, decltype(sdl_del)> utext{SDL_GetClipboardText(), sdl_del};
 
 				if(!utext)
 				{
@@ -1436,12 +1438,12 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 					wstr.push_back(codepoint);
 				}
 
-                // if you paste ontop of a selection, stb has a bug where it will require 2 undo's.
-                // but if I used the secret replace function IMGUI uses, I get a ASAN error when I
-                // reproduce the same undo/redo bug that causes stb_insert_chars & etc functions 
-                // which is bad because at least stb_insert_chars & etc can check for it.
-                // I think the solution is to use dynamically allocated history, 
-                // or maybe figure out why IMGUI doesn't have the same problem with weird undo/redo.
+				// if you paste ontop of a selection, stb has a bug where it will require 2 undo's.
+				// but if I used the secret replace function IMGUI uses, I get a ASAN error when I
+				// reproduce the same undo/redo bug that causes stb_insert_chars & etc functions
+				// which is bad because at least stb_insert_chars & etc can check for it.
+				// I think the solution is to use dynamically allocated history,
+				// or maybe figure out why IMGUI doesn't have the same problem with weird undo/redo.
 				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 				stb_textedit_paste(this, &stb_state, wstr.data(), wstr.size());
 				// if( != 1)
@@ -1459,8 +1461,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				break;
 			}
 			scroll_to_cursor = true;
-			stb_textedit_key(
-				this, &stb_state, STB_TEXTEDIT_K_LEFT | key_shift_mod | key_ctrl_mod);
+			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_LEFT | key_shift_mod | key_ctrl_mod);
 			blink_timer = timer_now();
 			update_buffer = true;
 			return TEXT_PROMPT_RESULT::EAT;
@@ -1470,8 +1471,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				break;
 			}
 			scroll_to_cursor = true;
-			stb_textedit_key(
-				this, &stb_state, STB_TEXTEDIT_K_RIGHT | key_shift_mod | key_ctrl_mod);
+			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_RIGHT | key_shift_mod | key_ctrl_mod);
 			blink_timer = timer_now();
 			update_buffer = true;
 			return TEXT_PROMPT_RESULT::EAT;
@@ -1542,7 +1542,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			}
 			break;
 		}
-		break;
+	}
+	break;
 	}
 	return TEXT_PROMPT_RESULT::CONTINUE;
 }
@@ -1617,7 +1618,7 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 		// yes this does happen because stb undo/redo is broken
 		return 0;
 	}
-
+    
 	auto it = text_data.insert(text_data.begin() + index, n, prompt_char{});
 	for(int i = 0; i < n; ++i, ++it)
 	{
@@ -1641,6 +1642,10 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 		else
 		{
 			it->advance = batcher->GetAdvance(it->codepoint);
+            if(!CHECK(!isnan(it->advance)))
+			{
+				return 0;
+			}
 		}
 	}
 	return 1;

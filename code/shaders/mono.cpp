@@ -95,7 +95,7 @@ bool shader_mono_state::destroy()
     return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
-void gl_mono_vertex_vao(shader_mono_state& mono_shader)
+void gl_create_interleaved_mono_vertex_vao(shader_mono_state& mono_shader)
 {
     if(mono_shader.gl_attributes.a_pos != -1)
 	{

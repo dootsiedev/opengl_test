@@ -49,4 +49,4 @@ struct gl_mono_vertex
 
 // this is a vao that works with interleaved gl_mono_vertex
 // bind the VBO and VAO
-void gl_mono_vertex_vao(shader_mono_state& mono_shader);
+void gl_create_interleaved_mono_vertex_vao(shader_mono_state& mono_shader);

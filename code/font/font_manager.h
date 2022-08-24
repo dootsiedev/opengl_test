@@ -263,7 +263,7 @@ struct font_ttf_face_settings
 
 	float italics_skew = 0.207f; // cos(((90.0-x)/360)*2*MY_PI)
 
-	// sometimes a bitmap font has outlines, but they isn't very good.
+	// sometimes a bitmap font has outlines, but the outline are worse.
 	// will try to find the best bitmap size to the point_size.
 	bool force_bitmap = false;
 

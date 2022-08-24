@@ -1,9 +1,21 @@
 #include "../global.h"
 #include "opengl_stuff.h"
 
+// for cv_debug_opengl
+#include "../app.h"
+
 #include <SDL2/SDL.h>
 
 GLES2_Context ctx;
+
+GLenum implement_GL_RUNTIME(const char* msg, const char* file, int line)
+{
+    if(cv_debug_opengl.data == 0)
+    {
+        return GL_NO_ERROR;
+    }
+    return implement_GL_CHECK(msg, file, line);
+}
 
 // not as useful as debug callbacks, but better than a number.
 static const char* gl_err_string(GLenum glError)
@@ -49,6 +61,7 @@ GLenum implement_GL_CHECK(const char* msg, const char* file, int line)
 
 	return first_glError;
 }
+
 
 #if 1 // def _WIN32
 static void* wrapper_SDL_GL_GetProcAddress(const char* name)

@@ -22,12 +22,21 @@
 #include <limits>
 #include <string>
 
-static REGISTER_CVAR_STRING(cv_string, "test", "the string to display", CVAR_STARTUP);
-static REGISTER_CVAR_DOUBLE(cv_string_pt, 16.0, "the point size of the string", CVAR_STARTUP);
-static REGISTER_CVAR_STRING(cv_string_font, "seguiemj.ttf", "the font of the string", CVAR_STARTUP);
+static REGISTER_CVAR_STRING(cv_string, "test", "the string to display", CVAR_T::STARTUP);
+static REGISTER_CVAR_DOUBLE(cv_string_pt, 16.0, "the point size of the string", CVAR_T::STARTUP);
+static REGISTER_CVAR_STRING(
+	cv_string_font, "seguiemj.ttf", "the font of the string", CVAR_T::STARTUP);
+static REGISTER_CVAR_DOUBLE(
+	cv_string_outline, 1, "outline thickness in pixels (if there is an outline)", CVAR_T::STARTUP);
+static REGISTER_CVAR_INT(cv_string_mono, 0, "0 = off, 1 = use mono rasterizer", CVAR_T::STARTUP);
+static REGISTER_CVAR_INT(
+	cv_string_force_bitmap,
+	0,
+	"0 = off, 1 = on, can't bold or italics, but looks different",
+	CVAR_T::STARTUP);
 
 static REGISTER_CVAR_DOUBLE(
-	cv_mouse_sensitivity, 0.4, "the speed of the first person camera", CVAR_DEFAULT);
+	cv_mouse_sensitivity, 0.4, "the speed of the first person camera", CVAR_T::RUNTIME);
 
 struct gl_point_vertex
 {
@@ -459,8 +468,12 @@ bool demo_state::init_gl_font()
 	}
 
 	font_settings.point_size = static_cast<float>(cv_string_pt.data);
-	//font_settings.render_mode = FT_RENDER_MODE_MONO;
-	//font_settings.load_flags = FT_LOAD_TARGET_MONO;
+
+    if(cv_string_mono.data == 1)
+    {
+	    font_settings.render_mode = FT_RENDER_MODE_MONO;
+	    font_settings.load_flags = FT_LOAD_TARGET_MONO;
+    }
 
 	// FT_LOAD_RENDER can give the same bitmap outline as force_bitmap
     // but force_bitmap will choose the closest raster bitmap possible,
@@ -473,8 +486,12 @@ bool demo_state::init_gl_font()
 	font_settings.bold_x = 1;
 	font_settings.bold_y = 1;
 	font_settings.italics_skew = 0.5;
-	font_settings.outline_size = 1;
-    //font_settings.force_bitmap = true;
+	font_settings.outline_size = static_cast<float>(cv_string_outline.data);
+
+    if(cv_string_force_bitmap.data == 1)
+    {
+        font_settings.force_bitmap = true;
+    }
 
 
     font_rasterizer.set_face_settings(&font_settings);
@@ -512,7 +529,7 @@ bool demo_state::init_gl_font()
 	// vertex setup
 	ctx.glBindVertexArray(gl_font_vao_id);
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_font_interleave_vbo);
-	gl_mono_vertex_vao(mono_shader);
+	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
     if(!g_console.init(&font_style, mono_shader))
     {
@@ -615,15 +632,29 @@ DEMO_RESULT demo_state::input()
 				{
 					slogf("SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
 				}
+                if(show_console)
+				{
+					g_console.unfocus();
+				    show_console = false;
+				}
 				break;
             case SDLK_F1:
-                if(show_console)
-                {
-                    g_console.unfocus();
-                }
-                show_console = !show_console;
-                break;
-            case SDLK_F10:
+				if(show_console)
+				{
+					g_console.unfocus();
+				    show_console = false;
+				}
+				else
+				{
+                    if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
+                    {
+                        slogf("SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+                    }
+					g_console.focus();
+				    show_console = true;
+				}
+				break;
+			case SDLK_F10:
                 {
                     std::string msg;
                     msg += "StackTrace (f10):\n";
@@ -819,13 +850,10 @@ bool demo_state::render()
 					cv_screen_height.data - (scissor_y + scissor_h),
 					scissor_w,
 					scissor_h);
-			}
-			ctx.glBindVertexArray(g_console.gl_prompt_vao_id);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.prompt_batcher.vertex_count());
-			ctx.glBindVertexArray(0);
-			if(scissor_w > 0 && scissor_h > 0)
-			{
+				ctx.glBindVertexArray(g_console.gl_prompt_vao_id);
+				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+				ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.prompt_batcher.vertex_count());
+				ctx.glBindVertexArray(0);
 				ctx.glDisable(GL_SCISSOR_TEST);
 			}
 		}
@@ -849,13 +877,10 @@ bool demo_state::render()
 					cv_screen_height.data - (scissor_y + scissor_h),
 					scissor_w,
 					scissor_h);
-			}
-			ctx.glBindVertexArray(g_console.gl_log_vao_id);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.log_batcher.vertex_count());
-			ctx.glBindVertexArray(0);
-			if(scissor_w > 0 && scissor_h > 0)
-			{
+				ctx.glBindVertexArray(g_console.gl_log_vao_id);
+				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+				ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.log_batcher.vertex_count());
+				ctx.glBindVertexArray(0);
 				ctx.glDisable(GL_SCISSOR_TEST);
 			}
 		}
@@ -871,7 +896,7 @@ bool demo_state::render()
 	tick2 = timer_now();
 	perf_swap.test(tick2 - tick1);
 
-    return true;
+    return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 DEMO_RESULT demo_state::process()
 {
@@ -944,7 +969,7 @@ bool demo_state::perf_time()
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-		// success = success && GL_CHECK(__func__) == GL_NO_ERROR;
+		success = success && GL_RUNTIME(__func__) == GL_NO_ERROR;
 
 		if(!success)
 		{

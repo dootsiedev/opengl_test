@@ -16,7 +16,7 @@ std::map<const char*, V_cvar&, cmp_str>& get_convars()
 }
 
 cvar_int::cvar_int(
-	const char* key, int value, const char* comment, int type, const char* file, int line)
+	const char* key, int value, const char* comment, CVAR_T type, const char* file, int line)
 : V_cvar(key, comment, type, file, line)
 , data(value)
 {
@@ -78,7 +78,7 @@ std::string cvar_int::cvar_write()
 }
 
 cvar_double::cvar_double(
-	const char* key, double value, const char* comment, int type, const char* file, int line)
+	const char* key, double value, const char* comment, CVAR_T type, const char* file, int line)
 : V_cvar(key, comment, type, file, line)
 , data(value)
 {
@@ -122,7 +122,7 @@ std::string cvar_double::cvar_write()
 }
 
 cvar_string::cvar_string(
-	const char* key, std::string value, const char* comment, int type, const char* file, int line)
+	const char* key, std::string value, const char* comment, CVAR_T type, const char* file, int line)
 : V_cvar(key, comment, type, file, line)
 , data(std::move(value))
 {
@@ -150,7 +150,7 @@ void cvar_init()
 	}
 }
 
-bool cvar_args(int argc, const char* const* argv)
+bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
 {
 	for(int i = 0; i < argc; ++i)
 	{
@@ -181,16 +181,30 @@ bool cvar_args(int argc, const char* const* argv)
 			return false;
 		}
 
-		if(cv.cvar_type == CVAR_DISABLED)
+		if(cv.cvar_type == CVAR_T::DISABLED)
 		{
 			slogf("warning: cvar disabled: `%s`\n", name);
 			continue;
 		}
 
-		if(cv.cvar_type == CVAR_READONLY)
+		switch(flags_req)
 		{
-			slogf("warning: cvar read only: `%s`\n", name);
-			continue;
+		case CVAR_T::RUNTIME:
+			if(cv.cvar_type == CVAR_T::GAME)
+			{
+				slogf("warning: cvar must be set pre-game take effect: `%s`\n", name);
+				continue;
+			}
+			[[fallthrough]];
+		case CVAR_T::GAME:
+			if(cv.cvar_type == CVAR_T::STARTUP)
+			{
+				slogf("warning: cvar must be set on startup to take effect: `%s`\n", name);
+				continue;
+			}
+			[[fallthrough]];
+		case CVAR_T::STARTUP: break;
+		default: ASSERT(false && "flags_req not implemented");
 		}
 
 		if(!cv.cvar_read(argv[i]))
@@ -206,7 +220,7 @@ bool cvar_args(int argc, const char* const* argv)
 void cvar_list(bool debug)
 {
 	slog("cvar types:\n"
-		 "-CVAR_DEFAULT:\t"
+		 "-CVAR_RUNTIME:\t"
 		 "normal, changes should take effect\n"
 		 "-[S] CVAR_STARTUP:\t"
 		 "requires the app to be restarted\n"
@@ -222,11 +236,11 @@ void cvar_list(bool debug)
 		const char* type = NULL;
 		switch(it.second.cvar_type)
 		{
-		case CVAR_DEFAULT: type = ""; break;
-		case CVAR_STARTUP: type = "[S]"; break;
-		case CVAR_GAME: type = "[G]"; break;
-		case CVAR_READONLY: type = "[R]"; break;
-		case CVAR_DISABLED: type = "[D]"; break;
+		case CVAR_T::RUNTIME: type = ""; break;
+		case CVAR_T::STARTUP: type = "[S]"; break;
+		case CVAR_T::GAME: type = "[G]"; break;
+		case CVAR_T::READONLY: type = "[R]"; break;
+		case CVAR_T::DISABLED: type = "[D]"; break;
 		default: ASSERT("unreachable" && false);
 		}
 		slogf("%s %s: \"%s\"\n", it.second.cvar_key, type, value.c_str());

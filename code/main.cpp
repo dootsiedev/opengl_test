@@ -15,12 +15,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_keyboard.h>
 
-static REGISTER_CVAR_INT(cv_vsync, 0, "0 (off), 1 (on), -1 (adaptive?)", CVAR_STARTUP);
-static REGISTER_CVAR_INT(
-	cv_debug_opengl,
-	0,
-	"0 = off, 1 = show detailed opengl errors, 2 = stacktrace per call",
-	CVAR_STARTUP);
+static REGISTER_CVAR_INT(cv_vsync, 0, "0 (off), 1 (on), -1 (adaptive?)", CVAR_T::STARTUP);
 
 
 static const char* GetGLDebugSeverityKHR(GLenum severity)
@@ -74,8 +69,7 @@ static void ErrorCallback(
 	(void)source;
 	(void)id;
 
-	if(type != GL_DEBUG_TYPE_ERROR_KHR && type != GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_KHR &&
-	   type != GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_KHR)
+	if(type != GL_DEBUG_TYPE_ERROR_KHR && type != GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_KHR)
 	{
 		slogf(
 			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
@@ -296,7 +290,7 @@ int main(int argc, char** argv)
 		}
 		if(argv[i][0] == '+')
 		{
-			if(!cvar_args(argc - i, argv + i))
+			if(!cvar_args(CVAR_T::STARTUP, argc - i, argv + i))
 			{
 				success = false;
 			}
@@ -356,7 +350,7 @@ int main(int argc, char** argv)
 	// print a stacktrace.
 	if(serr_check_error())
 	{
-		serrf("\nUncaught error before exit");
+		serrf("\nUncaught error before exit\n");
 		SDL_ShowSimpleMessageBox(
 			SDL_MESSAGEBOX_WARNING, "Uncaught error", serr_get_error().c_str(), NULL);
 	}

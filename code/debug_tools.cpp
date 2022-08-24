@@ -30,13 +30,13 @@ static int default_cv_stacktrace_trap
 	= 1;
 #endif
 static REGISTER_CVAR_INT(
-	cv_stacktrace_trap, default_cv_stacktrace_trap, "0 (off), 1 (on)", CVAR_DEFAULT);
+	cv_stacktrace_trap, default_cv_stacktrace_trap, "0 (off), 1 (on)", CVAR_T::RUNTIME);
 
-static int has_libbacktrace
+static CVAR_T has_libbacktrace
 #if defined(USE_LIBBACKTRACE)
-	= CVAR_DEFAULT;
+	= CVAR_T::RUNTIME;
 #else
-	= CVAR_DISABLED;
+	= CVAR_T::DISABLED;
 #endif
 static REGISTER_CVAR_INT(cv_stacktrace_demangle, 1, "0 (off), 1 (on)", has_libbacktrace);
 static REGISTER_CVAR_INT(cv_stacktrace_full_paths, 0, "0 (off), 1 (on)", has_libbacktrace);
@@ -122,13 +122,12 @@ static int bt_full_callback(
 #endif
 
 #ifdef __GNUG__
-	std::unique_ptr<char, void (*)(void*)> demangler{NULL, NULL};
+	auto free_del = [](void* ptr) { free(ptr); };
+	std::unique_ptr<char, decltype(free_del)> demangler{NULL, free_del};
 	if(cv_stacktrace_demangle.data != 0 && function != NULL)
 	{
 		int status = 0;
-		demangler = std::unique_ptr<char, void (*)(void*)>{
-			abi::__cxa_demangle(function, NULL, NULL, &status), std::free};
-
+		demangler.reset(abi::__cxa_demangle(function, NULL, NULL, &status));
 		if(status == 0)
 		{
 			function = demangler.get();

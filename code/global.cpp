@@ -17,10 +17,22 @@ static int no_debug_information =
 #endif
 
 static REGISTER_CVAR_INT(
-	cv_stacktrace_on_serr,
+	cv_serr_bt,
 	no_debug_information,
-	"0 = nothing, 1 = first serr will stacktrace, 2 = always stacktrace (spams)",
-	CVAR_DEFAULT);
+    // I don't reccomend "always stacktrace" because some errors are nested, 
+    // which will make the error very hard to read.
+    // a "capture" is a error that is handled, using serr_get_error()
+	"0 = nothing, 1 = stacktrace (once per capture), 2 = always stacktrace (spam)",
+	CVAR_T::RUNTIME);
+
+
+// I would use this if I was profiling, or if the logs were spamming.
+static REGISTER_CVAR_INT(
+	cv_disable_log,
+	0,
+	"0 = keep log, 1 = disable log",
+	CVAR_T::RUNTIME);
+
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -109,10 +121,18 @@ std::shared_ptr<std::string> internal_get_serr_buffer()
 static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 {
 	(void)skip;
-	if(cv_stacktrace_on_serr.data == 2 || (cv_stacktrace_on_serr.data == 1 && !serr_check_error()))
+	if(cv_serr_bt.data == 2 || (cv_serr_bt.data == 1 && !serr_check_error()))
 	{
+		int length;
+		std::unique_ptr<char[]> buffer;
+		buffer = unique_asprintf(
+			&length, "StackTrace (%s = %d)\n", cv_serr_bt.cvar_key, cv_serr_bt.data);
 		std::string msg;
-		msg += "StackTrace (cv_stacktrace_on_serr):\n";
+		if(buffer)
+		{
+			msg.assign(buffer.get(), length);
+		}
+
 		debug_str_stacktrace(&msg, skip + 1);
 		msg += '\n';
 		slog_raw(msg.data(), msg.length());
@@ -122,6 +142,16 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 
 std::string serr_get_error()
 {
+	size_t max_size = 10000;
+	if(internal_get_serr_buffer()->size() > max_size)
+	{
+		slogf(
+			"info: %s truncating message (size: %zu, max: %zu)\n",
+			__func__,
+			internal_get_serr_buffer()->size(),
+			max_size);
+		internal_get_serr_buffer()->resize(max_size);
+	}
 	return std::move(*internal_get_serr_buffer());
 }
 bool serr_check_error()
@@ -131,11 +161,17 @@ bool serr_check_error()
 
 void slog_raw(const char* msg, size_t len)
 {
+    if(cv_disable_log.data == 1)
+    {
+        return;
+    }
+	// on win32, if did a /subsystem:windows, I would probably 
+    // replace stdout with OutputDebugString on the debug build.
 	fwrite(msg, 1, len, stdout);
 #ifndef DISABLE_CONSOLE
 	{
-        std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len);
-        memcpy(buffer.get(), msg, len);
+		std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len);
+		memcpy(buffer.get(), msg, len);
 		std::lock_guard<std::mutex> lk(g_console.mut);
 		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), len);
 	}
@@ -143,6 +179,13 @@ void slog_raw(const char* msg, size_t len)
 }
 void serr_raw(const char* msg, size_t len)
 {
+    if(cv_disable_log.data == 1)
+    {
+        // if I didn't do this, there would be side effects 
+        // since I sometimes depend on serr_check_error for checking.
+        *internal_get_serr_buffer() = '!';
+        return;
+    }
 	serr_safe_stacktrace(1);
 	slog_raw(msg, len);
 	internal_get_serr_buffer()->append(msg, msg + len);
@@ -150,12 +193,27 @@ void serr_raw(const char* msg, size_t len)
 
 void slog(const char* msg)
 {
+    if(cv_disable_log.data == 1)
+    {
+        return;
+    }
+#ifdef DISABLE_CONSOLE
 	// don't use puts because it inserts a newline.
 	fputs(msg, stdout);
+#else
+	slog_raw(msg, strlen(msg));
+#endif
 }
 
 void serr(const char* msg)
 {
+    if(cv_disable_log.data == 1)
+    {
+        // if I didn't do this, there would be side effects 
+        // since I sometimes depend on serr_check_error for checking.
+        *internal_get_serr_buffer() = '!';
+        return;
+    }
 	serr_safe_stacktrace(1);
 	slog(msg);
 	internal_get_serr_buffer()->append(msg);
@@ -163,6 +221,10 @@ void serr(const char* msg)
 
 void slogf(const char* fmt, ...)
 {
+    if(cv_disable_log.data == 1)
+    {
+        return;
+    }
 #ifdef DISABLE_CONSOLE
 	va_list args;
 	va_start(args, fmt);
@@ -189,6 +251,14 @@ void slogf(const char* fmt, ...)
 
 void serrf(const char* fmt, ...)
 {
+    if(cv_disable_log.data == 1)
+    {
+        // if I didn't do this, there would be side effects 
+        // since I sometimes depend on serr_check_error for checking.
+        *internal_get_serr_buffer() = '!';
+        return;
+    }
+
 	serr_safe_stacktrace(1);
 
 	int length;
@@ -201,6 +271,7 @@ void serrf(const char* fmt, ...)
 	internal_get_serr_buffer()->append(buffer.get(), buffer.get() + length);
 
 #ifdef DISABLE_CONSOLE
+    // would it be much faster if I added vslogf and did a va_copy?
 	slog_raw(buffer.get(), length);
 #else
 	fwrite(buffer.get(), 1, length, stdout);

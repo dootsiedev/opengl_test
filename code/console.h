@@ -84,6 +84,10 @@ struct console_state
         prompt.unfocus();
         log.unfocus();
     }
+    void focus()
+    {
+        prompt.focus();
+    }
 };
 
 

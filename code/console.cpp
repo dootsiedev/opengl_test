@@ -57,7 +57,7 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
     // vertex setup
     ctx.glBindVertexArray(gl_prompt_vao_id);
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
-	gl_mono_vertex_vao(mono_shader);
+	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
     // VAO
 	ctx.glGenVertexArrays(1, &gl_log_vao_id);
@@ -69,7 +69,7 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
     // vertex setup
     ctx.glBindVertexArray(gl_log_vao_id);
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
-	gl_mono_vertex_vao(mono_shader);
+	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
 	// finish
 	ctx.glBindVertexArray(0);
@@ -178,6 +178,10 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 		case SDLK_RETURN:
 			if(prompt.text_focus)
 			{
+                TIMER_U start;
+                TIMER_U end;
+                start = timer_now();
+
 				parse_input();
 
 				// note this will break undo / redo! (doesn't matter because read-only)
@@ -200,6 +204,9 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				log.scroll_to_bottom();
 
 				prompt.clear_string();
+
+                end = timer_now();
+	            slogf("time: %f\n", timer_delta_ms(start, end));
 			}
 			break;
 		}
@@ -229,7 +236,7 @@ void console_state::parse_input()
 	std::vector<const char*> arguments;
 
 	const char* delim = " ";
-    char* next_token;
+    char* next_token = NULL;
     char* token = musl_strtok_r(line.data(), delim, &next_token);
     while(token != NULL)
     {
@@ -237,9 +244,9 @@ void console_state::parse_input()
         token = musl_strtok_r(NULL, delim, &next_token);
     }
     // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-    if(!cvar_args(arguments.size(), arguments.data()))
+    if(!cvar_args(CVAR_T::RUNTIME, arguments.size(), arguments.data()))
     {
-        // can't really be handled.
+        // leave it unhandled.
     }
 }
 
@@ -247,7 +254,7 @@ bool console_state::draw()
 {
     bool success = true;
 
-    log_message message_buffer[1000];
+    log_message message_buffer[100];
     size_t message_count = 0;
     {
         std::lock_guard<std::mutex> lk(mut);
@@ -257,52 +264,52 @@ bool console_state::draw()
             message_queue.pop_front();
         }
     }
-    if(message_count != 0)
-    {
-        // load the atlas texture.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		ctx.glBindTexture(GL_TEXTURE_2D, font_manager->gl_atlas_tex_id);
-    }
-	for(size_t i = 0; i < message_count; ++i)
-	{
-		text_prompt_wrapper::prompt_char text_data[10000];
-		size_t char_count = 0;
-		const char* str_cur = message_buffer[i].message.get();
-		const char* str_end = message_buffer[i].message.get() + message_buffer[i].message_length;
-		while(str_cur != str_end)
-		{
-			uint32_t codepoint;
-            utf8::internal::utf_error err_code =
-                utf8::internal::validate_next(str_cur, str_end, codepoint);
-            if(err_code != utf8::internal::UTF8_OK)
-            {
-                serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
-                success = false;
-                break;
-			}
-			// GetAdvance requires the atlas to be bound
-			text_data[char_count++] = {codepoint, log.batcher->GetAdvance(codepoint)};
-		}
 
-		if(!success)
-		{
-            break;
-        }
-
-        // TODO: I want to make errors be colored, but the text_prompt_wrapper can't ATM
-        // note this will break undo / redo! (doesn't matter because read-only)
-        log.text_data.insert(log.text_data.end(), text_data, text_data + char_count);
-	}
 
 	if(message_count != 0)
     {
+        // text_prompt_wrapper::prompt_char
+        STB_TEXTEDIT_CHARTYPE text_data[10000];
+        size_t char_count = 0;
+		for(size_t i = 0; i < message_count; ++i)
+		{
+			const char* str_cur = message_buffer[i].message.get();
+			const char* str_end =
+				message_buffer[i].message.get() + message_buffer[i].message_length;
+			while(str_cur != str_end && char_count < std::size(text_data))
+			{
+				uint32_t codepoint;
+				utf8::internal::utf_error err_code =
+					utf8::internal::validate_next(str_cur, str_end, codepoint);
+				if(err_code != utf8::internal::UTF8_OK)
+				{
+					serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
+					return false;
+				}
+				// this would be faster if I had access to GetAdvance, & newline width
+				// but performance isn't a goal.
+				// TODO: I want to make errors be colored, but the text_prompt_wrapper can't ATM
+				// note this will break undo / redo! (doesn't matter because read-only)
+				text_data[char_count++] = codepoint;
+			}
+		}
+		// load the atlas texture.
+		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		ctx.glBindTexture(GL_TEXTURE_2D, font_manager->gl_atlas_tex_id);
+        
+        log.set_readonly(false);
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+        log.stb_insert_chars(log.text_data.size(), text_data, char_count);
+        log.set_readonly(true);
+		//log.text_data.insert(log.text_data.end(), text_data, text_data + char_count);
+
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-        // TODO: I don't want this to scroll to the bottom,
-        // I would like it to only do that when the scrollbar is already at the bottom!
-        log.scroll_to_bottom();
-    }
+		// TODO: I don't always want this to scroll to the bottom,
+		// I would like it to only do that when the scrollbar is already at the bottom!
+		log.scroll_to_bottom();
+	}
     if(!success)
     {
         return false;
@@ -364,5 +371,5 @@ bool console_state::draw()
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 	}
-    return true;
+    return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }

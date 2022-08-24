@@ -26,7 +26,12 @@
 #define FT_CEIL(X) ((((X) + 63) & -64) / 64)
 #define FT_FLOOR(X) (((X) & -64) / 64)
 
-static REGISTER_CVAR_INT(cv_font_atlas_size, 16384, "the texture size", CVAR_STARTUP);
+static REGISTER_CVAR_INT(cv_font_atlas_size, 16384, "the texture size", CVAR_T::STARTUP);
+
+// this is an annoying warning because the glyph will still use the unifont fallback,
+// and if the unifont also doesn't have the font, it turns into an error.
+static REGISTER_CVAR_INT(
+	cv_font_warnings, 0, "0 = no warnings, 1 = show warnings for missing glyphs", CVAR_T::RUNTIME);
 
 // this is referenced from SDL_TTF
 void internal_TTF_SetFTError(
@@ -934,7 +939,7 @@ FONT_RESULT hex_font_data::load_hex_glyph(
 		outline_image_data);
 	// ctx.glBindTexture(GL_TEXTURE_2D, 0);
 
-	if(GL_CHECK(__func__) != GL_NO_ERROR)
+	if(GL_RUNTIME(__func__) != GL_NO_ERROR)
 	{
 		return FONT_RESULT::ERROR;
 	}
@@ -1204,7 +1209,10 @@ FONT_RESULT font_bitmap_cache::get_glyph(char32_t codepoint, font_glyph_entry* g
 		glyph_index = FT_Get_Char_Index(current_rasterizer->face, codepoint);
 		if(glyph_index == 0)
 		{
-			slogf("info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+            if(cv_font_warnings.data == 1)
+            {
+			    slogf("info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+            }
 			block.bad_indexes.set(block_index);
 		}
 	}
@@ -1286,6 +1294,11 @@ FONT_RESULT font_bitmap_cache::get_glyph(char32_t codepoint, font_glyph_entry* g
 			GL_UNSIGNED_BYTE,
 			bitmap->buffer);
 
+        if(GL_RUNTIME(__func__) != GL_NO_ERROR)
+        {
+            return FONT_RESULT::ERROR;
+        }
+
 		glyph_out->rect_x = x_out;
 		glyph_out->rect_y = y_out;
 		glyph_out->rect_w = bitmap->width;
@@ -1298,6 +1311,7 @@ FONT_RESULT font_bitmap_cache::get_glyph(char32_t codepoint, font_glyph_entry* g
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		glyph_out->ymin = (ftglyph_bitmap->top);
 		glyph_out->type = (use_bitmap ? FONT_ENTRY::BITMAP : FONT_ENTRY::NORMAL);
+        
 	}
 
 	if(!block.glyphs[current_style])

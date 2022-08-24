@@ -210,6 +210,17 @@ struct text_prompt_wrapper
 		{
 			text_focus = false;
 			update_buffer = true;
+            SDL_StopTextInput();
+		}
+	}
+
+    void focus()
+	{
+		if(!text_focus)
+		{
+			text_focus = true;
+			update_buffer = true;
+            SDL_StartTextInput();
 		}
 	}
 

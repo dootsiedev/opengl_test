@@ -38,6 +38,10 @@
 GLenum implement_GL_CHECK(const char* msg, const char* file, int line);
 #define GL_CHECK(msg) implement_GL_CHECK(msg, __FILE__, __LINE__)
 
+// on release builds, this will be a NOP
+GLenum implement_GL_RUNTIME(const char* msg, const char* file, int line);
+#define GL_RUNTIME(msg) implement_GL_RUNTIME(msg, __FILE__, __LINE__)
+
 struct GLES2_Context
 {
 // NOLINTNEXTLINE(bugprone-macro-parentheses)
