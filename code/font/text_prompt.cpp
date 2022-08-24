@@ -1202,7 +1202,6 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 	// when you backspace the IME to go away.
 	// not sure which version it gets fixed.
 	case SDL_TEXTEDITING:
-		ASSERT(!read_only());
         if(!text_focus)
         {
             break;
@@ -1246,8 +1245,10 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		// the old version had a limited string length.
 		// in old SDL the start + length was used for splitting the events into chunks
 	case SDL_TEXTEDITING_EXT:
-		ASSERT(text_focus);
-		ASSERT(!read_only());
+        if(!text_focus)
+        {
+            break;
+        }
 		if(read_only())
 		{
 			break;

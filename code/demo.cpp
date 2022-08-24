@@ -531,7 +531,15 @@ bool demo_state::init_gl_font()
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_font_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
-    if(!g_console.init(&font_style, mono_shader))
+
+
+    // load the atlas texture.
+    ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
+    bool ret = g_console.init(&font_style, mono_shader);
+	// restore to the default 4 alignment.
+	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    if(!ret)
     {
         return false;
     }
@@ -594,7 +602,12 @@ DEMO_RESULT demo_state::input()
         {
             if(SDL_GetRelativeMouseMode() != SDL_TRUE)
             {
-                switch(g_console.input(e))
+                ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
+                CONSOLE_RESULT ret = g_console.input(e);
+                // restore to the default 4 alignment.
+                ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+                switch(ret)
                 {
                 case CONSOLE_RESULT::CONTINUE: break;
                 case CONSOLE_RESULT::EAT: return DEMO_RESULT::CONTINUE;
@@ -721,9 +734,18 @@ bool demo_state::render()
 	timer_last = current_time;
 
     // this will not actually draw, this will just modify the atlas and buffer data.
-	if(show_console && !g_console.draw())
+	if(show_console)
     {
-        return false;
+		// load the atlas texture.
+		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
+        bool ret = g_console.draw();
+		// restore to the default 4 alignment.
+		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        if(!ret)
+        {
+            return false;
+        }
     }
 
 	colors[0] = colors[0] + (0.5 * color_delta);

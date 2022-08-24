@@ -31,17 +31,33 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 {
     ASSERT(font_style);
     font_manager = font_style->font_manager;
-    
+
     // create the buffer for the shader
-    ctx.glGenBuffers(1, &gl_prompt_interleave_vbo);
-	if(gl_prompt_interleave_vbo == 0)
+    ctx.glGenBuffers(1, &gl_log_interleave_vbo);
+	if(gl_log_interleave_vbo == 0)
 	{
 		serrf("%s error: glGenBuffers failed\n", __func__);
 		return false;
 	}
+
+
+    // VAO
+	ctx.glGenVertexArrays(1, &gl_log_vao_id);
+	if(gl_log_vao_id == 0)
+	{
+		serrf("%s error: glGenVertexArrays failed\n", __func__);
+		return false;
+	}
+    // vertex setup
+    ctx.glBindVertexArray(gl_log_vao_id);
+	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
+	gl_create_interleaved_mono_vertex_vao(mono_shader);
+
+
+    
     // create the buffer for the shader
-    ctx.glGenBuffers(1, &gl_log_interleave_vbo);
-	if(gl_log_interleave_vbo == 0)
+    ctx.glGenBuffers(1, &gl_prompt_interleave_vbo);
+	if(gl_prompt_interleave_vbo == 0)
 	{
 		serrf("%s error: glGenBuffers failed\n", __func__);
 		return false;
@@ -59,26 +75,24 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
-    // VAO
-	ctx.glGenVertexArrays(1, &gl_log_vao_id);
-	if(gl_log_vao_id == 0)
-	{
-		serrf("%s error: glGenVertexArrays failed\n", __func__);
-		return false;
-	}
-    // vertex setup
-    ctx.glBindVertexArray(gl_log_vao_id);
-	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
-	gl_create_interleaved_mono_vertex_vao(mono_shader);
-
 	// finish
 	ctx.glBindVertexArray(0);
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 
-    // load the atlas texture.
-    ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    ctx.glBindTexture(GL_TEXTURE_2D, font_manager->gl_atlas_tex_id);
+	log_batcher.SetFont(font_style);
+
+    // this requires the atlas texture to be bound with 1 byte packing
+	if(!log.init(
+		   "", &log_batcher, TEXTP_Y_SCROLL | TEXTP_WORD_WRAP | TEXTP_DRAW_BBOX | TEXTP_READ_ONLY))
+	{
+		return false;
+	}
+	log.set_bbox(
+		60,
+		60,
+		static_cast<float>(cv_screen_width.data) / 2,
+		static_cast<float>(cv_screen_height.data) / 2);
 
 	prompt_batcher.SetFont(font_style);
 
@@ -92,30 +106,19 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 		static_cast<float>(cv_screen_width.data) / 2,
 		prompt_batcher.GetLineSkip());
 
-	log_batcher.SetFont(font_style);
 
-	if(!log.init(
-		   "", &log_batcher, TEXTP_Y_SCROLL | TEXTP_WORD_WRAP | TEXTP_DRAW_BBOX | TEXTP_READ_ONLY))
-	{
-		return false;
-	}
-	log.set_bbox(
-		60,
-		60,
-		static_cast<float>(cv_screen_width.data) / 2,
-		static_cast<float>(cv_screen_height.data) / 2);
-
-	// restore to the default 4 alignment.
-	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 bool console_state::destroy()
 {
-    SAFE_GL_DELETE_VBO(gl_prompt_interleave_vbo);
-    SAFE_GL_DELETE_VAO(gl_prompt_vao_id);
+	font_manager = NULL;
+
     SAFE_GL_DELETE_VBO(gl_log_interleave_vbo);
     SAFE_GL_DELETE_VAO(gl_log_vao_id);
+    SAFE_GL_DELETE_VBO(gl_prompt_interleave_vbo);
+    SAFE_GL_DELETE_VAO(gl_prompt_vao_id);
+
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
@@ -123,31 +126,18 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 {
     ASSERT(font_manager != NULL);
     
-	// load the atlas texture because the prompt could load text from input
-	// I don't like this, but this is generally not a very expensive operation.
-	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    ctx.glBindTexture(GL_TEXTURE_2D, font_manager->gl_atlas_tex_id);
-	TEXT_PROMPT_RESULT prompt_ret = prompt.input(e);
-	// restore to the default 4 alignment.
-	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-	switch(prompt_ret)
-	{
-	case TEXT_PROMPT_RESULT::CONTINUE: break;
-	case TEXT_PROMPT_RESULT::EAT: log.unfocus(); return CONSOLE_RESULT::EAT;
-	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
-	}
-
-	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	ctx.glBindTexture(GL_TEXTURE_2D, font_manager->gl_atlas_tex_id);
-	TEXT_PROMPT_RESULT log_ret = log.input(e);
-	// restore to the default 4 alignment.
-	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-
-	switch(log_ret)
+	switch(log.input(e))
 	{
 	case TEXT_PROMPT_RESULT::CONTINUE: break;
 	case TEXT_PROMPT_RESULT::EAT: prompt.unfocus(); return CONSOLE_RESULT::EAT;
+	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
+	}
+
+	switch(prompt.input(e))
+	{
+	case TEXT_PROMPT_RESULT::CONTINUE: break;
+	case TEXT_PROMPT_RESULT::EAT: log.unfocus(); return CONSOLE_RESULT::EAT;
 	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 	}
 
@@ -252,6 +242,7 @@ void console_state::parse_input()
 
 bool console_state::draw()
 {
+	ASSERT(font_manager != NULL);
     bool success = true;
 
     log_message message_buffer[100];
@@ -293,18 +284,13 @@ bool console_state::draw()
 				text_data[char_count++] = codepoint;
 			}
 		}
-		// load the atlas texture.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		ctx.glBindTexture(GL_TEXTURE_2D, font_manager->gl_atlas_tex_id);
         
         log.set_readonly(false);
+        // this requires the atlas texture to be bound with 1 byte packing
         // NOLINTNEXTLINE(bugprone-narrowing-conversions)
         log.stb_insert_chars(log.text_data.size(), text_data, char_count);
         log.set_readonly(true);
 		//log.text_data.insert(log.text_data.end(), text_data, text_data + char_count);
-
-		// restore to the default 4 alignment.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
 		// TODO: I don't always want this to scroll to the bottom,
 		// I would like it to only do that when the scrollbar is already at the bottom!
@@ -314,17 +300,39 @@ bool console_state::draw()
     {
         return false;
     }
-	ASSERT(font_manager != NULL);
+
+    if(log.draw_requested())
+	{
+
+		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
+		log_batcher.begin();
+        //font_style.current_style = FONT_STYLE_OUTLINE;
+        //log.text_color = {0,0,0,255};
+        // this requires the atlas texture to be bound with 1 byte packing
+		if(!log.draw())
+        {
+            return false;
+        }
+        #if 0
+        font_style.current_style = FONT_STYLE_NORMAL;
+        prompt.text_color = {255,255,255,255};
+		if(!prompt.internal_draw_text(0, NULL, NULL, NULL))
+        {
+            return false;
+        }
+        #endif
+		log_batcher.end();
+		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+
     if(prompt.draw_requested())
 	{
-		// load the atlas texture.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		ctx.glBindTexture(GL_TEXTURE_2D, font_manager->gl_atlas_tex_id);
 
 		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
 		prompt_batcher.begin();
         //font_style.current_style = FONT_STYLE_OUTLINE;
         //prompt.text_color = {0,0,0,255};
+        // this requires the atlas texture to be bound with 1 byte packing
 		if(!prompt.draw())
         {
             return false;
@@ -340,36 +348,7 @@ bool console_state::draw()
 		prompt_batcher.end();
 		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-		// restore to the default 4 alignment.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 	}
-    if(log.draw_requested())
-	{
-		// load the atlas texture.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		ctx.glBindTexture(GL_TEXTURE_2D, font_manager->gl_atlas_tex_id);
-
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
-		log_batcher.begin();
-        //font_style.current_style = FONT_STYLE_OUTLINE;
-        //log.text_color = {0,0,0,255};
-		if(!log.draw())
-        {
-            return false;
-        }
-        #if 0
-        font_style.current_style = FONT_STYLE_NORMAL;
-        prompt.text_color = {255,255,255,255};
-		if(!prompt.internal_draw_text(0, NULL, NULL, NULL))
-        {
-            return false;
-        }
-        #endif
-		log_batcher.end();
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-		// restore to the default 4 alignment.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-	}
+    
     return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }

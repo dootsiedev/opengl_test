@@ -139,21 +139,21 @@ struct text_prompt_wrapper
 	TEXTP_FLAG flags = 0;
 
 	// batcher needs to have a style set, and must be anchored TOP_LEFT
-	// you need to bind the atlas before calling this.
+	// this requires the atlas texture to be bound with 1 byte packing
 	bool init(std::string_view contents, font_sprite_batcher* batcher_, TEXTP_FLAG flags_);
 
 	// this will also check blink_timer and blink the cursor.
 	// NOTE: but blink_timer should be in a logic() function...
 	bool draw_requested();
 
-	// you need to bind the atlas before calling this.
+	// this requires the atlas texture to be bound with 1 byte packing
 	bool replace_string(std::string_view contents);
 	void clear_string();
 
 	// this is an expensive operation
 	std::string get_string() const;
 
-	// you need to bind the atlas before calling this.
+	// this requires the atlas texture to be bound with 1 byte packing
 	TEXT_PROMPT_RESULT input(SDL_Event& e);
 
 	// this draws into the batcher

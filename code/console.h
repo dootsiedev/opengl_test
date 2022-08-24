@@ -66,16 +66,20 @@ struct console_state
     font_sprite_batcher prompt_batcher;
     text_prompt_wrapper prompt;
 
+
+    // this requires the atlas texture to be bound with 1 byte packing
     bool init(font_bitmap_cache* font_style, shader_mono_state& mono_shader);
     bool destroy();
 
+    // this requires the atlas texture to be bound with 1 byte packing
     CONSOLE_RESULT input(SDL_Event& e);
 
 	void parse_input();
 
 	// this won't render to the framebuffer, 
     // this will just modify the atlas and buffer data.
-    // you need to access log_batcher and prompt_batcher.
+    // you need to access log_batcher and prompt_batcher directly to render.
+    // this requires the atlas texture to be bound with 1 byte packing
     bool draw();
 
     // call this when you need to unfocus, like for example if you press escape or something.
