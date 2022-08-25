@@ -207,12 +207,13 @@ bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
 		default: ASSERT(false && "flags_req not implemented");
 		}
 
+        std::string old_value = it->second.cvar_write();
+
 		if(!cv.cvar_read(argv[i]))
 		{
 			return false;
 		}
-
-		slogf("%s = %s\n", name, argv[i]);
+		slogf("%s (%s) = %s\n", name, old_value.c_str(), argv[i]);
 	}
 	return true;
 }

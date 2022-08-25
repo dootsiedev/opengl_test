@@ -31,7 +31,7 @@ struct console_state
 	struct log_message
 	{
 		// the reason I use a unique_ptr is because
-		// my log system "slog" will allocate a unique_ptr for my asprintf formatter
+		// my log system "slog" allocates one from my unique_asprintf
 		// so I can just move it in easily (maybe I should use C++20's std::string feature)
         log_message() = default;
 		log_message(
@@ -55,16 +55,25 @@ struct console_state
     // the queue's mutex
     std::mutex mut;
 
+    // the log of messages
 	font_manager_state* font_manager = NULL;
 	GLuint gl_log_interleave_vbo = 0;
 	GLuint gl_log_vao_id = 0;
     font_sprite_batcher log_batcher;
-    text_prompt_wrapper log;
+    text_prompt_wrapper log_box;
 
+    // the text you type into
     GLuint gl_prompt_interleave_vbo = 0;
     GLuint gl_prompt_vao_id = 0;
     font_sprite_batcher prompt_batcher;
-    text_prompt_wrapper prompt;
+    text_prompt_wrapper prompt_cmd;
+
+    // this is the last error that was printed
+    // put into a static area so you can read it.
+    GLuint gl_error_interleave_vbo = 0;
+    GLuint gl_error_vao_id = 0;
+    font_sprite_batcher error_batcher;
+    text_prompt_wrapper error_text;
 
 
     // this requires the atlas texture to be bound with 1 byte packing
@@ -73,6 +82,8 @@ struct console_state
 
     // this requires the atlas texture to be bound with 1 byte packing
     CONSOLE_RESULT input(SDL_Event& e);
+
+    void resize_text_area();
 
 	void parse_input();
 
@@ -83,15 +94,8 @@ struct console_state
     bool draw();
 
     // call this when you need to unfocus, like for example if you press escape or something.
-    void unfocus()
-    {
-        prompt.unfocus();
-        log.unfocus();
-    }
-    void focus()
-    {
-        prompt.focus();
-    }
+    void unfocus();
+    void focus();
 };
 
 

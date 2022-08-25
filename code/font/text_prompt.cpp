@@ -151,7 +151,7 @@ std::string text_prompt_wrapper::get_string() const
 	{
 		if(!cpputf_append_string(out, c.codepoint))
 		{
-			ASSERT(false && "invalid codepoint from prompt???");
+            slogf("info: invalid codepoint from prompt: U+%X\n", c.codepoint);
 		}
 	}
 	return out;
@@ -590,9 +590,11 @@ bool text_prompt_wrapper::internal_draw_text(
 	bool currently_selected = false;
 	int selection_vertex_buffer_index = -1;
 	float selection_minx = -1;
-
 	std::array<uint8_t, 4> active_selection_color =
 		(text_focus) ? select_fill_color : unfocused_select_fill_color;
+
+	int backdrop_vertex_buffer_index = -1;
+	float backdrop_minx = -1;
 
 	size_t i = offset;
 	size_t cur = offset;
@@ -625,6 +627,16 @@ bool text_prompt_wrapper::internal_draw_text(
 			continue;
 		}
 
+        if(draw_backdrop())
+        {
+            backdrop_minx = batcher->draw_x_pos();
+            batcher->set_color(backdrop_color);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            backdrop_vertex_buffer_index = batcher->font_vertex_buffer.size();
+            batcher->draw_rect(0, 0, 0, 0);
+            batcher->set_color(text_color);
+        }
+
 		for(; cur != i; ++cur)
 		{
 			if(STB_TEXT_HAS_SELECTION(&stb_state))
@@ -640,6 +652,7 @@ bool text_prompt_wrapper::internal_draw_text(
 				}
 				if(cur == selection_start)
 				{
+                    ASSERT(selection_vertex_buffer_index == -1);
 					// start selection
 					currently_selected = true;
 					selection_minx = batcher->draw_x_pos();
@@ -659,8 +672,7 @@ bool text_prompt_wrapper::internal_draw_text(
 					float pos_y = batcher->draw_y_pos();
 					float pos_h = batcher->draw_y_pos() + lineskip;
 					batcher->move_rect(selection_vertex_buffer_index, pos_x, pos_w, pos_y, pos_h);
-					selection_vertex_buffer_index = 0;
-
+					selection_vertex_buffer_index = -1;
 					batcher->set_color(text_color);
 				}
 			}
@@ -703,6 +715,16 @@ bool text_prompt_wrapper::internal_draw_text(
 				}
 			}
 		}
+        if(draw_backdrop() && backdrop_vertex_buffer_index != -1)
+        {
+			float pos_x = cull_box() ? std::max(box_xmin, backdrop_minx) : backdrop_minx;
+			float pos_w =
+				cull_box() ? std::min(box_xmax, batcher->draw_x_pos()) : batcher->draw_x_pos();
+			float pos_y = batcher->draw_y_pos();
+			float pos_h = batcher->draw_y_pos() + lineskip;
+			batcher->move_rect(backdrop_vertex_buffer_index, pos_x, pos_w, pos_y, pos_h);
+			backdrop_vertex_buffer_index = -1;
+        }
 		if(currently_selected)
 		{
 			// end of row, finish the selection
@@ -713,7 +735,7 @@ bool text_prompt_wrapper::internal_draw_text(
 			float pos_y = batcher->draw_y_pos();
 			float pos_h = batcher->draw_y_pos() + lineskip;
 			batcher->move_rect(selection_vertex_buffer_index, pos_x, pos_w, pos_y, pos_h);
-			selection_vertex_buffer_index = 0;
+			selection_vertex_buffer_index = -1;
 		}
 
 		if(cur != end)
@@ -725,7 +747,16 @@ bool text_prompt_wrapper::internal_draw_text(
 			{
 				break;
 			}
-
+            if(draw_backdrop())
+            {
+				// prepare the next row's backdrop
+				backdrop_minx = batcher->draw_x_pos();
+				batcher->set_color(backdrop_color);
+                // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+                backdrop_vertex_buffer_index = batcher->font_vertex_buffer.size();
+                batcher->draw_rect(0, 0, 0, 0);
+                batcher->set_color(text_color);
+            }
 			if(currently_selected)
 			{
 				// prepare the next row's selection
@@ -1023,7 +1054,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 	}
 	break;
 	case SDL_MOUSEBUTTONUP:
-		if(e.button.button == SDL_BUTTON_LEFT)
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
 			float mouse_x = static_cast<float>(e.button.x);
 			float mouse_y = static_cast<float>(e.button.y);
@@ -1063,7 +1094,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		}
 		break;
 	case SDL_MOUSEBUTTONDOWN:
-		if(e.button.button == SDL_BUTTON_LEFT)
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
 			float mouse_x = static_cast<float>(e.button.x);
 			float mouse_y = static_cast<float>(e.button.y);
@@ -1350,13 +1381,12 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 					{
 						if(!cpputf_append_string(out, start->codepoint))
 						{
-							ASSERT(false && "invalid codepoint from prompt???");
+                            slogf("info: invalid codepoint from prompt: U+%X\n", start->codepoint);
 						}
 					}
 					if(SDL_SetClipboardText(out.c_str()) != 0)
 					{
 						slogf("info: Failed to set clipboard! SDL Error: %s\n", SDL_GetError());
-						break;
 					}
 				}
 				return TEXT_PROMPT_RESULT::EAT;
@@ -1382,7 +1412,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 					{
 						if(!cpputf_append_string(out, start->codepoint))
 						{
-							ASSERT(false && "invalid utf8 from prompt???");
+                            slogf("info: invalid codepoint from prompt: U+%X\n", start->codepoint);
 						}
 					}
 					if(stb_textedit_cut(this, &stb_state) != 1)
@@ -1393,7 +1423,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 
 					if(SDL_SetClipboardText(out.c_str()) != 0)
 					{
-						slogf("Failed to set clipboard! SDL Error: %s\n", SDL_GetError());
+						slogf("info: Failed to set clipboard! SDL Error: %s\n", SDL_GetError());
 					}
 				}
 				return TEXT_PROMPT_RESULT::EAT;
@@ -1587,7 +1617,7 @@ void text_prompt_wrapper::stb_layout_func(StbTexteditRow* row, int i)
 			}
 			// I can't remove the padding for the scrollbar because this function is
 			// used to calculate scroll_h, which means scroll_h will be incorrect.
-			if(!single_line() && !x_scrollable() &&
+			if(!single_line() && !x_scrollable() && cull_box() &&
 			   total_advance > box_xmax - scrollbar_thickness)
 			{
 				if(word_wrap() && last_space != text_data.end())

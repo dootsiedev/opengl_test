@@ -18,9 +18,9 @@
 struct bench_data
 {
     //TODO: numeric_limits doesn't work if TIMER_U is a chrono time_point.
-    TIMER_U accum = 0, high = 0, low = std::numeric_limits<TIMER_U>::max();
+    TIMER_RESULT accum = 0, high = 0, low = std::numeric_limits<TIMER_RESULT>::max();
     size_t samples = 0;
-    void test(TIMER_U dt)
+    void test(TIMER_RESULT dt)
     {
         if(dt < low) low = dt;
         if(dt > high) high = dt;
@@ -29,11 +29,11 @@ struct bench_data
     }
     TIMER_RESULT accum_ms()
     {
-        return timer_delta_ms(0, accum) / static_cast<TIMER_RESULT>(samples);
+        return accum / static_cast<TIMER_RESULT>(samples);
     }
     TIMER_RESULT high_ms()
     {
-        return timer_delta_ms(0, high);
+        return high;
     }
     TIMER_RESULT low_ms()
     {
@@ -42,12 +42,12 @@ struct bench_data
         {
             return 0;
         }
-        return timer_delta_ms(0, low);
+        return low;
     }
     void reset()
     {
         high = 0; // could use limits...
-        low = std::numeric_limits<TIMER_U>::max();
+        low = std::numeric_limits<TIMER_RESULT>::max();
         accum = 0;
         samples = 0;
     }

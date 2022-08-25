@@ -17,7 +17,7 @@ enum class TEXT_PROMPT_RESULT
 	CONTINUE,
 	ERROR
 };
-typedef uint8_t TEXTP_FLAG;
+typedef uint16_t TEXTP_FLAG;
 enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 {
 	TEXTP_NONE = 0,
@@ -39,7 +39,9 @@ enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 	// this will make all the text render
 	// this will disable line wrapping.
 	// if the text is outside the box, the mouse wont work.
-	TEXTP_DISABLE_CULL = (1 << 7)
+	TEXTP_DISABLE_CULL = (1 << 7),
+    // fill the back of the text with a backdrop
+	TEXTP_DRAW_BACKDROP = (1 << 8)
 };
 
 struct text_prompt_wrapper
@@ -112,11 +114,12 @@ struct text_prompt_wrapper
 
 	std::array<uint8_t, 4> text_color{0, 0, 0, 255};
 	std::array<uint8_t, 4> select_text_color{255, 255, 255, 255};
-	std::array<uint8_t, 4> select_fill_color = RGBA8_PREM(80, 80, 255, 200);
-	std::array<uint8_t, 4> unfocused_select_fill_color = RGBA8_PREM(80, 80, 80, 200);
-	std::array<uint8_t, 4> scrollbar_color = RGBA8_PREM(80, 80, 80, 200);
+	std::array<uint8_t, 4> select_fill_color = RGBA8_PREMULT(80, 80, 255, 200);
+	std::array<uint8_t, 4> unfocused_select_fill_color = RGBA8_PREMULT(80, 80, 80, 200);
+	std::array<uint8_t, 4> scrollbar_color = RGBA8_PREMULT(80, 80, 80, 200);
 	std::array<uint8_t, 4> caret_color{0, 0, 0, 255};
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
+	std::array<uint8_t, 4> backdrop_color = RGBA8_PREMULT(255, 255, 255, 200);
 
 	// I could use the bitfield trick to compress the size of bools,
 	// but if I am only saving 4 bytes, it isn't worth it because it's ugly.
@@ -267,6 +270,10 @@ struct text_prompt_wrapper
 	{
 		return (flags & TEXTP_DISABLE_CULL) == 0;
 	}
+    bool draw_backdrop() const
+    {
+        return (flags & TEXTP_DRAW_BACKDROP) != 0;
+    }
 
 	// scroll_w will not account for the padding for the scrollbar
 	float get_scroll_width()

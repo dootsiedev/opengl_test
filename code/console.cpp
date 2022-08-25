@@ -32,6 +32,10 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
     ASSERT(font_style);
     font_manager = font_style->font_manager;
 
+    //
+    // log
+    //
+
     // create the buffer for the shader
     ctx.glGenBuffers(1, &gl_log_interleave_vbo);
 	if(gl_log_interleave_vbo == 0)
@@ -39,7 +43,6 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 		serrf("%s error: glGenBuffers failed\n", __func__);
 		return false;
 	}
-
 
     // VAO
 	ctx.glGenVertexArrays(1, &gl_log_vao_id);
@@ -53,6 +56,18 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
+	log_batcher.SetFont(font_style);
+
+    // this requires the atlas texture to be bound with 1 byte packing
+	if(!log_box.init(
+		   "", &log_batcher, TEXTP_Y_SCROLL | TEXTP_WORD_WRAP | TEXTP_DRAW_BBOX | TEXTP_READ_ONLY))
+	{
+		return false;
+	}
+
+    //
+    // prompt
+    //
 
     
     // create the buffer for the shader
@@ -75,38 +90,59 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
-	// finish
+	prompt_batcher.SetFont(font_style);
+
+	if(!prompt_cmd.init("", &prompt_batcher, TEXTP_SINGLE_LINE | TEXTP_X_SCROLL | TEXTP_DRAW_BBOX))
+	{
+		return false;
+	}
+
+    // 
+    // error
+    //
+
+
+    // create the buffer for the shader
+    ctx.glGenBuffers(1, &gl_error_interleave_vbo);
+	if(gl_error_interleave_vbo == 0)
+	{
+		serrf("%s error: glGenBuffers failed\n", __func__);
+		return false;
+	}
+
+    // VAO
+	ctx.glGenVertexArrays(1, &gl_error_vao_id);
+	if(gl_error_vao_id == 0)
+	{
+		serrf("%s error: glGenVertexArrays failed\n", __func__);
+		return false;
+	}
+    // vertex setup
+    ctx.glBindVertexArray(gl_error_vao_id);
+	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
+	gl_create_interleaved_mono_vertex_vao(mono_shader);
+
+	error_batcher.SetFont(font_style);
+
+	if(!error_text.init("", &error_batcher, TEXTP_READ_ONLY | TEXTP_DISABLE_CULL | TEXTP_DRAW_BACKDROP))
+	{
+		return false;
+	}
+
+    // set to red.
+    // TODO: it would be cool if the text background was black,
+    // as if the text was being selected.
+    error_text.text_color = {255,0,0,255};
+    error_text.backdrop_color = RGBA8_PREMULT(0,0,0,255);
+
+	//
+    // finish
+    //
 	ctx.glBindVertexArray(0);
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-
-	log_batcher.SetFont(font_style);
-
-    // this requires the atlas texture to be bound with 1 byte packing
-	if(!log.init(
-		   "", &log_batcher, TEXTP_Y_SCROLL | TEXTP_WORD_WRAP | TEXTP_DRAW_BBOX | TEXTP_READ_ONLY))
-	{
-		return false;
-	}
-	log.set_bbox(
-		60,
-		60,
-		static_cast<float>(cv_screen_width.data) / 2,
-		static_cast<float>(cv_screen_height.data) / 2);
-
-	prompt_batcher.SetFont(font_style);
-
-	if(!prompt.init("", &prompt_batcher, TEXTP_SINGLE_LINE | TEXTP_X_SCROLL | TEXTP_DRAW_BBOX))
-	{
-		return false;
-	}
-	prompt.set_bbox(
-		60,
-		60 + static_cast<float>(cv_screen_height.data) / 2 + 10.f,
-		static_cast<float>(cv_screen_width.data) / 2,
-		prompt_batcher.GetLineSkip());
-
-
+    //set the area the text is placed.
+    resize_text_area();
 
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
@@ -118,82 +154,89 @@ bool console_state::destroy()
     SAFE_GL_DELETE_VAO(gl_log_vao_id);
     SAFE_GL_DELETE_VBO(gl_prompt_interleave_vbo);
     SAFE_GL_DELETE_VAO(gl_prompt_vao_id);
+    SAFE_GL_DELETE_VBO(gl_error_interleave_vbo);
+    SAFE_GL_DELETE_VAO(gl_error_vao_id);
 
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
+void console_state::resize_text_area()
+{
+	log_box.set_bbox(
+		60,
+		60,
+		static_cast<float>(cv_screen_width.data) / 2,
+		static_cast<float>(cv_screen_height.data) / 2);
+	prompt_cmd.set_bbox(
+		60,
+		60 + static_cast<float>(cv_screen_height.data) / 2 + 10.f,
+		static_cast<float>(cv_screen_width.data) / 2,
+		prompt_batcher.GetLineSkip());
+
+    // this probably doesn't have enough hieght to fit in messages with stack traces,
+    // but if it's too big it could potentially block UI elements in an annoying way
+	error_text.set_bbox(
+		60,
+		prompt_cmd.box_ymax + 10.f,
+		static_cast<float>(cv_screen_width.data) / 2,
+		prompt_batcher.GetLineSkip() * 10);
+}
+
 CONSOLE_RESULT console_state::input(SDL_Event& e)
 {
-    ASSERT(font_manager != NULL);
-    
+	ASSERT(font_manager != NULL);
 
-	switch(log.input(e))
+	switch(log_box.input(e))
 	{
 	case TEXT_PROMPT_RESULT::CONTINUE: break;
-	case TEXT_PROMPT_RESULT::EAT: prompt.unfocus(); return CONSOLE_RESULT::EAT;
+	case TEXT_PROMPT_RESULT::EAT:
+		prompt_cmd.unfocus();
+		error_text.unfocus();
+		log_box.focus();
+		return CONSOLE_RESULT::EAT;
 	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 	}
 
-	switch(prompt.input(e))
+	switch(prompt_cmd.input(e))
 	{
 	case TEXT_PROMPT_RESULT::CONTINUE: break;
-	case TEXT_PROMPT_RESULT::EAT: log.unfocus(); return CONSOLE_RESULT::EAT;
+	case TEXT_PROMPT_RESULT::EAT:
+		error_text.unfocus();
+		log_box.unfocus();
+		prompt_cmd.focus();
+		return CONSOLE_RESULT::EAT;
 	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
+	}
+
+	// Only parse input when there is actual content.
+	// possible because this is read only.
+	if(error_batcher.vertex_count() != 0)
+	{
+		switch(error_text.input(e))
+		{
+		case TEXT_PROMPT_RESULT::CONTINUE: break;
+		case TEXT_PROMPT_RESULT::EAT:
+			prompt_cmd.unfocus();
+			log_box.unfocus();
+			error_text.focus();
+			return CONSOLE_RESULT::EAT;
+		case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
+		}
 	}
 
 	switch(e.type)
 	{
-	case SDL_WINDOWEVENT:
-		switch(e.window.event)
-		{
-        // TODO: shouldn't do this
-		case SDL_WINDOWEVENT_RESIZED:
-			log.set_bbox(
-				60,
-				60,
-				static_cast<float>(e.window.data1) / 2,
-				static_cast<float>(e.window.data2) / 2);
-			prompt.set_bbox(
-				60,
-				60 + static_cast<float>(e.window.data2) / 2 + 10.f,
-				static_cast<float>(e.window.data1) / 2,
-				prompt_batcher.GetLineSkip());
-
-			break;
-        }
-		break;
 	case SDL_KEYUP:
 		switch(e.key.keysym.sym)
 		{
 		case SDLK_RETURN:
-			if(prompt.text_focus)
+			if(prompt_cmd.text_focus)
 			{
                 TIMER_U start;
                 TIMER_U end;
                 start = timer_now();
 
 				parse_input();
-
-				// note this will break undo / redo! (doesn't matter because read-only)
-				// and assumes that log and prompt have the same font.
-				log.text_data.insert(
-					log.text_data.end(), prompt.text_data.begin(), prompt.text_data.end());
-
-                
-                // I insert a newline
-                // If I used stb's paste, this would overwrite the selection.
-				char32_t newl = '\n';
-				log.set_readonly(false);
-				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-				log.stb_insert_chars(log.text_data.size(), &newl, 1);
-				log.set_readonly(true);
-
-				// tell the prompt to update itself (scroll_to_bottom implicitly sets this too)
-				log.update_buffer = true;
-
-				log.scroll_to_bottom();
-
-				prompt.clear_string();
 
                 end = timer_now();
 	            slogf("time: %f\n", timer_delta_ms(start, end));
@@ -222,7 +265,12 @@ void console_state::parse_input()
 {
 	// TODO: this is way too simple, it can't support escape keys or quotes.
 	// The quick and ugly solution would be to use boost spirit.
-	std::string line = prompt.get_string();
+	std::string line = prompt_cmd.get_string();
+	prompt_cmd.clear_string();
+    
+    // show the command in the log
+    slogf("%s\n", line.c_str());
+
 	std::vector<const char*> arguments;
 
 	const char* delim = " ";
@@ -236,8 +284,15 @@ void console_state::parse_input()
     // NOLINTNEXTLINE(bugprone-narrowing-conversions)
     if(!cvar_args(CVAR_T::RUNTIME, arguments.size(), arguments.data()))
     {
-        // leave it unhandled.
-    }
+        if(!error_text.replace_string(serr_get_error()))
+        {
+            // NOTE: what do I do here? 
+        }
+		// TODO: maybe if an error occurs during runtime, 
+        // reserve a little text section at the top of the console
+        // and store the most recent error in there,
+        // then make the console appear (but without text focus)
+	}
 }
 
 bool console_state::draw()
@@ -285,70 +340,74 @@ bool console_state::draw()
 			}
 		}
         
-        log.set_readonly(false);
+        log_box.set_readonly(false);
         // this requires the atlas texture to be bound with 1 byte packing
         // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        log.stb_insert_chars(log.text_data.size(), text_data, char_count);
-        log.set_readonly(true);
+        log_box.stb_insert_chars(log_box.text_data.size(), text_data, char_count);
+        log_box.set_readonly(true);
 		//log.text_data.insert(log.text_data.end(), text_data, text_data + char_count);
 
 		// TODO: I don't always want this to scroll to the bottom,
 		// I would like it to only do that when the scrollbar is already at the bottom!
-		log.scroll_to_bottom();
+		log_box.scroll_to_bottom();
 	}
     if(!success)
     {
         return false;
     }
 
-    if(log.draw_requested())
+    if(log_box.draw_requested())
 	{
 
 		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
 		log_batcher.begin();
-        //font_style.current_style = FONT_STYLE_OUTLINE;
-        //log.text_color = {0,0,0,255};
         // this requires the atlas texture to be bound with 1 byte packing
-		if(!log.draw())
+		if(!log_box.draw())
         {
             return false;
         }
-        #if 0
-        font_style.current_style = FONT_STYLE_NORMAL;
-        prompt.text_color = {255,255,255,255};
-		if(!prompt.internal_draw_text(0, NULL, NULL, NULL))
-        {
-            return false;
-        }
-        #endif
 		log_batcher.end();
 		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 
-    if(prompt.draw_requested())
+    if(prompt_cmd.draw_requested())
 	{
 
 		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
 		prompt_batcher.begin();
-        //font_style.current_style = FONT_STYLE_OUTLINE;
-        //prompt.text_color = {0,0,0,255};
         // this requires the atlas texture to be bound with 1 byte packing
-		if(!prompt.draw())
+		if(!prompt_cmd.draw())
         {
             return false;
         }
-        #if 0
-        font_style.current_style = FONT_STYLE_NORMAL;
-        prompt.text_color = {255,255,255,255};
-		if(!prompt.internal_draw_text(0, NULL, NULL, NULL))
-        {
-            return false;
-        }
-        #endif
 		prompt_batcher.end();
+		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+	}
+    if(error_text.draw_requested())
+	{
+
+		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
+		error_batcher.begin();
+        // this requires the atlas texture to be bound with 1 byte packing
+		if(!error_text.draw())
+        {
+            return false;
+        }
+		error_batcher.end();
 		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	}
     
     return GL_RUNTIME(__func__) == GL_NO_ERROR;
+}
+
+void console_state::unfocus()
+{
+	prompt_cmd.unfocus();
+	log_box.unfocus();
+	error_text.unfocus();
+}
+void console_state::focus()
+{
+	prompt_cmd.focus();
 }

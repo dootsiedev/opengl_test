@@ -30,7 +30,7 @@ static REGISTER_CVAR_INT(
 static REGISTER_CVAR_INT(
 	cv_disable_log,
 	0,
-	"0 = keep log, 1 = disable log",
+	"0 = keep log, 1 = disable info logs, 2 = disable info and error logs",
 	CVAR_T::RUNTIME);
 
 
@@ -161,17 +161,17 @@ bool serr_check_error()
 
 void slog_raw(const char* msg, size_t len)
 {
-    if(cv_disable_log.data == 1)
+    if(cv_disable_log.data != 0)
     {
         return;
     }
-	// on win32, if did a /subsystem:windows, I would probably 
-    // replace stdout with OutputDebugString on the debug build.
+	// on win32, if did a /subsystem:windows, I would probably
+	// replace stdout with OutputDebugString on the debug build.
 	fwrite(msg, 1, len, stdout);
 #ifndef DISABLE_CONSOLE
+	std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len);
+	memcpy(buffer.get(), msg, len);
 	{
-		std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len);
-		memcpy(buffer.get(), msg, len);
 		std::lock_guard<std::mutex> lk(g_console.mut);
 		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), len);
 	}
@@ -179,8 +179,8 @@ void slog_raw(const char* msg, size_t len)
 }
 void serr_raw(const char* msg, size_t len)
 {
-    if(cv_disable_log.data == 1)
-    {
+	if(cv_disable_log.data == 2)
+	{
         // if I didn't do this, there would be side effects 
         // since I sometimes depend on serr_check_error for checking.
         *internal_get_serr_buffer() = '!';
@@ -193,7 +193,7 @@ void serr_raw(const char* msg, size_t len)
 
 void slog(const char* msg)
 {
-    if(cv_disable_log.data == 1)
+    if(cv_disable_log.data != 0)
     {
         return;
     }
@@ -207,7 +207,7 @@ void slog(const char* msg)
 
 void serr(const char* msg)
 {
-    if(cv_disable_log.data == 1)
+    if(cv_disable_log.data == 2)
     {
         // if I didn't do this, there would be side effects 
         // since I sometimes depend on serr_check_error for checking.
@@ -221,7 +221,7 @@ void serr(const char* msg)
 
 void slogf(const char* fmt, ...)
 {
-    if(cv_disable_log.data == 1)
+    if(cv_disable_log.data != 0)
     {
         return;
     }
@@ -251,7 +251,7 @@ void slogf(const char* fmt, ...)
 
 void serrf(const char* fmt, ...)
 {
-    if(cv_disable_log.data == 1)
+    if(cv_disable_log.data == 2)
     {
         // if I didn't do this, there would be side effects 
         // since I sometimes depend on serr_check_error for checking.

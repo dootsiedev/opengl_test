@@ -55,7 +55,7 @@ std::wstring WIN_UTF8ToWide(const char* buffer, int size);
 #endif
 
 // premultiply the alpha using uint8_t {r*a,g*a,b*a,a}
-#define RGBA8_PREM(r, g, b, a)                                                                \
+#define RGBA8_PREMULT(r, g, b, a)                                                             \
 	{                                                                                         \
 		static_cast<uint8_t>(                                                                 \
 			((static_cast<float>(r) / 255.f) * (static_cast<float>(a) / 255.f)) * 255.f),     \

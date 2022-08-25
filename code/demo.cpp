@@ -624,12 +624,12 @@ DEMO_RESULT demo_state::input()
 		case SDL_WINDOWEVENT:
 			switch(e.window.event)
 			{
-			case SDL_WINDOWEVENT_RESIZED: {
+			case SDL_WINDOWEVENT_SIZE_CHANGED:
 				cv_screen_width.data = e.window.data1;
 				cv_screen_height.data = e.window.data2;
-                update_projection = true;
-			}
-			break;
+                g_console.resize_text_area();
+				update_projection = true;
+				break;
 			}
 			break;
 		case SDL_KEYUP:
@@ -648,7 +648,6 @@ DEMO_RESULT demo_state::input()
                 if(show_console)
 				{
 					g_console.unfocus();
-				    show_console = false;
 				}
 				break;
             case SDLK_F1:
@@ -858,7 +857,7 @@ bool demo_state::render()
 			float y;
 			float w;
 			float h;
-			g_console.prompt.get_bbox(&x, &y, &w, &h);
+			g_console.prompt_cmd.get_bbox(&x, &y, &w, &h);
 			GLint scissor_x = static_cast<GLint>(x);
 			GLint scissor_y = static_cast<GLint>(y);
 			GLint scissor_w = static_cast<GLint>(w);
@@ -885,7 +884,7 @@ bool demo_state::render()
 			float y;
 			float w;
 			float h;
-			g_console.log.get_bbox(&x, &y, &w, &h);
+			g_console.log_box.get_bbox(&x, &y, &w, &h);
 			GLint scissor_x = static_cast<GLint>(x);
 			GLint scissor_y = static_cast<GLint>(y);
 			GLint scissor_w = static_cast<GLint>(w);
@@ -906,6 +905,13 @@ bool demo_state::render()
 				ctx.glDisable(GL_SCISSOR_TEST);
 			}
 		}
+        if(g_console.error_batcher.vertex_count() != 0)
+		{
+            ctx.glBindVertexArray(g_console.gl_error_vao_id);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.error_batcher.vertex_count());
+            ctx.glBindVertexArray(0);
+		}
 	}
 	ctx.glUseProgram(0);
 
@@ -916,7 +922,7 @@ bool demo_state::render()
 	tick1 = timer_now();
 	SDL_GL_SwapWindow(g_app.window);
 	tick2 = timer_now();
-	perf_swap.test(tick2 - tick1);
+	perf_swap.test(timer_delta_ms(tick1, tick2));
 
     return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
@@ -929,7 +935,7 @@ DEMO_RESULT demo_state::process()
 	DEMO_RESULT ret = input();
     if(ret != DEMO_RESULT::CONTINUE) return ret;
 	tick2 = timer_now();
-	perf_input.test(tick2 - tick1);
+	perf_input.test(timer_delta_ms(tick1, tick2));
 
 	tick1 = tick2;
 	if(!render())
@@ -937,7 +943,7 @@ DEMO_RESULT demo_state::process()
         return DEMO_RESULT::ERROR;
     }
 	tick2 = timer_now();
-	perf_render.test(tick2 - tick1);
+	perf_render.test(timer_delta_ms(tick1, tick2));
 
 	return perf_time() ? DEMO_RESULT::CONTINUE : DEMO_RESULT::ERROR;
 }
@@ -950,7 +956,7 @@ bool demo_state::perf_time()
 	// but the time to display the data takes more time that I thought... (~1ms high peak)
 	static TIMER_U total_start = tick_now;
 	// static bench_data total_data;
-	perf_total.test(tick_now - total_start);
+	perf_total.test(timer_delta_ms(total_start, tick_now));
 	total_start = tick_now;
 
 	static TIMER_U display_timer = tick_now;
