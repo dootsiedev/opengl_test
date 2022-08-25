@@ -38,7 +38,7 @@ struct bench_data
     TIMER_RESULT low_ms()
     {
         //this triggers UBsan if you tried to check low_ms without a single sample
-        if(low == std::numeric_limits<TIMER_U>::max())
+        if(low == std::numeric_limits<TIMER_RESULT>::max())
         {
             return 0;
         }
@@ -52,7 +52,7 @@ struct bench_data
         samples = 0;
     }
 
-    bool display(const char* msg, font_sprite_batcher* font_batcher);
+    NDSERR bool display(const char* msg, font_sprite_batcher* font_batcher);
 };
 
 enum class DEMO_RESULT
@@ -72,8 +72,8 @@ struct demo_state
 	GLuint gl_point_vbo_id = 0;
 	GLuint gl_vao_id = 0;
 
-    bool init_gl_point_sprite();
-    bool destroy_gl_point_sprite();
+    NDSERR bool init_gl_point_sprite();
+    NDSERR bool destroy_gl_point_sprite();
 
 	shader_mono_state mono_shader;
     GLuint gl_font_interleave_vbo = 0;
@@ -137,17 +137,17 @@ struct demo_state
     bench_data perf_render;
     bench_data perf_swap;
 
-    bool init();
-	bool init_gl_font();
+    NDSERR bool init();
+	NDSERR bool init_gl_font();
 
-    bool destroy();
-    bool destroy_gl_font();
+    NDSERR bool destroy();
+    NDSERR bool destroy_gl_font();
 
-    DEMO_RESULT input();
-    bool render();
+    NDSERR DEMO_RESULT input();
+    NDSERR bool render();
 
-    DEMO_RESULT process();
+    NDSERR DEMO_RESULT process();
 
-    bool perf_time();
-    bool display_perf_text();
+    NDSERR bool perf_time();
+    NDSERR bool display_perf_text();
 };

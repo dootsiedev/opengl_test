@@ -15,7 +15,7 @@ struct debug_stacktrace_info
 // return zero for success
 typedef int (*debug_stacktrace_callback)(debug_stacktrace_info* data, const char* error, void* ud);
 
-// returns false means no stacktrace.
+// false means no stacktrace, no serr message.
 bool debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int skip = 0);
 
 // format: MODULE ! FUNCTION [FILE @ LINE] or MODULE ! PTR

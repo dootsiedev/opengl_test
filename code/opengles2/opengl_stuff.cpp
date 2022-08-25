@@ -64,7 +64,7 @@ GLenum implement_GL_CHECK(const char* msg, const char* file, int line)
 
 
 #if 1 // def _WIN32
-static void* wrapper_SDL_GL_GetProcAddress(const char* name)
+NDSERR static void* wrapper_SDL_GL_GetProcAddress(const char* name)
 {
 	void* func = SDL_GL_GetProcAddress(name);
 	if(func == NULL)
@@ -97,7 +97,7 @@ bool LoadGLContext(GLES2_Context* data)
 }
 
 
-static GLuint gl_compile_shader(const char* file_info, int shader_count, const GLchar* const* shader_script, GLenum type)
+NDSERR static GLuint gl_compile_shader(const char* file_info, int shader_count, const GLchar* const* shader_script, GLenum type)
 {
     ASSERT(file_info != NULL);
 	ASSERT(shader_script != NULL);

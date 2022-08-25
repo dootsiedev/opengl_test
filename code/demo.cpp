@@ -494,13 +494,13 @@ bool demo_state::init_gl_font()
     }
 
 
-    font_rasterizer.set_face_settings(&font_settings);
+    if(!font_rasterizer.set_face_settings(&font_settings))
+    {
+        return false;
+    }
 
 	font_style.init(&font_manager, &font_rasterizer);
     
-
-
-
 
 #if 1
 	// it's pretty slow
@@ -632,6 +632,21 @@ DEMO_RESULT demo_state::input()
 				break;
 			}
 			break;
+		case SDL_KEYDOWN:
+			switch(e.key.keysym.sym)
+			{
+			case SDLK_RETURN:
+				if((e.key.keysym.mod & KMOD_ALT) != 0)
+				{
+					cv_fullscreen.data = cv_fullscreen.data == 1 ? 0 : 1;
+                    if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
+                    {
+                        return DEMO_RESULT::ERROR;
+                    }
+				}
+				break;
+			}
+			break;
 		case SDL_KEYUP:
 			// NOTE: probably should check this if I added in other keys
             // I wouldn't want to trigger if I was using a text prompt,
@@ -643,7 +658,7 @@ DEMO_RESULT demo_state::input()
 			case SDLK_ESCAPE:
 				if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
 				{
-					slogf("SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+					slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
 				}
                 if(show_console)
 				{
@@ -660,7 +675,7 @@ DEMO_RESULT demo_state::input()
 				{
                     if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
                     {
-                        slogf("SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+                        slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
                     }
 					g_console.focus();
 				    show_console = true;
@@ -680,7 +695,7 @@ DEMO_RESULT demo_state::input()
 		case SDL_MOUSEBUTTONUP:
 			if(SDL_SetRelativeMouseMode(SDL_TRUE) < 0)
 			{
-				slogf("SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+				slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
 			}
 			break;
 		case SDL_MOUSEMOTION:
@@ -781,6 +796,8 @@ bool demo_state::render()
 		1.f);
 	ctx.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    #if 1
+
 	// identity atm;
 	// glm::mat4x4 proj = glm::ortho<float>(0,50,0, 50, -1000, 1000);
 	glm::mat4 proj = glm::perspective(
@@ -820,6 +837,7 @@ bool demo_state::render()
 	ctx.glDrawElementsInstanced(
 		GL_TRIANGLES, ibo_buffer_size, GL_UNSIGNED_SHORT, NULL, point_buffer_size);
 	ctx.glBindVertexArray(0);
+#endif
 
 	ctx.glEnable(GL_BLEND);
 	ctx.glDisable(GL_DEPTH_TEST);
@@ -915,12 +933,20 @@ bool demo_state::render()
 	}
 	ctx.glUseProgram(0);
 
-	SDL_Delay(1);
+	if(cv_vsync.data == 0)
+	{
+        // this isn't ideal, but it saves the CPU and GPU.
+		SDL_Delay(1);
+	}
 
 	TIMER_U tick1;
 	TIMER_U tick2;
 	tick1 = timer_now();
 	SDL_GL_SwapWindow(g_app.window);
+    
+    // this could help with vsync causing bad latency, in exchange for less gpu utilization.
+    // but you could also use use CPU time on non-opengl stuff, and then sleep the remainder.
+    //ctx.glFinish();
 	tick2 = timer_now();
 	perf_swap.test(timer_delta_ms(tick1, tick2));
 
@@ -979,11 +1005,15 @@ bool demo_state::perf_time()
 
         font_batcher.SetFont(&font_style);
 
+        #if 1
+
         //font_settings.render_mode = FT_RENDER_MODE_NORMAL;
 
 		font_style.set_style(FONT_STYLE_OUTLINE);
 		font_batcher.set_color(0, 0, 0, 255);
 		success = success && display_perf_text();
+
+        #endif
 
         //font_settings.render_mode = FT_RENDER_MODE_MONO;
 

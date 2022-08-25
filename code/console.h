@@ -77,11 +77,11 @@ struct console_state
 
 
     // this requires the atlas texture to be bound with 1 byte packing
-    bool init(font_bitmap_cache* font_style, shader_mono_state& mono_shader);
-    bool destroy();
+    NDSERR bool init(font_bitmap_cache* font_style, shader_mono_state& mono_shader);
+    NDSERR bool destroy();
 
     // this requires the atlas texture to be bound with 1 byte packing
-    CONSOLE_RESULT input(SDL_Event& e);
+    NDSERR CONSOLE_RESULT input(SDL_Event& e);
 
     void resize_text_area();
 
@@ -91,7 +91,7 @@ struct console_state
     // this will just modify the atlas and buffer data.
     // you need to access log_batcher and prompt_batcher directly to render.
     // this requires the atlas texture to be bound with 1 byte packing
-    bool draw();
+    NDSERR bool draw();
 
     // call this when you need to unfocus, like for example if you press escape or something.
     void unfocus();

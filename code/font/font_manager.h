@@ -150,7 +150,7 @@ struct font_atlas
 	// it does mean that the largest sized glyph must be smaller than the grid.
 	std::deque<span_bucket> span_buckets;
 
-	bool find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, uint32_t* y_out);
+	NDSERR bool find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, uint32_t* y_out);
 };
 
 // stores the entire Basic Multilingual Plane of unicode
@@ -200,13 +200,13 @@ struct hex_font_data
 
 	Unique_RWops hex_font_file;
 
-	bool init(Unique_RWops file);
-	bool destroy();
+	NDSERR bool init(Unique_RWops file);
+	NDSERR bool destroy();
 
-	FONT_RESULT load_hex_glyph(
+	NDSERR FONT_RESULT load_hex_glyph(
 		font_atlas* atlas, char32_t codepoint, bool outline, font_glyph_entry* glyph);
 
-	bool load_hex_block(hex_block_chunk* chunk);
+	NDSERR bool load_hex_block(hex_block_chunk* chunk);
 };
 
 struct font_manager_state
@@ -228,8 +228,8 @@ struct font_manager_state
 	float white_uv_y = -1;
 	float white_uv_h = -1; 
 
-	bool create();
-	bool destroy();
+	NDSERR bool create();
+	NDSERR bool destroy();
 };
 
 // todo: post processing
@@ -299,13 +299,13 @@ struct font_ttf_rasterizer
 
 	const font_ttf_face_settings* face_settings = NULL;
 
-	bool create(FT_Library ftstate, Unique_RWops file);
-	bool destroy();
+	NDSERR bool create(FT_Library ftstate, Unique_RWops file);
+	NDSERR bool destroy();
     ~font_ttf_rasterizer();
 
 	// for every style you must set this before loading glyphs.
 	// the lifetime of the settings must live as long as you need glyphs.
-	bool set_face_settings(const font_ttf_face_settings* face_settings);
+	NDSERR bool set_face_settings(const font_ttf_face_settings* face_settings);
 
 	// get the relevant metrics global to the face
 	// note that these values are not scaled for bitmap fonts,
@@ -316,7 +316,7 @@ struct font_ttf_rasterizer
 	// face->glyph->format == FT_GLYPH_FORMAT_OUTLINE
 	// if no error, you must call FT_Done_Glyph on glyph_out,
 	// and glyph_out needs to be casted to FT_BitmapGlyph.
-	bool render_glyph(FT_Glyph* glyph_out, unsigned style_flags = FONT_STYLE_NORMAL);
+	NDSERR bool render_glyph(FT_Glyph* glyph_out, unsigned style_flags = FONT_STYLE_NORMAL);
 };
 
 // cached in the atlas.
@@ -352,7 +352,7 @@ struct font_bitmap_cache
 	int current_style = FONT_STYLE_NORMAL;
 
 	void init(font_manager_state* font_manager_, font_ttf_rasterizer* rasterizer);
-    bool destroy();
+    NDSERR bool destroy();
 	~font_bitmap_cache();
 
 	void set_style(int style)
@@ -361,7 +361,7 @@ struct font_bitmap_cache
 	}
 
 	// you must set opengl's GL_UNPACK_ALIGNMENT to 1 for this to work.
-	FONT_RESULT get_glyph(char32_t codepoint, font_glyph_entry* glyph_out);
+	NDSERR FONT_RESULT get_glyph(char32_t codepoint, font_glyph_entry* glyph_out);
 
 	// internal use only
 	// returns NULL if failed to load.
@@ -369,7 +369,7 @@ struct font_bitmap_cache
 	// ftglyph holds the lifetime of bitmap returned,
 	// but sometimes the bitmap is stored in convert_bitmap
 	// if the glyph was not an outline or FT_PIXEL_MODE_GRAY.
-	FT_Bitmap* render_tf_glyph(FT_UInt glyph_index, unique_ft_glyph& ftglyph);
+	NDSERR FT_Bitmap* render_tf_glyph(FT_UInt glyph_index, unique_ft_glyph& ftglyph);
 };
 
 // the anchor for which side to align to.
@@ -562,10 +562,10 @@ struct font_sprite_batcher
 	}
 
 	// You must call this between begin() and end()
-	bool draw_format(const char* fmt, ...) __attribute__((format(printf, 2, 3)));
+	NDSERR bool draw_format(const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 
 	// you can use null terminated strings if size = 0, but strlen will be used.
-	bool draw_text(const char* text, size_t size = 0);
+	NDSERR bool draw_text(const char* text, size_t size = 0);
 
 
 	FONT_RESULT load_glyph_verts(char32_t codepoint);

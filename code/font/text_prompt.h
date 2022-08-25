@@ -143,14 +143,14 @@ struct text_prompt_wrapper
 
 	// batcher needs to have a style set, and must be anchored TOP_LEFT
 	// this requires the atlas texture to be bound with 1 byte packing
-	bool init(std::string_view contents, font_sprite_batcher* batcher_, TEXTP_FLAG flags_);
+	NDSERR bool init(std::string_view contents, font_sprite_batcher* batcher_, TEXTP_FLAG flags_);
 
 	// this will also check blink_timer and blink the cursor.
 	// NOTE: but blink_timer should be in a logic() function...
 	bool draw_requested();
 
 	// this requires the atlas texture to be bound with 1 byte packing
-	bool replace_string(std::string_view contents);
+	NDSERR bool replace_string(std::string_view contents);
 	void clear_string();
 
 	// this is an expensive operation
@@ -160,7 +160,7 @@ struct text_prompt_wrapper
 	TEXT_PROMPT_RESULT input(SDL_Event& e);
 
 	// this draws into the batcher
-	bool draw();
+	NDSERR bool draw();
 
 	void scroll_to_top()
 	{
@@ -303,10 +303,10 @@ struct text_prompt_wrapper
 		return scroll_h + (has_horizontal ? scrollbar_thickness : 0);
 	}
 
-	bool internal_draw_pretext();
+	NDSERR bool internal_draw_pretext();
 	// TODO(dootsie): the offset was supposed to be from pretext to speed up scanning
-	bool internal_draw_text(size_t offset, bool* caret_visible, float* caret_x, float* caret_y);
-	bool internal_draw_marked(float x, float y);
+	NDSERR bool internal_draw_text(size_t offset, bool* caret_visible, float* caret_x, float* caret_y);
+	NDSERR bool internal_draw_marked(float x, float y);
 
 	bool internal_scroll_y_inside(float mouse_x, float mouse_y);
 	void internal_scroll_y_to(float mouse_y);

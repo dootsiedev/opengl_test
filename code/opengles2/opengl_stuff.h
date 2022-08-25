@@ -2,6 +2,8 @@
 
 // opengles3
 
+#include "../global.h"
+
 #include "gl3platform.h"
 #include "gl3.h"
 #include "gl2ext.h"
@@ -52,18 +54,18 @@ struct GLES2_Context
 #undef SDL_PROC
 };
 
-bool LoadGLContext(GLES2_Context* data);
+NDSERR bool LoadGLContext(GLES2_Context* data);
 
 extern GLES2_Context ctx;
 
-GLuint gl_create_program(
+NDSERR GLuint gl_create_program(
 	const char* vert_info,
 	const GLchar* vert_shader,
 	const char* frag_info,
 	const GLchar* frag_shader);
 
 // gl_create_program but you can use an array of strings.
-GLuint gl_create_program2(
+NDSERR GLuint gl_create_program2(
 	const char* vert_info,
 	int vert_count,
 	const GLchar* const* vert_shader,

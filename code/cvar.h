@@ -1,5 +1,7 @@
 #pragma once
 
+#include "global.h"
+
 #include <cstring> //for strcmp
 
 #include <map>
@@ -40,7 +42,7 @@ public:
 	, cvar_debug_line(line)
 	{
 	}
-	virtual bool cvar_read(const char* buffer) = 0;
+	NDSERR virtual bool cvar_read(const char* buffer) = 0;
 	virtual std::string cvar_write() = 0;
 	virtual ~V_cvar() = default; // not used but needed to suppress warnings
 
@@ -62,7 +64,7 @@ struct cmp_str
 std::map<const char*, V_cvar&, cmp_str>& get_convars();
 void cvar_init(); // sets the default
 //flags_req must be either CVAR_STARTUP,CVAR_GAME,CVAR_RUNTIME.
-bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv);
+NDSERR bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv);
 void cvar_list(bool debug);
 
 // to define an option for a single source file use this:
@@ -86,7 +88,7 @@ public:
 	// you should use REGISTER_CVAR_ to fill in file and line.
 	cvar_int(const char* key, int value, const char* comment, CVAR_T type, const char* file, int line);
 
-	bool cvar_read(const char* buffer) override;
+	NDSERR bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;
 };
 
@@ -99,7 +101,7 @@ public:
 	cvar_double(
 		const char* key, double value, const char* comment, CVAR_T type, const char* file, int line);
 
-	bool cvar_read(const char* buffer) override;
+	NDSERR bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;
 };
 
@@ -117,6 +119,6 @@ public:
 		const char* file,
 		int line);
 
-	bool cvar_read(const char* buffer) override;
+	NDSERR bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;
 };

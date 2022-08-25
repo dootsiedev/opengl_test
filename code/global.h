@@ -24,7 +24,7 @@
 
 // this is a vague signal to say "THIS FUNCTION PRINTS TO SERR, CAPTURE IT!"
 // if a function return is not for serr, just use [[nodiscard]].
-#define MYNODISCARD [[nodiscard]]
+#define NDSERR [[nodiscard]]
 
 // CHECK is a soft assert, where the error is probably the programmers fault so the message is not
 // user friendly, but unlike ASSERT the program can still continue. returns the value of the

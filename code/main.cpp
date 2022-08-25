@@ -15,7 +15,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_keyboard.h>
 
-static REGISTER_CVAR_INT(cv_vsync, 0, "0 (off), 1 (on), -1 (adaptive?)", CVAR_T::STARTUP);
 
 
 static const char* GetGLDebugSeverityKHR(GLenum severity)
@@ -156,14 +155,15 @@ static bool app_init(App_Info& app)
 
 #undef SDL_CHECK
 
+	Uint32 fullscreen_mode = cv_fullscreen.data == 1 ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
+
 	app.window = SDL_CreateWindow(
 		"A Window",
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
 		cv_screen_width.data,
 		cv_screen_height.data,
-		SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE |
-			(cv_fullscreen.data == 1 ? SDL_WINDOW_FULLSCREEN : 0));
+		SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | fullscreen_mode);
 	if(app.window == NULL)
 	{
 		serrf("SDL_CreateWindow Error: %s", SDL_GetError());
