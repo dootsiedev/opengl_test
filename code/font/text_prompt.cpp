@@ -64,8 +64,8 @@ bool text_prompt_wrapper::init(
 	batcher = batcher_;
 	flags = flags_;
 
-    // does this need to be zero'd?
-    stb_textedit_initialize_state(&stb_state, single_line() ? 1 : 0);
+	// does this need to be zero'd?
+	stb_textedit_initialize_state(&stb_state, single_line() ? 1 : 0);
 
 	if(!replace_string(contents))
 	{
@@ -73,12 +73,12 @@ bool text_prompt_wrapper::init(
 	}
 
 	space_advance_cache = batcher->GetAdvance(' ');
-    return CHECK(!isnan(space_advance_cache));
+	return CHECK(!isnan(space_advance_cache));
 }
 
 bool text_prompt_wrapper::replace_string(std::string_view contents)
 {
-    update_buffer = true;
+	update_buffer = true;
 
 	std::u32string wstr;
 	wstr.reserve(contents.size());
@@ -98,15 +98,14 @@ bool text_prompt_wrapper::replace_string(std::string_view contents)
 	}
 
 	// I clear the state because stb_textedit_paste will create 2 undo's
-    // otherwise I would only reset the state if this was readonly() to save memory (if it was dynamic).
+	// otherwise I would only reset the state if this was readonly() to save memory (if it was
+	// dynamic).
 	stb_textedit_clear_state(&stb_state, single_line() ? 1 : 0);
-    text_data.clear();
+	text_data.clear();
 
-
-    //stb_state.select_start = STB_TEXTEDIT_STRINGLEN(this);
-	//stb_state.select_end = STB_TEXTEDIT_STRINGLEN(this);
-	//stb_state.cursor = STB_TEXTEDIT_STRINGLEN(this);
-
+	// stb_state.select_start = STB_TEXTEDIT_STRINGLEN(this);
+	// stb_state.select_end = STB_TEXTEDIT_STRINGLEN(this);
+	// stb_state.cursor = STB_TEXTEDIT_STRINGLEN(this);
 
 	// avoid read only error.
 	TEXTP_FLAG was_readonly = flags;
@@ -116,6 +115,11 @@ bool text_prompt_wrapper::replace_string(std::string_view contents)
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	stb_textedit_paste(this, &stb_state, wstr.data(), wstr.size());
 	flags = was_readonly;
+
+    // why not set the cursor to the end.
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+    stb_state.cursor = text_data.size();
+
 	/*if(ret == 0)
 	{
 		batcher = NULL;
@@ -131,17 +135,17 @@ bool text_prompt_wrapper::replace_string(std::string_view contents)
 }
 void text_prompt_wrapper::clear_string()
 {
-    update_buffer = true;
+	update_buffer = true;
 
-    // TODO(dootsie): I could implement this to be undo'able
-    // I would make this function use a bool to set wether or not you want keep undo state,
-    // and I would need to manually create a undo record, because paste would create 2.
-    stb_textedit_clear_state(&stb_state, single_line() ? 1 : 0);
-    text_data.clear();
+	// TODO(dootsie): I could implement this to be undo'able
+	// I would make this function use a bool to set wether or not you want keep undo state,
+	// and I would need to manually create a undo record, because paste would create 2.
+	stb_textedit_clear_state(&stb_state, single_line() ? 1 : 0);
+	text_data.clear();
 
-    //stb_state.select_start = STB_TEXTEDIT_STRINGLEN(this);
-	//stb_state.select_end = STB_TEXTEDIT_STRINGLEN(this);
-	//stb_state.cursor = STB_TEXTEDIT_STRINGLEN(this);
+	// stb_state.select_start = STB_TEXTEDIT_STRINGLEN(this);
+	// stb_state.select_end = STB_TEXTEDIT_STRINGLEN(this);
+	// stb_state.cursor = STB_TEXTEDIT_STRINGLEN(this);
 }
 
 std::string text_prompt_wrapper::get_string() const
@@ -151,7 +155,7 @@ std::string text_prompt_wrapper::get_string() const
 	{
 		if(!cpputf_append_string(out, c.codepoint))
 		{
-            slogf("info: invalid codepoint from prompt: U+%X\n", c.codepoint);
+			slogf("info: invalid codepoint from prompt: U+%X\n", c.codepoint);
 		}
 	}
 	return out;
@@ -232,7 +236,46 @@ bool text_prompt_wrapper::draw()
 		return false;
 	}
 
-	// draw the bbox
+	
+
+	float caret_x = -1;
+	float caret_y = -1;
+	bool caret_visible = false;
+	if(!internal_draw_text(0, &caret_visible, &caret_x, &caret_y))
+	{
+		return false;
+	}
+
+    // at the end because when I draw a backdrop, I don't want the bbox to be under it
+    internal_draw_widgets();
+
+	if(markedText.empty())
+	{
+		// draw the cursor
+		if(draw_caret && caret_visible)
+		{
+			if(box_ymax >= caret_y && box_ymin <= caret_y + lineskip && box_xmax >= caret_x &&
+			   box_xmin <= caret_x + 2)
+			{
+				ASSERT(text_focus);
+				ASSERT(!read_only());
+				batcher->set_color(caret_color);
+				batcher->draw_rect(caret_x, caret_x + 2, caret_y, caret_y + lineskip);
+			}
+		}
+	}
+	else if(!internal_draw_marked(caret_x, caret_y))
+	{
+		return false;
+	}
+
+
+	return true;
+}
+
+void text_prompt_wrapper::internal_draw_widgets()
+{
+    // draw the bbox
 	if(draw_bbox())
 	{
 		batcher->set_color(bbox_color);
@@ -342,36 +385,6 @@ bool text_prompt_wrapper::draw()
 			batcher->draw_rect(xmin, xmax, ymax - 1, ymax);
 		}
 	}
-
-	float caret_x = -1;
-	float caret_y = -1;
-	bool caret_visible = false;
-	if(!internal_draw_text(0, &caret_visible, &caret_x, &caret_y))
-	{
-		return false;
-	}
-
-	if(markedText.empty())
-	{
-		// draw the cursor
-		if(draw_caret && caret_visible)
-		{
-			if(box_ymax >= caret_y && box_ymin <= caret_y + lineskip && box_xmax >= caret_x &&
-			   box_xmin <= caret_x + 2)
-			{
-				ASSERT(text_focus);
-				ASSERT(!read_only());
-				batcher->set_color(caret_color);
-				batcher->draw_rect(caret_x, caret_x + 2, caret_y, caret_y + lineskip);
-			}
-		}
-	}
-	else if(!internal_draw_marked(caret_x, caret_y))
-	{
-		return false;
-	}
-
-	return true;
 }
 
 bool text_prompt_wrapper::internal_draw_pretext()
@@ -566,7 +579,8 @@ bool text_prompt_wrapper::internal_draw_pretext()
 			scroll_x = std::max(
 				0.f,
 				std::min(
-					scroll_w + (has_vertical ? scrollbar_thickness : 0) + horizontal_padding - (box_xmax - box_xmin),
+					scroll_w + (has_vertical ? scrollbar_thickness : 0) + horizontal_padding -
+						(box_xmax - box_xmin),
 					scroll_x));
 		}
 		scroll_to_cursor = false;
@@ -627,32 +641,33 @@ bool text_prompt_wrapper::internal_draw_text(
 			continue;
 		}
 
-        if(draw_backdrop())
-        {
-            backdrop_minx = batcher->draw_x_pos();
-            batcher->set_color(backdrop_color);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            backdrop_vertex_buffer_index = batcher->font_vertex_buffer.size();
-            batcher->draw_rect(0, 0, 0, 0);
-            batcher->set_color(text_color);
-        }
+		if(draw_backdrop())
+		{
+			backdrop_minx = batcher->draw_x_pos();
+			batcher->set_color(backdrop_color);
+			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+			backdrop_vertex_buffer_index = batcher->font_vertex_buffer.size();
+			batcher->draw_rect(0, 0, 0, 0);
+			batcher->set_color(text_color);
+		}
+
+		if(currently_selected && selection_vertex_buffer_index == -1)
+		{
+			selection_minx = batcher->draw_x_pos();
+			batcher->set_color(active_selection_color);
+			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+			selection_vertex_buffer_index = batcher->font_vertex_buffer.size();
+			batcher->draw_rect(0, 0, 0, 0);
+			batcher->set_color(select_text_color);
+		}
 
 		for(; cur != i; ++cur)
 		{
 			if(STB_TEXT_HAS_SELECTION(&stb_state))
 			{
-				if(currently_selected && selection_vertex_buffer_index == -1)
-				{
-					selection_minx = batcher->draw_x_pos();
-					batcher->set_color(active_selection_color);
-					// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-					selection_vertex_buffer_index = batcher->font_vertex_buffer.size();
-					batcher->draw_rect(0, 0, 0, 0);
-					batcher->set_color(select_text_color);
-				}
 				if(cur == selection_start)
 				{
-                    ASSERT(selection_vertex_buffer_index == -1);
+					ASSERT(selection_vertex_buffer_index == -1);
 					// start selection
 					currently_selected = true;
 					selection_minx = batcher->draw_x_pos();
@@ -693,7 +708,8 @@ bool text_prompt_wrapper::internal_draw_text(
 			else if(!single_line() && ret.codepoint == '\n')
 			{
 				// make the newline draw a selected area to show you are selecting the newline
-				batcher->insert_padding(space_advance_cache);
+                // NOTE: I removed this because it made the backdrop look ugly
+				//batcher->insert_padding(space_advance_cache);
 			}
 			else
 			{
@@ -715,8 +731,10 @@ bool text_prompt_wrapper::internal_draw_text(
 				}
 			}
 		}
-        if(draw_backdrop() && backdrop_vertex_buffer_index != -1)
-        {
+
+		if(draw_backdrop())
+		{
+			ASSERT(backdrop_vertex_buffer_index != -1);
 			float pos_x = cull_box() ? std::max(box_xmin, backdrop_minx) : backdrop_minx;
 			float pos_w =
 				cull_box() ? std::min(box_xmax, batcher->draw_x_pos()) : batcher->draw_x_pos();
@@ -724,8 +742,9 @@ bool text_prompt_wrapper::internal_draw_text(
 			float pos_h = batcher->draw_y_pos() + lineskip;
 			batcher->move_rect(backdrop_vertex_buffer_index, pos_x, pos_w, pos_y, pos_h);
 			backdrop_vertex_buffer_index = -1;
-        }
-		if(currently_selected)
+		}
+        
+        if(currently_selected)
 		{
 			// end of row, finish the selection
 			ASSERT(selection_vertex_buffer_index != -1);
@@ -747,17 +766,8 @@ bool text_prompt_wrapper::internal_draw_text(
 			{
 				break;
 			}
-            if(draw_backdrop())
-            {
-				// prepare the next row's backdrop
-				backdrop_minx = batcher->draw_x_pos();
-				batcher->set_color(backdrop_color);
-                // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-                backdrop_vertex_buffer_index = batcher->font_vertex_buffer.size();
-                batcher->draw_rect(0, 0, 0, 0);
-                batcher->set_color(text_color);
-            }
-			if(currently_selected)
+
+			/*if(currently_selected)
 			{
 				// prepare the next row's selection
 				selection_minx = batcher->draw_x_pos();
@@ -767,6 +777,16 @@ bool text_prompt_wrapper::internal_draw_text(
 				batcher->draw_rect(0, 0, 0, 0);
 				batcher->set_color(select_text_color);
 			}
+			if(draw_backdrop())
+			{
+				// prepare the next row's backdrop
+				backdrop_minx = batcher->draw_x_pos();
+				batcher->set_color(backdrop_color);
+				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+				backdrop_vertex_buffer_index = batcher->font_vertex_buffer.size();
+				batcher->draw_rect(0, 0, 0, 0);
+				batcher->set_color(text_color);
+			}*/
 		}
 	}
 
@@ -1181,10 +1201,10 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		break;
 		// Special text input event
 	case SDL_TEXTINPUT: {
-        if(!text_focus)
-        {
-            break;
-        }
+		if(!text_focus)
+		{
+			break;
+		}
 
 		if(read_only())
 		{
@@ -1233,10 +1253,10 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 	// when you backspace the IME to go away.
 	// not sure which version it gets fixed.
 	case SDL_TEXTEDITING:
-        if(!text_focus)
-        {
-            break;
-        }
+		if(!text_focus)
+		{
+			break;
+		}
 		if(read_only())
 		{
 			break;
@@ -1276,10 +1296,10 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		// the old version had a limited string length.
 		// in old SDL the start + length was used for splitting the events into chunks
 	case SDL_TEXTEDITING_EXT:
-        if(!text_focus)
-        {
-            break;
-        }
+		if(!text_focus)
+		{
+			break;
+		}
 		if(read_only())
 		{
 			break;
@@ -1381,7 +1401,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 					{
 						if(!cpputf_append_string(out, start->codepoint))
 						{
-                            slogf("info: invalid codepoint from prompt: U+%X\n", start->codepoint);
+							slogf("info: invalid codepoint from prompt: U+%X\n", start->codepoint);
 						}
 					}
 					if(SDL_SetClipboardText(out.c_str()) != 0)
@@ -1412,7 +1432,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 					{
 						if(!cpputf_append_string(out, start->codepoint))
 						{
-                            slogf("info: invalid codepoint from prompt: U+%X\n", start->codepoint);
+							slogf("info: invalid codepoint from prompt: U+%X\n", start->codepoint);
 						}
 					}
 					if(stb_textedit_cut(this, &stb_state) != 1)
@@ -1649,7 +1669,7 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 		// yes this does happen because stb undo/redo is broken
 		return 0;
 	}
-    
+
 	auto it = text_data.insert(text_data.begin() + index, n, prompt_char{});
 	for(int i = 0; i < n; ++i, ++it)
 	{
@@ -1673,7 +1693,7 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 		else
 		{
 			it->advance = batcher->GetAdvance(it->codepoint);
-            if(!CHECK(!isnan(it->advance)))
+			if(!CHECK(!isnan(it->advance)))
 			{
 				return 0;
 			}

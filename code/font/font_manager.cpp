@@ -595,12 +595,12 @@ bool font_atlas::find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, 
 }
 
 // This is copy pasted from rapidjson::FileReadStream, but modified for use by RWops.
-class BS_ReadStream
+class hex_file_BS_ReadStream
 {
 public:
 	typedef char Ch; //!< Character type (byte).
 
-	BS_ReadStream(RWops* file_, char* buffer, size_t bufferSize)
+	hex_file_BS_ReadStream(RWops* file_, char* buffer, size_t bufferSize)
 	: file(file_)
 	, buffer_(buffer)
 	, bufferSize_(bufferSize)
@@ -678,7 +678,7 @@ bool hex_font_data::init(Unique_RWops file)
 	ASSERT(file);
 	hex_font_file = std::move(file);
 	char internal_buffer[2048];
-	BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
+	hex_file_BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
 
 	while(true)
 	{
@@ -990,7 +990,7 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 	size_t block_offset = chunk - hex_block_chunks.data();
 
 	char internal_buffer[2048];
-	BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
+	hex_file_BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
 
 	while(true)
 	{

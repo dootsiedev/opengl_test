@@ -6,6 +6,7 @@
 #include "shaders/mono.h"
 #include "font/font_manager.h"
 #include "font/text_prompt.h"
+#include "BS_Archive/BS_archive.h"
 
 
 #include <SDL2/SDL.h>
@@ -75,8 +76,13 @@ struct console_state
     font_sprite_batcher error_batcher;
     text_prompt_wrapper error_text;
 
+	const char* history_path = "console_hist.json";
+	std::deque<std::string> command_history;
+	// when you press up, you still want to restore the original prompt
+	std::string original_prompt;
+    int history_index = -1;
 
-    // this requires the atlas texture to be bound with 1 byte packing
+	// this requires the atlas texture to be bound with 1 byte packing
     NDSERR bool init(font_bitmap_cache* font_style, shader_mono_state& mono_shader);
     NDSERR bool destroy();
 
@@ -96,6 +102,8 @@ struct console_state
     // call this when you need to unfocus, like for example if you press escape or something.
     void unfocus();
     void focus();
+
+    void serialize_history(BS_Archive& ar);
 };
 
 

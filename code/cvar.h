@@ -1,6 +1,7 @@
 #pragma once
 
 #include "global.h"
+#include "RWops.h"
 
 #include <cstring> //for strcmp
 
@@ -65,6 +66,7 @@ std::map<const char*, V_cvar&, cmp_str>& get_convars();
 void cvar_init(); // sets the default
 //flags_req must be either CVAR_STARTUP,CVAR_GAME,CVAR_RUNTIME.
 NDSERR bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv);
+NDSERR bool cvar_json(RWops* file);
 void cvar_list(bool debug);
 
 // to define an option for a single source file use this:

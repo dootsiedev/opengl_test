@@ -1,5 +1,8 @@
 #include "global.h"
 
+#include "BS_Archive/BS_json.h"
+#include "BS_Archive/BS_stream.h"
+
 #include <climits>
 
 #include "cvar.h"
@@ -207,7 +210,7 @@ bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
 		default: ASSERT(false && "flags_req not implemented");
 		}
 
-        std::string old_value = it->second.cvar_write();
+        std::string old_value = cv.cvar_write();
 
 		if(!cv.cvar_read(argv[i]))
 		{
@@ -216,6 +219,81 @@ bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
 		slogf("%s (%s) = %s\n", name, old_value.c_str(), argv[i]);
 	}
 	return true;
+}
+
+
+bool cvar_json(RWops* file)
+{
+    // TODO: this SUCKS, just use a txt file ifstream + getline(), and parse the line like a console
+    TIMER_U tick1;
+	TIMER_U tick2;
+	tick1 = timer_now();
+
+	ASSERT(file != NULL);
+	char buffer[1000];
+	BS_ReadStream sb(file, buffer, sizeof(buffer));
+	BS_JsonReader<decltype(sb), rj::kParseCommentsFlag | rj::kParseNumbersAsStringsFlag> ar(sb);
+
+	std::string json_key;
+	ar.StartObject();
+	while(ar.Good())
+	{
+        auto key_cb = [](const char* str, size_t size, void* ud) {
+            (void)size;
+            if(strncmp(str, "END", size) == 0)
+            {
+                return true;
+            }
+			auto *it = static_cast<decltype(get_convars().end())*>(ud);
+			*it = get_convars().find(str);
+			if(*it == get_convars().end())
+			{
+				serrf("ERROR: cvar not found: `%s`\n", str);
+				return false;
+			}
+			return true;
+		};
+        auto temp_it = get_convars().end();
+
+		// This is actually sketchy because this should be a "Key"
+        // but rapidjson just casts Keys to Strings so this works.
+        if(!ar.String_CB(json_key, key_cb, &temp_it))
+        {
+            break;
+        }
+        if(temp_it == get_convars().end())
+        {
+            ar.Null();
+            break;
+        }
+
+		auto value_cb = [](const char* str, size_t size, void* ud) {
+            (void)size;
+			auto *it = static_cast<decltype(get_convars().end())*>(ud);
+			V_cvar& cv = (*it)->second;
+			std::string old_value = cv.cvar_write();
+			if(!cv.cvar_read(str))
+			{
+				return false;
+			}
+			slogf("%s (%s) = %s\n", (*it)->first, old_value.c_str(), str);
+
+			return true;
+		};
+		if(!ar.String_CB(std::string(), value_cb, &temp_it))
+		{
+			break;
+		}
+	}
+	ar.EndObject();
+
+	if(!ar.Finish(file->name()))
+    {
+        return false;
+    }
+	tick2 = timer_now();
+    slogf("%s time: %f\n", __func__, timer_delta_ms(tick1, tick2));
+    return true;
 }
 
 void cvar_list(bool debug)

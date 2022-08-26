@@ -397,6 +397,13 @@ add_executable(${PROJECT_NAME}
     code/opengles2/SDL_gles2funcs.h.txt
     code/opengles2/opengl_stuff.h
     code/opengles2/opengl_stuff.cpp
+    
+    code/BS_Archive/BS_archive.h
+    code/BS_Archive/BS_binary.h
+    code/BS_Archive/BS_json.h
+    code/BS_Archive/BS_json.cpp
+    code/BS_Archive/BS_stream.h
+    code/BS_Archive/BS_stream.cpp
 )
 
 #I'm not using this to speed up compilation,
@@ -471,6 +478,18 @@ target_link_libraries(${PROJECT_NAME} glm::glm)
 
 find_package(Freetype REQUIRED)
 target_link_libraries(${PROJECT_NAME} Freetype::Freetype)
+
+#I use a really new version of rapidjson,
+#and rapidjson has not bumped their version number past 1.1.0 since a decade,
+#and ATM the package system on linux still uses a really old version of rapidjson
+#But it is possible to use vcpkg and use the "date" as a version number.
+find_package(RapidJSON CONFIG REQUIRED)
+
+#I have to set SYSTEM because there is a -Wmaybe-uninitialized warning...
+#target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE ${RapidJSON_INCLUDE_DIRS})
+
+#for some reason you have to use lowercase rapidjson target...
+target_link_libraries(${PROJECT_NAME} rapidjson)
 
 #
 # install

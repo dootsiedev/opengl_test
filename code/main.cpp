@@ -267,6 +267,31 @@ int main(int argc, char** argv)
 
 	bool success = true;
 
+    const char* path = "cvar.json";
+    FILE* fp = fopen(path, "rb");
+    if(fp == NULL)
+    {
+        // not existing is not an error (maybe make an info log?)
+        // ENOENT = No such file or directory
+        if(errno != ENOENT)
+        {
+            serrf("Failed to open: `%s`, reason: %s\n", path, strerror(errno));
+            success = false;
+        }
+    }
+    else
+    {
+        RWops_Stdio fp_raii(fp, path);
+        if(!cvar_json(&fp_raii))
+        {
+            success = false;
+        }
+        if(!fp_raii.close())
+        {
+            success = false;
+        }
+    }
+
 	for(int i = 0; i < argc; ++i)
 	{
 		if(strcmp(argv[i], "--help") == 0)

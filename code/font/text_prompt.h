@@ -307,6 +307,7 @@ struct text_prompt_wrapper
 	// TODO(dootsie): the offset was supposed to be from pretext to speed up scanning
 	NDSERR bool internal_draw_text(size_t offset, bool* caret_visible, float* caret_x, float* caret_y);
 	NDSERR bool internal_draw_marked(float x, float y);
+	void internal_draw_widgets();
 
 	bool internal_scroll_y_inside(float mouse_x, float mouse_y);
 	void internal_scroll_y_to(float mouse_y);
