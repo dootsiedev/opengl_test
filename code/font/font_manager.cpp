@@ -4,6 +4,9 @@
 #include "font_manager.h"
 #include "utf8_stuff.h"
 
+//for reading files, since I like the stream API.
+#include "../BS_Archive/BS_stream.h"
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -21,7 +24,6 @@
 
 // TODO(dootsie): I need to make error messages more informational, like print the codepoint into
 // utf8.
-
 
 #define FT_CEIL(X) ((((X) + 63) & -64) / 64)
 #define FT_FLOOR(X) (((X) & -64) / 64)
@@ -81,7 +83,7 @@ static FT_ULong ttf_RWread(FT_Stream stream, FT_ULong offset, unsigned char* buf
 
 	ASSERT(src != NULL);
 
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	if(src->seek(offset, SEEK_SET) != 0)
 	{
 		return 0;
@@ -166,10 +168,10 @@ bool font_manager_state::create()
 	}
 
 	float atlas_size = static_cast<float>(atlas.atlas_size);
-	white_uv_x = static_cast<float>(x_out) / atlas_size;
-	white_uv_w = static_cast<float>(x_out + 1) / atlas_size;
-	white_uv_y = static_cast<float>(y_out) / atlas_size;
-	white_uv_h = static_cast<float>(y_out + 1) / atlas_size;
+	white_uv[0] = static_cast<float>(x_out) / atlas_size;
+	white_uv[2] = static_cast<float>(x_out + 1) / atlas_size;
+	white_uv[1] = static_cast<float>(y_out) / atlas_size;
+	white_uv[3] = static_cast<float>(y_out + 1) / atlas_size;
 
 	// upload 1 pixel
 	uint8_t pixel = 255;
@@ -594,91 +596,12 @@ bool font_atlas::find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, 
 	return false;
 }
 
-// This is copy pasted from rapidjson::FileReadStream, but modified for use by RWops.
-class hex_file_BS_ReadStream
-{
-public:
-	typedef char Ch; //!< Character type (byte).
-
-	hex_file_BS_ReadStream(RWops* file_, char* buffer, size_t bufferSize)
-	: file(file_)
-	, buffer_(buffer)
-	, bufferSize_(bufferSize)
-	, bufferLast_(0)
-	, current_(buffer_)
-	, readCount_(0)
-	, count_(0)
-	, eof_(false)
-	, error_(false)
-	{
-		Read();
-	}
-
-	Ch Peek() const
-	{
-		return *current_;
-	}
-	Ch Take()
-	{
-		Ch c = *current_;
-		Read();
-		return c;
-	}
-	size_t Tell() const
-	{
-		return count_ + (current_ - buffer_);
-	}
-
-	size_t Size() const;
-
-	bool good() const
-	{
-		return !error_;
-	}
-
-private:
-	void Read()
-	{
-		if(current_ < bufferLast_)
-		{
-			++current_;
-		}
-		else if(!eof_)
-		{
-			count_ += readCount_;
-			readCount_ = file->read(buffer_, 1, bufferSize_);
-			bufferLast_ = buffer_ + readCount_ - 1;
-			current_ = buffer_;
-
-			if(readCount_ < bufferSize_)
-			{
-				buffer_[readCount_] = '\0';
-				++bufferLast_;
-				eof_ = true;
-			}
-		}
-		else
-		{
-			error_ = true;
-		}
-	}
-
-	RWops* file;
-	Ch* buffer_;
-	size_t bufferSize_;
-	Ch* bufferLast_;
-	Ch* current_;
-	size_t readCount_;
-	size_t count_; //!< Number of characters read
-	bool eof_;
-	bool error_;
-};
 bool hex_font_data::init(Unique_RWops file)
 {
 	ASSERT(file);
 	hex_font_file = std::move(file);
 	char internal_buffer[2048];
-	hex_file_BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
+	BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
 
 	while(true)
 	{
@@ -990,7 +913,7 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 	size_t block_offset = chunk - hex_block_chunks.data();
 
 	char internal_buffer[2048];
-	hex_file_BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
+	BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
 
 	while(true)
 	{
@@ -1209,10 +1132,11 @@ FONT_RESULT font_bitmap_cache::get_glyph(char32_t codepoint, font_glyph_entry* g
 		glyph_index = FT_Get_Char_Index(current_rasterizer->face, codepoint);
 		if(glyph_index == 0)
 		{
-            if(cv_font_warnings.data == 1)
-            {
-			    slogf("info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
-            }
+			if(cv_font_warnings.data != 0)
+			{
+				slogf(
+					"info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+			}
 			block.bad_indexes.set(block_index);
 		}
 	}
@@ -1283,6 +1207,18 @@ FONT_RESULT font_bitmap_cache::get_glyph(char32_t codepoint, font_glyph_entry* g
 			block.bad_indexes.set(block_index);
 			return FONT_RESULT::ERROR;
 		}
+#if 0
+        if(cv_has_EXT_disjoint_timer_query.data == 1)
+        {
+            static GLuint query = 0;
+            if(query == 0)
+            {
+                ctx.glGenQueriesEXT(1, &query);
+            }
+            ctx.glBeginQueryEXT(GL_TIME_ELAPSED_EXT,query);
+            TIMER_U t1 = timer_now();
+        }
+#endif
 		ctx.glTexSubImage2D(
 			GL_TEXTURE_2D,
 			0,
@@ -1293,11 +1229,21 @@ FONT_RESULT font_bitmap_cache::get_glyph(char32_t codepoint, font_glyph_entry* g
 			GL_RED,
 			GL_UNSIGNED_BYTE,
 			bitmap->buffer);
-
-        if(GL_RUNTIME(__func__) != GL_NO_ERROR)
+#if 0
+        if(cv_has_EXT_disjoint_timer_query.data == 1)
         {
-            return FONT_RESULT::ERROR;
+            TIMER_U t2 = timer_now();
+            ctx.glEndQueryEXT(GL_TIME_ELAPSED_EXT);
+
+            GLuint64 elapsed_time;
+            ctx.glGetQueryObjectui64vEXT(query, GL_QUERY_RESULT, &elapsed_time);
+            slogf("glTexSubImage2D time: %f, wait: %f\n", elapsed_time / 1000000.0, timer_delta_ms(t1, t2));
         }
+#endif
+		if(GL_RUNTIME(__func__) != GL_NO_ERROR)
+		{
+			return FONT_RESULT::ERROR;
+		}
 
 		glyph_out->rect_x = x_out;
 		glyph_out->rect_y = y_out;
@@ -1311,7 +1257,6 @@ FONT_RESULT font_bitmap_cache::get_glyph(char32_t codepoint, font_glyph_entry* g
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		glyph_out->ymin = (ftglyph_bitmap->top);
 		glyph_out->type = (use_bitmap ? FONT_ENTRY::BITMAP : FONT_ENTRY::NORMAL);
-        
 	}
 
 	if(!block.glyphs[current_style])
@@ -1445,14 +1390,17 @@ FT_Bitmap* font_bitmap_cache::render_tf_glyph(FT_UInt glyph_index, unique_ft_gly
 
 void font_sprite_batcher::begin()
 {
-	font_vertex_buffer.clear();
+	// font_vertex_buffer.clear();
+	batcher.buffer = batcher_buffer;
+	batcher.size = std::size(batcher_buffer) / mono_2d_batcher::QUAD_VERTS;
+	batcher.set_cursor(0);
 	newline_cursor = 0;
 	flush_cursor = 0;
 }
 
 void font_sprite_batcher::end(GLenum type)
 {
-	if(font_vertex_buffer.empty())
+	if(batcher.get_quad_count() == 0)
 	{
 		return;
 	}
@@ -1463,14 +1411,9 @@ void font_sprite_batcher::end(GLenum type)
 	// orphaning
 	// The reason for using the capacity for orphaning even though it's not used
 	// is because I have seen other examples do it, probably helps with orphaning.
-	GLsizeiptr bytes_capacity =
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		font_vertex_buffer.capacity() * sizeof(decltype(font_vertex_buffer)::value_type);
-	ctx.glBufferData(GL_ARRAY_BUFFER, bytes_capacity, NULL, type);
-	GLsizeiptr bytes_to_write =
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		font_vertex_buffer.size() * sizeof(decltype(font_vertex_buffer)::value_type);
-	ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, bytes_to_write, font_vertex_buffer.data());
+	ctx.glBufferData(GL_ARRAY_BUFFER, sizeof(batcher_buffer), NULL, type);
+	GLsizeiptr bytes_to_write = batcher.get_vertex_count() * sizeof(gl_mono_vertex);
+	ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, bytes_to_write, batcher_buffer);
 }
 
 bool font_sprite_batcher::draw_format(const char* fmt, ...)
@@ -1642,15 +1585,18 @@ FONT_RESULT font_sprite_batcher::load_glyph_verts(char32_t codepoint)
 
 	ASSERT(glyph.type != FONT_ENTRY::UNDEFINED);
 
-	float uv_x = static_cast<float>(glyph.rect_x) / atlas_size;
-	float uv_w = static_cast<float>(glyph.rect_x + glyph.rect_w) / atlas_size;
-	float uv_y = static_cast<float>(glyph.rect_y) / atlas_size;
-	float uv_h = static_cast<float>(glyph.rect_y + glyph.rect_h) / atlas_size;
+	std::array<float, 4> uv;
+	// minx
+	uv[0] = static_cast<float>(glyph.rect_x) / atlas_size;
+	// miny
+	uv[1] = static_cast<float>(glyph.rect_y) / atlas_size;
+	// maxx
+	uv[2] = static_cast<float>(glyph.rect_x + glyph.rect_w) / atlas_size;
+	// maxy
+	uv[3] = static_cast<float>(glyph.rect_y + glyph.rect_h) / atlas_size;
 
-	float pos_x;
-	float pos_w;
-	float pos_y;
-	float pos_h;
+	std::array<float, 4> pos;
+
 
 	float bitmap_scale;
 
@@ -1659,10 +1605,10 @@ FONT_RESULT font_sprite_batcher::load_glyph_verts(char32_t codepoint)
 	default: CHECK(false && "unreachable"); return FONT_RESULT::ERROR;
 	case FONT_ENTRY::NORMAL:
 		ASSERT(font_type == FONT_TYPES::TTF);
-		pos_x = draw_cur_x + static_cast<float>(glyph.xmin);
-		pos_w = pos_x + static_cast<float>(glyph.rect_w);
-		pos_y = top - static_cast<float>(glyph.ymin);
-		pos_h = pos_y + static_cast<float>(glyph.rect_h);
+		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin);
+		pos[1] = top - static_cast<float>(glyph.ymin);
+		pos[2] = pos[0] + static_cast<float>(glyph.rect_w);
+		pos[3] = pos[1] + static_cast<float>(glyph.rect_h);
 		draw_cur_x += static_cast<float>(glyph.advance);
 		break;
 
@@ -1675,19 +1621,19 @@ FONT_RESULT font_sprite_batcher::load_glyph_verts(char32_t codepoint)
 		bitmap_scale = face_settings->point_size /
 					   static_cast<float>(static_cast<int>(
 						   FT_CEIL(font->current_rasterizer->face->size->metrics.height)));
-		pos_x = draw_cur_x + static_cast<float>(glyph.xmin) * bitmap_scale;
-		pos_w = pos_x + static_cast<float>(glyph.rect_w) * bitmap_scale;
-		pos_y = top - static_cast<float>(glyph.ymin) * bitmap_scale;
-		pos_h = pos_y + static_cast<float>(glyph.rect_h) * bitmap_scale;
+		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin) * bitmap_scale;
+		pos[1] = top - static_cast<float>(glyph.ymin) * bitmap_scale;
+		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * bitmap_scale;
+		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * bitmap_scale;
 		draw_cur_x += static_cast<float>(glyph.advance) * bitmap_scale;
 	}
 	break;
 
 	case FONT_ENTRY::HEXFONT:
-		pos_x = draw_cur_x + static_cast<float>(glyph.xmin) * hex_scale;
-		pos_w = pos_x + static_cast<float>(glyph.rect_w) * hex_scale;
-		pos_y = top - static_cast<float>(glyph.ymin) * hex_scale;
-		pos_h = pos_y + static_cast<float>(glyph.rect_h) * hex_scale;
+		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin) * hex_scale;
+		pos[1] = top - static_cast<float>(glyph.ymin) * hex_scale;
+		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * hex_scale;
+		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * hex_scale;
 		draw_cur_x += static_cast<float>(glyph.advance) * hex_scale;
 		break;
 
@@ -1696,32 +1642,21 @@ FONT_RESULT font_sprite_batcher::load_glyph_verts(char32_t codepoint)
 		return FONT_RESULT::SUCCESS;
 	}
 
-	font_vertex_buffer.emplace_back(
-		pos_x, pos_y, 0, uv_x, uv_y, cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		pos_w, pos_h, 0, uv_w, uv_h, cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		pos_w, pos_y, 0, uv_w, uv_y, cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		pos_x, pos_y, 0, uv_x, uv_y, cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		pos_x, pos_h, 0, uv_x, uv_h, cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		pos_w, pos_h, 0, uv_w, uv_h, cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
+	if(!batcher.draw_rect(pos, uv, cur_color))
+	{
+		// TODO: shouln't be an error.
+		return FONT_RESULT::ERROR;
+	}
 
 	return FONT_RESULT::SUCCESS;
 }
-
-void font_sprite_batcher::draw_rect(float minx, float maxx, float miny, float maxy)
+std::array<float, 4> font_sprite_batcher::get_white_uv() const
 {
 	font_manager_state* font_m;
 
 	switch(font_type)
 	{
-		// I don't want to check for unreachable
-		// because it's the programmer's responsibility, and should be an ASSERT,
-		// but I get an uninitialized warning... (not wrong!)
-	default: ASSERT(false && "unreachable"); return;
+	default: ASSERT(false && "unreachable"); return {-1, -1, -1, -1};
 	case FONT_TYPES::TTF: {
 		font_bitmap_cache* font = font_u.ttf.font;
 		ASSERT(font != NULL);
@@ -1735,99 +1670,7 @@ void font_sprite_batcher::draw_rect(float minx, float maxx, float miny, float ma
 	}
 	break;
 	}
-
-	font_vertex_buffer.emplace_back(
-		minx,
-		miny,
-		0.f,
-		font_m->white_uv_x,
-		font_m->white_uv_y,
-		cur_color[0],
-		cur_color[1],
-		cur_color[2],
-		cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		maxx,
-		maxy,
-		0.f,
-		font_m->white_uv_w,
-		font_m->white_uv_h,
-		cur_color[0],
-		cur_color[1],
-		cur_color[2],
-		cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		maxx,
-		miny,
-		0.f,
-		font_m->white_uv_w,
-		font_m->white_uv_y,
-		cur_color[0],
-		cur_color[1],
-		cur_color[2],
-		cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		minx,
-		miny,
-		0.f,
-		font_m->white_uv_x,
-		font_m->white_uv_y,
-		cur_color[0],
-		cur_color[1],
-		cur_color[2],
-		cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		minx,
-		maxy,
-		0.f,
-		font_m->white_uv_x,
-		font_m->white_uv_h,
-		cur_color[0],
-		cur_color[1],
-		cur_color[2],
-		cur_color[3]);
-	font_vertex_buffer.emplace_back(
-		maxx,
-		maxy,
-		0.f,
-		font_m->white_uv_w,
-		font_m->white_uv_h,
-		cur_color[0],
-		cur_color[1],
-		cur_color[2],
-		cur_color[3]);
-}
-
-void font_sprite_batcher::move_rect(size_t index, float minx, float maxx, float miny, float maxy)
-{
-	ASSERT((index % FONT_BATCH_VERTS) == 0);
-	ASSERT(index + FONT_BATCH_VERTS <= font_vertex_buffer.size());
-
-	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-	auto it = font_vertex_buffer.begin() + index;
-
-	it->pos[0] = minx;
-	it->pos[1] = miny;
-	++it;
-
-	it->pos[0] = maxx;
-	it->pos[1] = maxy;
-	++it;
-
-	it->pos[0] = maxx;
-	it->pos[1] = miny;
-	++it;
-
-	it->pos[0] = minx;
-	it->pos[1] = miny;
-	++it;
-
-	it->pos[0] = minx;
-	it->pos[1] = maxy;
-	++it;
-
-	it->pos[0] = maxx;
-	it->pos[1] = maxy;
+	return font_m->white_uv;
 }
 
 float font_sprite_batcher::GetLineSkip() const
@@ -1924,7 +1767,7 @@ void font_sprite_batcher::internal_flush()
 	// finish the x axis alignment of any leftover newline
 	Newline();
 
-	size_t size = font_vertex_buffer.size();
+	size_t size = batcher.get_vertex_count();
 
 	switch(current_anchor)
 	{
@@ -1935,7 +1778,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = draw_cur_y - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			font_vertex_buffer[flush_cursor].pos[1] -= off_h;
+			batcher_buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1943,7 +1786,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = draw_cur_y - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			font_vertex_buffer[flush_cursor].pos[1] -= off_h;
+			batcher_buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1951,7 +1794,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			font_vertex_buffer[flush_cursor].pos[1] -= off_h;
+			batcher_buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1960,7 +1803,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = draw_cur_y - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			font_vertex_buffer[flush_cursor].pos[1] -= off_h;
+			batcher_buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1968,7 +1811,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			font_vertex_buffer[flush_cursor].pos[1] -= off_h;
+			batcher_buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1976,7 +1819,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			font_vertex_buffer[flush_cursor].pos[1] -= off_h;
+			batcher_buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1987,7 +1830,7 @@ void font_sprite_batcher::internal_flush()
 
 void font_sprite_batcher::Newline()
 {
-	size_t size = font_vertex_buffer.size();
+	size_t size = batcher.get_vertex_count();
 
 	switch(current_anchor)
 	{
@@ -1997,7 +1840,7 @@ void font_sprite_batcher::Newline()
 		float off_w = draw_cur_x - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			font_vertex_buffer[newline_cursor].pos[0] -= off_w;
+			batcher_buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -2006,7 +1849,7 @@ void font_sprite_batcher::Newline()
 		float off_w = draw_cur_x - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			font_vertex_buffer[newline_cursor].pos[0] -= off_w;
+			batcher_buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -2014,7 +1857,7 @@ void font_sprite_batcher::Newline()
 		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			font_vertex_buffer[newline_cursor].pos[0] -= off_w;
+			batcher_buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -2022,7 +1865,7 @@ void font_sprite_batcher::Newline()
 		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			font_vertex_buffer[newline_cursor].pos[0] -= off_w;
+			batcher_buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -2030,7 +1873,7 @@ void font_sprite_batcher::Newline()
 		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			font_vertex_buffer[newline_cursor].pos[0] -= off_w;
+			batcher_buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -2039,7 +1882,7 @@ void font_sprite_batcher::Newline()
 		float off_w = draw_cur_x - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			font_vertex_buffer[newline_cursor].pos[0] -= off_w;
+			batcher_buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;

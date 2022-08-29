@@ -415,7 +415,7 @@ bool demo_state::init_gl_font()
 	}
 
 	{
-#if 1
+#if 0
 		TIMER_U start;
 		TIMER_U end;
 		start = timer_now();
@@ -432,7 +432,7 @@ bool demo_state::init_gl_font()
 			return false;
 		}
 
-#if 1
+#if 0
 		// pretty fast for initializing every glyph in unicode.
 		// 140ms on asan 24ms on reldeb.
 		end = timer_now();
@@ -449,7 +449,7 @@ bool demo_state::init_gl_font()
 #endif
 	}
 
-#if 1
+#if 0
 	TIMER_U start;
 	TIMER_U end;
 	start = timer_now();
@@ -502,7 +502,7 @@ bool demo_state::init_gl_font()
 	font_style.init(&font_manager, &font_rasterizer);
     
 
-#if 1
+#if 0
 	// it's pretty slow
 	// 0.2ms on asan, 0.15 on reldeb
 	// might need preloading + only load preloaded glyphs
@@ -589,6 +589,18 @@ bool demo_state::destroy()
 	return success;
 }
 
+void demo_state::unfocus()
+{
+    for(auto &val : keys_down)
+    {
+        val = false;
+    }
+    if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
+    {
+        slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+    }
+}
+
 // return 0 for continue, 1 for exit.
 DEMO_RESULT demo_state::input()
 {
@@ -597,27 +609,29 @@ DEMO_RESULT demo_state::input()
 	{
         //TIMER_U t1 = timer_now();
 
-        
-        if(show_console)
-        {
-            if(SDL_GetRelativeMouseMode() != SDL_TRUE)
+        bool input_eaten = false;
+
+		if(show_console)
+		{
+            ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
+            CONSOLE_RESULT ret = g_console.input(e);
+            // restore to the default 4 alignment.
+            ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+            switch(ret)
             {
-                ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-                ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
-                CONSOLE_RESULT ret = g_console.input(e);
-                // restore to the default 4 alignment.
-                ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-                switch(ret)
-                {
-                case CONSOLE_RESULT::CONTINUE: break;
-                case CONSOLE_RESULT::EAT: return DEMO_RESULT::CONTINUE;
-                case CONSOLE_RESULT::ERROR: return DEMO_RESULT::ERROR;
-                }
-            } else {
-                g_console.unfocus();
+            case CONSOLE_RESULT::CONTINUE: break;
+            case CONSOLE_RESULT::EAT: input_eaten = true; break;
+            case CONSOLE_RESULT::ERROR: return DEMO_RESULT::ERROR;
             }
+		}
+
+        if(input_eaten)
+        {
+            unfocus(); 
+            return DEMO_RESULT::CONTINUE;
         }
-        
+
 		switch(e.type)
 		{
         case SDL_QUIT: return DEMO_RESULT::EXIT;
@@ -656,10 +670,7 @@ DEMO_RESULT demo_state::input()
             switch(e.key.keysym.sym)
 			{
 			case SDLK_ESCAPE:
-				if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
-				{
-					slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
-				}
+				unfocus();
                 if(show_console)
 				{
 					g_console.unfocus();
@@ -673,10 +684,7 @@ DEMO_RESULT demo_state::input()
 				}
 				else
 				{
-                    if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
-                    {
-                        slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
-                    }
+                    unfocus();
 					g_console.focus();
 				    show_console = true;
 				}
@@ -693,10 +701,13 @@ DEMO_RESULT demo_state::input()
 			}
 			break;
 		case SDL_MOUSEBUTTONUP:
-			if(SDL_SetRelativeMouseMode(SDL_TRUE) < 0)
+		    if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 			{
-				slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
-			}
+                if(SDL_SetRelativeMouseMode(SDL_TRUE) < 0)
+                {
+                    slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+                }
+            }
 			break;
 		case SDL_MOUSEMOTION:
 			if(SDL_GetRelativeMouseMode() == SDL_TRUE)
@@ -1039,6 +1050,7 @@ bool demo_state::perf_time()
 		perf_render.reset();
 		perf_swap.reset();
 
+        #if 0
         static bool first_sample = false;
         if(first_sample == false)
         {
@@ -1046,6 +1058,7 @@ bool demo_state::perf_time()
             TIMER_U first_sample_time = timer_now();
             slogf("first_text_pass: %f\n", timer_delta_ms(tick_now, first_sample_time));
         }
+        #endif
 	}
 	return true;
 }

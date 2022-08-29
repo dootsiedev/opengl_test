@@ -116,6 +116,19 @@ struct font_glyph_entry
 
 struct font_atlas
 {
+	/*
+	optimzation: Use rectpack2d for caching the fonts onto the disk,
+			keep using my "very inefficient" atlas,
+			but when I gracefully quit, put all the fonts into rectpack,
+			save it as a png, store the font path & glyph metrics into json,
+			then on startup load it back into the atlas,
+            this has the benefit of no stutter from loading glyphs,
+            and techinically the cache could be used for "release".
+			Also works as a solution for "ran out of atlas space"
+			just allocate a larger altas and rectpack2d
+			but I would need to make all text to trigger a redraw (or just gracefully exit)
+            Only downside is that I might need a garbage collector for unused fonts/glyphs.
+	*/
 	uint32_t atlas_size = 0;
 
 	// the grain size of pixels each span can hold.
@@ -154,8 +167,11 @@ struct font_atlas
 };
 
 // stores the entire Basic Multilingual Plane of unicode
-// It's possible to store more (emojis), but not done here.
 // this is also embedded into the font_manager as a global fallback for all fonts.
+// NOTE: I need to put this somewhere, but I combine 2 unifont hex's to include emojis.
+// First you need to get unifont-14.0.02.hex and unifont_upper-14.0.02.hex
+// Then you need to remove all codepoints that are overlap between both hexfonts,
+// or else you get an error, and then combine both fonts.
 struct hex_font_data
 {
 	// this is a hex font glyph.
@@ -223,10 +239,13 @@ struct font_manager_state
 	hex_font_data hex_font;
 
     // for drawing primitives, this is a single white pixel.
+    std::array<float, 4> white_uv;
+    /*
     float white_uv_x = -1;
 	float white_uv_w = -1;
 	float white_uv_y = -1;
-	float white_uv_h = -1; 
+	float white_uv_h = -1; */
+    
 
 	NDSERR bool create();
 	NDSERR bool destroy();
@@ -319,6 +338,76 @@ struct font_ttf_rasterizer
 	NDSERR bool render_glyph(FT_Glyph* glyph_out, unsigned style_flags = FONT_STYLE_NORMAL);
 };
 
+// probably shouldn't be here
+struct mono_2d_batcher
+{
+    enum
+	{
+		QUAD_VERTS = 6
+	};
+
+	gl_mono_vertex* buffer = NULL;
+	size_t size = 0;
+	size_t cursor = 0;
+
+	size_t get_vertex_count() const
+	{
+        //ASSERT(buffer != NULL);
+		return cursor * QUAD_VERTS;
+	}
+    size_t get_quad_count() const
+	{
+        ASSERT(buffer != NULL);
+		return cursor;
+	}
+    //use the return from get_quad_count
+    void set_cursor(size_t pos)
+    {
+        ASSERT(buffer != NULL);
+        ASSERT(pos < size);
+        cursor = pos;
+	}
+
+	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy
+	bool draw_rect(std::array<float, 4> pos, std::array<float, 4> uv, std::array<uint8_t, 4> color)
+	{
+        if(cursor >= size)
+		{
+			return false;
+		}
+		return draw_rect_at(cursor++, pos, uv, color);
+	}
+
+	int placeholder_rect()
+    {
+        if(cursor >= size)
+		{
+			return -1;
+		}
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+        return cursor++;
+    }
+
+	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy
+	bool draw_rect_at(
+		size_t index, std::array<float, 4> pos, std::array<float, 4> uv, std::array<uint8_t, 4> color)
+	{
+		ASSERT(buffer != NULL);
+		if(index >= size)
+		{
+			return false;
+		}
+        gl_mono_vertex *cur = buffer + index * QUAD_VERTS;
+		*cur++ = {pos[0], pos[1], 0.f, uv[0], uv[1], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[2], pos[3], 0.f, uv[2], uv[3], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[2], pos[1], 0.f, uv[2], uv[1], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[0], pos[1], 0.f, uv[0], uv[1], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[0], pos[3], 0.f, uv[0], uv[3], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[2], pos[3], 0.f, uv[2], uv[3], color[0], color[1], color[2], color[3]};
+		return true;
+	}
+};
+
 // cached in the atlas.
 struct font_bitmap_cache
 {
@@ -335,7 +424,7 @@ struct font_bitmap_cache
         // quick bit check if a glyph is known to not exist.
         // I really like std::bitset, but I probably need to replace this
         // with a C style bitset in a unique_ptr or a std::vector<bool>
-        // because I want to store FONT_CACHE_CHUNK_GLYPHS in a cvar.
+        // TODO(dootise): because I want to store FONT_CACHE_CHUNK_GLYPHS in a cvar.
 		std::bitset<FONT_CACHE_CHUNK_GLYPHS> bad_indexes;
 
 		// FONT_ENTRY::UNDEFINED is used to check if initialized.
@@ -424,7 +513,9 @@ struct font_sprite_batcher
 		HEX
 	};
 
-	std::vector<gl_mono_vertex> font_vertex_buffer;
+	//std::vector<gl_mono_vertex> font_vertex_buffer;
+    gl_mono_vertex batcher_buffer[1000 * mono_2d_batcher::QUAD_VERTS];
+    mono_2d_batcher batcher;
 
 	size_t flush_cursor = 0;
 	size_t newline_cursor = 0;
@@ -466,7 +557,7 @@ struct font_sprite_batcher
 
 	size_t vertex_count() const
 	{
-		return font_vertex_buffer.size();
+		return batcher.get_vertex_count();//font_vertex_buffer.size();
 	}
 
     //you can use this for knowing where the string left off.
@@ -570,12 +661,14 @@ struct font_sprite_batcher
 
 	FONT_RESULT load_glyph_verts(char32_t codepoint);
 
+    std::array<float, 4> get_white_uv() const;
+
 	// using a single pixel in the atlas, you can draw primitives,
 	// I use this for drawing the text selection, and potentially strikeout, underline.
-	void draw_rect(float minx, float maxx, float miny, float maxy);
+	///void draw_rect(float minx, float maxx, float miny, float maxy);
 
     // index references the vertex
     // you can use vertex_count() to reference the index.
-	void move_rect(size_t index, float minx, float maxx, float miny, float maxy);
+	//void move_rect(size_t index, float minx, float maxx, float miny, float maxy);
 };
 

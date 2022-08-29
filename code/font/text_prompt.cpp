@@ -116,9 +116,9 @@ bool text_prompt_wrapper::replace_string(std::string_view contents)
 	stb_textedit_paste(this, &stb_state, wstr.data(), wstr.size());
 	flags = was_readonly;
 
-    // why not set the cursor to the end.
+	// why not set the cursor to the end.
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-    stb_state.cursor = text_data.size();
+	stb_state.cursor = text_data.size();
 
 	/*if(ret == 0)
 	{
@@ -169,6 +169,7 @@ bool text_prompt_wrapper::draw_requested()
 	ASSERT(!(word_wrap() && x_scrollable()) && "can't have both wordwrap and x scrolling");
 
 	// if you tab out of the window text input can deactivate without sending ""
+    // also if you suddenly set the text to be read only, clear it.
 	if(!markedText.empty() && (SDL_IsTextInputActive() == SDL_FALSE || read_only()))
 	{
 		markedText.clear();
@@ -236,8 +237,6 @@ bool text_prompt_wrapper::draw()
 		return false;
 	}
 
-	
-
 	float caret_x = -1;
 	float caret_y = -1;
 	bool caret_visible = false;
@@ -246,8 +245,6 @@ bool text_prompt_wrapper::draw()
 		return false;
 	}
 
-    // at the end because when I draw a backdrop, I don't want the bbox to be under it
-    internal_draw_widgets();
 
 	if(markedText.empty())
 	{
@@ -259,8 +256,8 @@ bool text_prompt_wrapper::draw()
 			{
 				ASSERT(text_focus);
 				ASSERT(!read_only());
-				batcher->set_color(caret_color);
-				batcher->draw_rect(caret_x, caret_x + 2, caret_y, caret_y + lineskip);
+				std::array<float, 4> caret_pos{caret_x, caret_y, caret_x + 2, caret_y + lineskip};
+				batcher->batcher.draw_rect(caret_pos, batcher->get_white_uv(), caret_color);
 			}
 		}
 	}
@@ -269,20 +266,26 @@ bool text_prompt_wrapper::draw()
 		return false;
 	}
 
+	// at the end because when I draw a backdrop, I don't want the bbox to be under it
+	internal_draw_widgets();
 
 	return true;
 }
 
 void text_prompt_wrapper::internal_draw_widgets()
 {
-    // draw the bbox
+	auto white_uv = batcher->get_white_uv();
+	// draw the bbox
 	if(draw_bbox())
 	{
-		batcher->set_color(bbox_color);
-		batcher->draw_rect(box_xmin, box_xmin + 1, box_ymin, box_ymax);
-		batcher->draw_rect(box_xmin, box_xmax, box_ymin, box_ymin + 1);
-		batcher->draw_rect(box_xmax - 1, box_xmax, box_ymin, box_ymax);
-		batcher->draw_rect(box_xmin, box_xmax, box_ymax - 1, box_ymax);
+		batcher->batcher.draw_rect(
+			{box_xmin, box_ymin, box_xmin + 1, box_ymax}, white_uv, bbox_color);
+		batcher->batcher.draw_rect(
+			{box_xmin, box_ymin, box_xmax, box_ymin + 1}, white_uv, bbox_color);
+		batcher->batcher.draw_rect(
+			{box_xmax - 1, box_ymin, box_xmax, box_ymax}, white_uv, bbox_color);
+		batcher->batcher.draw_rect(
+			{box_xmin, box_ymax - 1, box_xmax, box_ymax}, white_uv, bbox_color);
 
 		// draw the scroll bar bbox
 		if(!single_line())
@@ -298,15 +301,22 @@ void text_prompt_wrapper::internal_draw_widgets()
 				float scrollbar_ymin = box_ymin;
 				float scrollbar_ymax = box_ymin + scrollbar_max_height;
 
-				batcher->set_color(caret_color);
-				batcher->draw_rect(
-					scrollbar_xmin, scrollbar_xmin + 1, scrollbar_ymin, scrollbar_ymax);
-				batcher->draw_rect(
-					scrollbar_xmin, scrollbar_xmax, scrollbar_ymin, scrollbar_ymin + 1);
-				batcher->draw_rect(
-					scrollbar_xmax - 1, scrollbar_xmax, scrollbar_ymin, scrollbar_ymax);
-				batcher->draw_rect(
-					scrollbar_xmin, scrollbar_xmax, scrollbar_ymax - 1, scrollbar_ymax);
+				batcher->batcher.draw_rect(
+					{scrollbar_xmin, scrollbar_ymin, scrollbar_xmin + 1, scrollbar_ymax},
+					white_uv,
+					bbox_color);
+				batcher->batcher.draw_rect(
+					{scrollbar_xmin, scrollbar_ymin, scrollbar_xmax, scrollbar_ymin + 1},
+					white_uv,
+					bbox_color);
+				batcher->batcher.draw_rect(
+					{scrollbar_xmax - 1, scrollbar_ymin, scrollbar_xmax, scrollbar_ymax},
+					white_uv,
+					bbox_color);
+				batcher->batcher.draw_rect(
+					{scrollbar_xmin, scrollbar_ymax - 1, scrollbar_xmax, scrollbar_ymax},
+					white_uv,
+					bbox_color);
 			}
 			if(has_horizontal)
 			{
@@ -317,15 +327,22 @@ void text_prompt_wrapper::internal_draw_widgets()
 				float scrollbar_ymin = box_ymax - scrollbar_thickness;
 				float scrollbar_ymax = box_ymax;
 
-				batcher->set_color(caret_color);
-				batcher->draw_rect(
-					scrollbar_xmin, scrollbar_xmin + 1, scrollbar_ymin, scrollbar_ymax);
-				batcher->draw_rect(
-					scrollbar_xmin, scrollbar_xmax, scrollbar_ymin, scrollbar_ymin + 1);
-				batcher->draw_rect(
-					scrollbar_xmax - 1, scrollbar_xmax, scrollbar_ymin, scrollbar_ymax);
-				batcher->draw_rect(
-					scrollbar_xmin, scrollbar_xmax, scrollbar_ymax - 1, scrollbar_ymax);
+				batcher->batcher.draw_rect(
+					{scrollbar_xmin, scrollbar_ymin, scrollbar_xmin + 1, scrollbar_ymax},
+					white_uv,
+					bbox_color);
+				batcher->batcher.draw_rect(
+					{scrollbar_xmin, scrollbar_ymin, scrollbar_xmax, scrollbar_ymin + 1},
+					white_uv,
+					bbox_color);
+				batcher->batcher.draw_rect(
+					{scrollbar_xmax - 1, scrollbar_ymin, scrollbar_xmax, scrollbar_ymax},
+					white_uv,
+					bbox_color);
+				batcher->batcher.draw_rect(
+					{scrollbar_xmin, scrollbar_ymax - 1, scrollbar_xmax, scrollbar_ymax},
+					white_uv,
+					bbox_color);
 			}
 		}
 	}
@@ -352,13 +369,11 @@ void text_prompt_wrapper::internal_draw_widgets()
 			float ymin = std::floor(box_ymin + thumb_offset);
 			float ymax = std::floor(box_ymin + thumb_offset + thumb_height);
 
-			batcher->set_color(scrollbar_color);
-			batcher->draw_rect(xmin, xmax, ymin, ymax);
-			batcher->set_color(bbox_color);
-			batcher->draw_rect(xmin, xmin + 1, ymin, ymax);
-			batcher->draw_rect(xmin, xmax, ymin, ymin + 1);
-			batcher->draw_rect(xmax - 1, xmax, ymin, ymax);
-			batcher->draw_rect(xmin, xmax, ymax - 1, ymax);
+			batcher->batcher.draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
+			batcher->batcher.draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+			batcher->batcher.draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+			batcher->batcher.draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+			batcher->batcher.draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 		}
 		if(has_horizontal)
 		{
@@ -376,13 +391,11 @@ void text_prompt_wrapper::internal_draw_widgets()
 			float ymin = box_ymax - scrollbar_thickness;
 			float ymax = box_ymax;
 
-			batcher->set_color(scrollbar_color);
-			batcher->draw_rect(xmin, xmax, ymin, ymax);
-			batcher->set_color(bbox_color);
-			batcher->draw_rect(xmin, xmin + 1, ymin, ymax);
-			batcher->draw_rect(xmin, xmax, ymin, ymin + 1);
-			batcher->draw_rect(xmax - 1, xmax, ymin, ymax);
-			batcher->draw_rect(xmin, xmax, ymax - 1, ymax);
+			batcher->batcher.draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
+			batcher->batcher.draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+			batcher->batcher.draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+			batcher->batcher.draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+			batcher->batcher.draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 		}
 	}
 }
@@ -591,6 +604,8 @@ bool text_prompt_wrapper::internal_draw_pretext()
 bool text_prompt_wrapper::internal_draw_text(
 	size_t offset, bool* caret_visible, float* caret_x, float* caret_y)
 {
+	auto white_uv = batcher->get_white_uv();
+
 	// set the batcher position.
 	batcher->SetXY(
 		box_xmin - (x_scrollable() ? scroll_x : 0.f), box_ymin - (y_scrollable() ? scroll_y : 0.f));
@@ -644,20 +659,21 @@ bool text_prompt_wrapper::internal_draw_text(
 		if(draw_backdrop())
 		{
 			backdrop_minx = batcher->draw_x_pos();
-			batcher->set_color(backdrop_color);
-			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			backdrop_vertex_buffer_index = batcher->font_vertex_buffer.size();
-			batcher->draw_rect(0, 0, 0, 0);
-			batcher->set_color(text_color);
+			backdrop_vertex_buffer_index = batcher->batcher.placeholder_rect();
+			if(backdrop_vertex_buffer_index == -1)
+			{
+				return false;
+			}
 		}
 
 		if(currently_selected && selection_vertex_buffer_index == -1)
 		{
 			selection_minx = batcher->draw_x_pos();
-			batcher->set_color(active_selection_color);
-			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			selection_vertex_buffer_index = batcher->font_vertex_buffer.size();
-			batcher->draw_rect(0, 0, 0, 0);
+			selection_vertex_buffer_index = batcher->batcher.placeholder_rect();
+			if(selection_vertex_buffer_index == -1)
+			{
+				return false;
+			}
 			batcher->set_color(select_text_color);
 		}
 
@@ -671,10 +687,11 @@ bool text_prompt_wrapper::internal_draw_text(
 					// start selection
 					currently_selected = true;
 					selection_minx = batcher->draw_x_pos();
-					batcher->set_color(active_selection_color);
-					// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-					selection_vertex_buffer_index = batcher->font_vertex_buffer.size();
-					batcher->draw_rect(0, 0, 0, 0);
+					selection_vertex_buffer_index = batcher->batcher.placeholder_rect();
+					if(selection_vertex_buffer_index == -1)
+					{
+						return false;
+					}
 					batcher->set_color(select_text_color);
 				}
 				else if(cur == selection_end)
@@ -686,7 +703,14 @@ bool text_prompt_wrapper::internal_draw_text(
 											 : batcher->draw_x_pos();
 					float pos_y = batcher->draw_y_pos();
 					float pos_h = batcher->draw_y_pos() + lineskip;
-					batcher->move_rect(selection_vertex_buffer_index, pos_x, pos_w, pos_y, pos_h);
+					if(!batcher->batcher.draw_rect_at(
+						   selection_vertex_buffer_index,
+						   {pos_x, pos_y, pos_w, pos_h},
+						   white_uv,
+						   active_selection_color))
+					{
+						return false;
+					}
 					selection_vertex_buffer_index = -1;
 					batcher->set_color(text_color);
 				}
@@ -708,8 +732,8 @@ bool text_prompt_wrapper::internal_draw_text(
 			else if(!single_line() && ret.codepoint == '\n')
 			{
 				// make the newline draw a selected area to show you are selecting the newline
-                // NOTE: I removed this because it made the backdrop look ugly
-				//batcher->insert_padding(space_advance_cache);
+				// NOTE: I removed this because it made the backdrop look ugly
+				// batcher->insert_padding(space_advance_cache);
 			}
 			else
 			{
@@ -740,11 +764,18 @@ bool text_prompt_wrapper::internal_draw_text(
 				cull_box() ? std::min(box_xmax, batcher->draw_x_pos()) : batcher->draw_x_pos();
 			float pos_y = batcher->draw_y_pos();
 			float pos_h = batcher->draw_y_pos() + lineskip;
-			batcher->move_rect(backdrop_vertex_buffer_index, pos_x, pos_w, pos_y, pos_h);
+			if(!batcher->batcher.draw_rect_at(
+				   backdrop_vertex_buffer_index,
+				   {pos_x, pos_y, pos_w, pos_h},
+				   white_uv,
+				   backdrop_color))
+			{
+				return false;
+			}
 			backdrop_vertex_buffer_index = -1;
 		}
-        
-        if(currently_selected)
+
+		if(currently_selected)
 		{
 			// end of row, finish the selection
 			ASSERT(selection_vertex_buffer_index != -1);
@@ -753,7 +784,14 @@ bool text_prompt_wrapper::internal_draw_text(
 				cull_box() ? std::min(box_xmax, batcher->draw_x_pos()) : batcher->draw_x_pos();
 			float pos_y = batcher->draw_y_pos();
 			float pos_h = batcher->draw_y_pos() + lineskip;
-			batcher->move_rect(selection_vertex_buffer_index, pos_x, pos_w, pos_y, pos_h);
+			if(!batcher->batcher.draw_rect_at(
+				   selection_vertex_buffer_index,
+				   {pos_x, pos_y, pos_w, pos_h},
+				   white_uv,
+				   active_selection_color))
+			{
+				return false;
+			}
 			selection_vertex_buffer_index = -1;
 		}
 
@@ -819,14 +857,22 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	ASSERT(text_focus);
 	ASSERT(!read_only());
 
+	auto white_uv = batcher->get_white_uv();
+
 	float lineskip = batcher->GetLineSkip();
 
 	// reserve space to draw a backdrop,
 	// uses inverted color of the font, except for the alpha
-	batcher->set_color(
-		255 - text_color[0], 255 - text_color[1], 255 - text_color[2], text_color[3]);
-	size_t marked_vertex_buffer_index = batcher->font_vertex_buffer.size();
-	batcher->draw_rect(0, 0, 0, 0);
+	// batcher->set_color(
+	//	255 - text_color[0], 255 - text_color[1], 255 - text_color[2], text_color[3]);
+	// size_t marked_vertex_buffer_index =
+	// batcher->batcher.get_vertex_count();//->font_vertex_buffer.size(); batcher->draw_rect(0, 0,
+	// 0, 0);
+	int marked_vertex_buffer_index = batcher->batcher.placeholder_rect();
+	if(marked_vertex_buffer_index == -1)
+	{
+		return false;
+	}
 	batcher->set_color(text_color);
 
 	batcher->SetXY(x, y);
@@ -888,10 +934,10 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	if(pos_w > box_xmax)
 	{
 		float x_off = pos_w - box_xmax;
-		size_t size = batcher->font_vertex_buffer.size();
+		size_t size = batcher->batcher.get_vertex_count(); //->font_vertex_buffer.size();
 		for(; batcher->newline_cursor < size; ++batcher->newline_cursor)
 		{
-			batcher->font_vertex_buffer[batcher->newline_cursor].pos[0] -= x_off;
+			batcher->batcher_buffer[batcher->newline_cursor].pos[0] -= x_off;
 		}
 		pos_x -= x_off;
 		pos_w -= x_off;
@@ -899,14 +945,19 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	}
 
 	// finish the backdrop
-	batcher->move_rect(marked_vertex_buffer_index, pos_x, pos_w, pos_y, pos_h);
+	if(!batcher->batcher.draw_rect_at(
+		   marked_vertex_buffer_index, {pos_x, pos_y, pos_w, pos_h}, white_uv, backdrop_color))
+	{
+		return false;
+	}
 
 	// draw the cursor
 	if(draw_caret)
 	{
-		batcher->set_color(caret_color);
-		batcher->draw_rect(
-			marked_caret_x, marked_caret_x + 2, marked_caret_y, marked_caret_y + lineskip);
+		batcher->batcher.draw_rect(
+			{marked_caret_x, marked_caret_y, marked_caret_x + 2, marked_caret_y + lineskip},
+			white_uv,
+			caret_color);
 	}
 
 	// the location for the IME text
@@ -1032,16 +1083,16 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			// only scroll when the mouse is currently hovering over the bounding box
 			int x;
 			int y;
-			if(SDL_GetMouseState(&x, &y) != 0)
-			{
-				slogf("info: Failed to get mouse state! SDL Error: %s\n", SDL_GetError());
-				break;
-			}
+			SDL_GetMouseState(&x, &y);
 			float mouse_x = static_cast<float>(x);
 			float mouse_y = static_cast<float>(y);
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
 			   box_xmin <= mouse_x)
 			{
+				// This gets corrected in pre_text,
+				// NOTE: but there is a minor bug where you drag text at the top of the scroll,
+				// and scroll up, the selection will move up, same for the bottom.
+				// This could be fixed by finding the cursor during drawing instead.
 				scroll_y -= static_cast<float>(e.wheel.y * cv_prompt_scroll_rate.data) *
 							batcher->GetLineSkip();
 				// the draw function will clamp it to keep the scroll area inside of the text.
@@ -1063,11 +1114,13 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		}
 		if(y_scrollbar_held)
 		{
+			ASSERT(text_focus);
 			internal_scroll_y_to(mouse_y);
 			update_buffer = true;
 		}
 		if(x_scrollbar_held)
 		{
+			ASSERT(text_focus);
 			internal_scroll_x_to(mouse_x);
 			update_buffer = true;
 		}
@@ -1092,6 +1145,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 
 			if(y_scrollable() && y_scrollbar_held)
 			{
+				ASSERT(text_focus);
 				y_scrollbar_held = false;
 				internal_scroll_y_to(mouse_y);
 				update_buffer = true;
@@ -1099,6 +1153,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			}
 			if(x_scrollable() && x_scrollbar_held)
 			{
+				ASSERT(text_focus);
 				x_scrollbar_held = false;
 				internal_scroll_x_to(mouse_x);
 				update_buffer = true;
@@ -1188,15 +1243,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				update_buffer = true;
 				return TEXT_PROMPT_RESULT::EAT;
 			}
-			if(!read_only())
-			{
-				SDL_StopTextInput();
-			}
-			text_focus = false;
-			mouse_held = false;
-			drag_x = -1;
-			drag_y = -1;
-			update_buffer = true;
+			unfocus();
 		}
 		break;
 		// Special text input event
@@ -1351,8 +1398,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			((e.key.keysym.mod & KMOD_CTRL) != 0 ? STB_TEXTEDIT_K_CONTROL : 0);
 		switch(e.key.keysym.sym)
 		{
-		// Handle backspace
+		// Handle backspace and delete
 		case SDLK_BACKSPACE:
+        case SDLK_DELETE:
 			if(read_only())
 			{
 				break;
@@ -1650,8 +1698,10 @@ void text_prompt_wrapper::stb_layout_func(StbTexteditRow* row, int i)
 			}
 		}
 	}
+    // num_chars must be more than 0 or else infinate loop.
+    // this happens if the width of the box is 0 or very small
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-	row->num_chars = std::distance(start, cur);
+	row->num_chars = std::max<int>(1, std::distance(start, cur));
 	row->x0 = box_xmin - scroll_x;
 	row->x1 = total_advance - scroll_x;
 	row->ymin = box_ymin - scroll_y;

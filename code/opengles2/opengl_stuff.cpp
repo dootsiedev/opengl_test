@@ -3,10 +3,14 @@
 
 // for cv_debug_opengl
 #include "../app.h"
+#include "../debug_tools.h"
 
 #include <SDL2/SDL.h>
 
 GLES2_Context ctx;
+
+REGISTER_CVAR_INT(cv_has_EXT_disjoint_timer_query, 0, "0 = not found, 1 = found", CVAR_T::READONLY);
+REGISTER_CVAR_INT(cv_has_GL_KHR_debug, 0, "0 = not found, 1 = found", CVAR_T::READONLY);
 
 GLenum implement_GL_RUNTIME(const char* msg, const char* file, int line)
 {
@@ -63,6 +67,93 @@ GLenum implement_GL_CHECK(const char* msg, const char* file, int line)
 }
 
 
+
+static const char* GetGLDebugSeverityKHR(GLenum severity)
+{
+#define GL_DEBUG_SEVERITY(x) \
+	case(GL_DEBUG_SEVERITY_##x##_KHR): return (#x);
+	switch(severity)
+	{
+		GL_DEBUG_SEVERITY(HIGH)
+		GL_DEBUG_SEVERITY(MEDIUM)
+		GL_DEBUG_SEVERITY(LOW)
+		GL_DEBUG_SEVERITY(NOTIFICATION)
+	}
+#undef GL_DEBUG_SEVERITY
+	return "UNKNOWN";
+}
+
+static const char* GetGLDebugTypeKHR(GLenum type)
+{
+#define GL_DEBUG_TYPE(x) \
+	case(GL_DEBUG_TYPE_##x##_KHR): return (#x);
+	switch(type)
+	{
+		GL_DEBUG_TYPE(DEPRECATED_BEHAVIOR)
+		GL_DEBUG_TYPE(ERROR)
+		GL_DEBUG_TYPE(MARKER)
+		GL_DEBUG_TYPE(OTHER)
+		GL_DEBUG_TYPE(PERFORMANCE)
+		GL_DEBUG_TYPE(POP_GROUP)
+		GL_DEBUG_TYPE(PUSH_GROUP)
+		GL_DEBUG_TYPE(UNDEFINED_BEHAVIOR)
+	}
+#undef GL_DEBUG_TYPE
+	return "UNKNOWN";
+}
+
+// from https://github.com/nvMcJohn/apitest
+// I am keeping the link because I want to look at the code as a reference
+// --------------------------------------------------------------------------------------------------------------------
+static void ErrorCallback(
+	GLenum source,
+	GLenum type,
+	GLuint id,
+	GLenum severity,
+	GLsizei length,
+	const char* message,
+	const void* userParam)
+{
+	(void)userParam;
+	(void)length;
+	(void)source;
+	(void)id;
+
+	if(type != GL_DEBUG_TYPE_ERROR_KHR && type != GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_KHR)
+	{
+		slogf(
+			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
+			GetGLDebugTypeKHR(type),
+			type,
+            GetGLDebugSeverityKHR(severity),
+			severity,
+			message);
+	}
+	else
+	{
+		serrf(
+			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
+			GetGLDebugTypeKHR(type),
+			type,
+            GetGLDebugSeverityKHR(severity),
+			severity,
+			message);
+
+		static bool only_once = false;
+		if(!only_once || cv_debug_opengl.data == 2.0)
+		{
+			only_once = true;
+			std::string stack_message;
+			debug_str_stacktrace(&stack_message, 0);
+			serrf(
+				"\nGL StackTrace:\n"
+				"%s\n",
+				stack_message.c_str());
+		}
+	}
+}
+
+
 #if 1 // def _WIN32
 NDSERR static void* wrapper_SDL_GL_GetProcAddress(const char* name)
 {
@@ -83,7 +174,8 @@ bool LoadGLContext(GLES2_Context* data)
 #define NULL_PROC(ret, func, params) data->func = func;
 #else
 #define SDL_PROC(ret, func, params) \
-	data->func = reinterpret_cast<decltype(data->func)>(wrapper_SDL_GL_GetProcAddress(#func));
+	data->func = reinterpret_cast<decltype(data->func)>(wrapper_SDL_GL_GetProcAddress(#func));\
+    if(data->func == NULL) return false;
 #define NULL_PROC(ret, func, params) \
 	data->func = reinterpret_cast<decltype(data->func)>(SDL_GL_GetProcAddress(#func));
 #endif
@@ -93,7 +185,42 @@ bool LoadGLContext(GLES2_Context* data)
 #undef NULL_PROC
 #undef SDL_PROC
 
-	return !serr_check_error();
+
+    if(cv_debug_opengl.data == 1)
+	{
+		if(SDL_GL_ExtensionSupported("GL_KHR_debug") == SDL_FALSE)
+		{
+			slog("warning cv_opengl_debug: GL_KHR_debug unsupported\n");
+		}
+		else
+		{
+			ASSERT(ctx.glDebugMessageControl);
+			ASSERT(ctx.glDebugMessageCallback);
+			ctx.glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+			ctx.glDebugMessageCallback(ErrorCallback, nullptr);
+			ctx.glEnable(GL_DEBUG_OUTPUT_KHR);
+            cv_has_GL_KHR_debug.data = 1;
+		}
+	}
+
+	if(SDL_GL_ExtensionSupported("GL_EXT_disjoint_timer_query") == SDL_FALSE)
+	{
+		slog("warning GL_EXT_disjoint_timer_query unsupported\n");
+	}
+	else
+	{
+		ASSERT(ctx.glGenQueriesEXT != NULL);
+		ASSERT(ctx.glDeleteQueriesEXT != NULL);
+		ASSERT(ctx.glBeginQueryEXT != NULL);
+		ASSERT(ctx.glEndQueryEXT != NULL);
+		ASSERT(ctx.glGetQueryivEXT != NULL);
+		ASSERT(ctx.glQueryCounterEXT != NULL);
+		ASSERT(ctx.glGetQueryObjectivEXT != NULL);
+		ASSERT(ctx.glGetQueryObjectui64vEXT != NULL);
+		cv_has_EXT_disjoint_timer_query.data = 1;
+	}
+
+	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
 

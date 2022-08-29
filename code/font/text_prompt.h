@@ -119,6 +119,7 @@ struct text_prompt_wrapper
 	std::array<uint8_t, 4> scrollbar_color = RGBA8_PREMULT(80, 80, 80, 200);
 	std::array<uint8_t, 4> caret_color{0, 0, 0, 255};
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
+    // also used for the backdrop of the IME text.
 	std::array<uint8_t, 4> backdrop_color = RGBA8_PREMULT(255, 255, 255, 200);
 
 	// I could use the bitfield trick to compress the size of bools,
@@ -211,9 +212,18 @@ struct text_prompt_wrapper
 	{
 		if(text_focus)
 		{
+            if(!read_only())
+			{
+				SDL_StopTextInput();
+			}
 			text_focus = false;
+			mouse_held = false;
+            x_scrollbar_held = false;
+            y_scrollbar_held = false;
+			drag_x = -1;
+			drag_y = -1;
 			update_buffer = true;
-            SDL_StopTextInput();
+            markedText.clear();
 		}
 	}
 
@@ -221,9 +231,12 @@ struct text_prompt_wrapper
 	{
 		if(!text_focus)
 		{
+            if(!read_only())
+			{
+				SDL_StartTextInput();
+			}
 			text_focus = true;
 			update_buffer = true;
-            SDL_StartTextInput();
 		}
 	}
 

@@ -56,6 +56,10 @@ struct console_state
     // the queue's mutex
     std::mutex mut;
 
+    // keep track of how many newlines are drawn
+    // to cut lines from the top when the limit is reached.
+    int log_line_count = 0;
+
     // the log of messages
 	font_manager_state* font_manager = NULL;
 	GLuint gl_log_interleave_vbo = 0;
@@ -91,7 +95,7 @@ struct console_state
 
     void resize_text_area();
 
-	void parse_input();
+	NDSERR bool parse_input();
 
 	// this won't render to the framebuffer, 
     // this will just modify the atlas and buffer data.

@@ -13,25 +13,10 @@
 console_state g_console;
 
 static REGISTER_CVAR_INT(
-	cv_console_history_max, 100, "the maximum number of commands in the history", CVAR_T::RUNTIME);
+	cv_console_history_max, 100, "the maximum number of commands in the history (up arrow)", CVAR_T::RUNTIME);
+static REGISTER_CVAR_INT(
+	cv_console_log_max_row_count, 100, "the maximum number of rows shown in the log", CVAR_T::RUNTIME);
 
-// this IS stupid, but a portable strtok is complicated.
-// probably should put this into global.h if I used it more.
-static char* musl_strtok_r(char* __restrict s, const char* __restrict sep, char** __restrict p)
-{
-	// NOLINTNEXTLINE(readability-implicit-bool-conversion)
-	if(!s && !(s = *p)) return NULL;
-	s += strspn(s, sep);
-	// NOLINTNEXTLINE(readability-implicit-bool-conversion)
-	if(!*s) return *p = 0;
-	*p = s + strcspn(s, sep);
-	// NOLINTNEXTLINE(readability-implicit-bool-conversion)
-	if(**p)
-		*(*p)++ = 0;
-	else
-		*p = 0;
-	return s;
-}
 
 bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_shader)
 {
@@ -259,12 +244,12 @@ void console_state::resize_text_area()
 	log_box.set_bbox(
 		60,
 		60,
-		static_cast<float>(cv_screen_width.data) / 2,
-		static_cast<float>(cv_screen_height.data) / 2);
+		static_cast<float>(cv_screen_width.data) / 2 - 60,
+		static_cast<float>(cv_screen_height.data) / 2 - 60);
 	prompt_cmd.set_bbox(
 		60,
-		60 + static_cast<float>(cv_screen_height.data) / 2 + 10.f,
-		static_cast<float>(cv_screen_width.data) / 2,
+		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
+		static_cast<float>(cv_screen_width.data) / 2 - 60,
 		prompt_batcher.GetLineSkip());
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
@@ -272,7 +257,7 @@ void console_state::resize_text_area()
 	error_text.set_bbox(
 		60,
 		prompt_cmd.box_ymax + 10.f,
-		static_cast<float>(cv_screen_width.data) / 2,
+		static_cast<float>(cv_screen_width.data) / 2 - 60,
 		prompt_batcher.GetLineSkip() * 10);
 }
 
@@ -280,120 +265,116 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 {
 	ASSERT(font_manager != NULL);
 
-	switch(e.type)
+    if(prompt_cmd.text_focus)
 	{
-	case SDL_KEYUP:
-		switch(e.key.keysym.sym)
+		switch(e.type)
 		{
-		case SDLK_RETURN:
-			if(prompt_cmd.text_focus)
+		case SDL_KEYDOWN:
+			switch(e.key.keysym.sym)
 			{
-				TIMER_U start;
-				TIMER_U end;
-				start = timer_now();
+			case SDLK_RETURN:
+				if(!parse_input())
+				{
+					return CONSOLE_RESULT::ERROR;
+				}
+				return CONSOLE_RESULT::EAT;
+			case SDLK_UP:
+				// show old commands like a terminal
+				if(history_index == -1 && !command_history.empty())
+				{
+					original_prompt = prompt_cmd.get_string();
+					history_index = 0;
+					if(!prompt_cmd.replace_string(command_history.at(0)))
+					{
+						return CONSOLE_RESULT::ERROR;
+					}
+				}
+				else if(static_cast<size_t>(history_index) < command_history.size() - 1)
+				{
+					history_index++;
+					if(!prompt_cmd.replace_string(command_history.at(history_index)))
+					{
+						return CONSOLE_RESULT::ERROR;
+					}
+				}
+				return CONSOLE_RESULT::EAT;
 
-				parse_input();
-
-				end = timer_now();
-				slogf("time: %f\n", timer_delta_ms(start, end));
+			case SDLK_DOWN:
+				// show newer commands like a terminal
+				if(history_index == -1)
+				{
+					break;
+				}
+				if(history_index == 0)
+				{
+					if(!prompt_cmd.replace_string(original_prompt))
+					{
+						return CONSOLE_RESULT::ERROR;
+					}
+					original_prompt.clear();
+					history_index = -1;
+				}
+				else
+				{
+					history_index--;
+					if(!prompt_cmd.replace_string(command_history.at(history_index)))
+					{
+						return CONSOLE_RESULT::ERROR;
+					}
+				}
+				return CONSOLE_RESULT::EAT;
 			}
 			break;
 		}
-		break;
-	case SDL_KEYDOWN:
-		switch(e.key.keysym.sym)
-		{
-		case SDLK_UP:
-			// show old commands like a terminal
-			if(history_index == -1 && !command_history.empty())
-			{
-				original_prompt = prompt_cmd.get_string();
-				history_index = 0;
-				if(!prompt_cmd.replace_string(command_history.at(0)))
-				{
-					return CONSOLE_RESULT::ERROR;
-				}
-			}
-			else if(static_cast<size_t>(history_index) < command_history.size() - 1)
-			{
-				history_index++;
-				if(!prompt_cmd.replace_string(command_history.at(history_index)))
-				{
-					return CONSOLE_RESULT::ERROR;
-				}
-			}
-			break;
-
-		case SDLK_DOWN:
-			// show newer commands like a terminal
-			if(history_index == -1)
-			{
-				break;
-			}
-			if(history_index == 0)
-			{
-				if(!prompt_cmd.replace_string(original_prompt))
-				{
-					return CONSOLE_RESULT::ERROR;
-				}
-				original_prompt.clear();
-				history_index = -1;
-			}
-			else
-			{
-				history_index--;
-				if(!prompt_cmd.replace_string(command_history.at(history_index)))
-				{
-					return CONSOLE_RESULT::ERROR;
-				}
-			}
-			break;
-		}
-		break;
 	}
+
+    // if we eat the input, unfocus the other elements
+	bool input_eaten = false;
 
 	switch(log_box.input(e))
 	{
 	case TEXT_PROMPT_RESULT::CONTINUE: break;
-	case TEXT_PROMPT_RESULT::EAT:
+	case TEXT_PROMPT_RESULT::EAT: input_eaten = true; break;
+	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
+	}
+
+	if(input_eaten)
+	{
 		prompt_cmd.unfocus();
-		error_text.unfocus();
-		log_box.focus();
-		return CONSOLE_RESULT::EAT;
-	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 	}
-
-	switch(prompt_cmd.input(e))
+	else
 	{
-	case TEXT_PROMPT_RESULT::CONTINUE: break;
-	case TEXT_PROMPT_RESULT::EAT:
-		error_text.unfocus();
-		log_box.unfocus();
-		prompt_cmd.focus();
-		return CONSOLE_RESULT::EAT;
-	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
-	}
-
-	// Only parse input when there is actual content.
-	// possible because this is read only.
-	if(error_batcher.vertex_count() != 0)
-	{
-		switch(error_text.input(e))
+		switch(prompt_cmd.input(e))
 		{
 		case TEXT_PROMPT_RESULT::CONTINUE: break;
-		case TEXT_PROMPT_RESULT::EAT:
-			prompt_cmd.unfocus();
-			log_box.unfocus();
-			error_text.focus();
-			return CONSOLE_RESULT::EAT;
+		case TEXT_PROMPT_RESULT::EAT: input_eaten = true; break;
 		case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 		}
 	}
 
-	return CONSOLE_RESULT::CONTINUE;
+	if(input_eaten)
+	{
+		error_text.unfocus();
+	}
+	else
+	{
+		// Only parse input when there is actual content.
+		// possible because this is read only.
+		if(error_batcher.vertex_count() != 0)
+		{
+			switch(error_text.input(e))
+			{
+			case TEXT_PROMPT_RESULT::CONTINUE: break;
+			case TEXT_PROMPT_RESULT::EAT: input_eaten = true; break;
+			case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
+			}
+		}
+	}
+
+	return input_eaten ? CONSOLE_RESULT::EAT : CONSOLE_RESULT::CONTINUE;
 }
 
-void console_state::parse_input()
+bool console_state::parse_input()
 {
 	// TODO: this is way too simple, it can't support escape keys or quotes.
 	// The quick and ugly solution would be to use boost spirit.
@@ -403,7 +384,7 @@ void console_state::parse_input()
 	// show the command in the log
 	slogf("%s\n", line.c_str());
 
-	// put the message into the history.
+    // put the message into the history.
 	if(!line.empty())
 	{
 		command_history.push_front(line);
@@ -414,29 +395,14 @@ void console_state::parse_input()
 		}
 	}
 	history_index = -1;
-
-	std::vector<const char*> arguments;
-
-	const char* delim = " ";
-	char* next_token = NULL;
-	char* token = musl_strtok_r(line.data(), delim, &next_token);
-	while(token != NULL)
-	{
-		arguments.push_back(token);
-		token = musl_strtok_r(NULL, delim, &next_token);
-	}
-	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-	if(!cvar_args(CVAR_T::RUNTIME, arguments.size(), arguments.data()))
-	{
-		if(!error_text.replace_string(serr_get_error()))
-		{
-			// NOTE: what do I do here?
-		}
-		// TODO: maybe if an error occurs during runtime,
-		// reserve a little text section at the top of the console
-		// and store the most recent error in there,
-		// then make the console appear (but without text focus)
-	}
+	
+    // this will modify the string which means you can't use line after this.
+    if(!cvar_line(CVAR_T::RUNTIME, line.data()))
+    {
+        return error_text.replace_string(serr_get_error());
+    }
+    
+    return true;
 }
 
 bool console_state::draw()
@@ -480,6 +446,11 @@ bool console_state::draw()
 				// TODO: I want to make errors be colored, but the text_prompt_wrapper can't ATM
 				// note this will break undo / redo! (doesn't matter because read-only)
 				text_data[char_count++] = codepoint;
+
+                if(codepoint == '\n')
+                {
+                    log_line_count++;
+                }
 			}
 		}
 
@@ -488,11 +459,26 @@ bool console_state::draw()
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		log_box.stb_insert_chars(log_box.text_data.size(), text_data, char_count);
 		log_box.set_readonly(true);
-		// log.text_data.insert(log.text_data.end(), text_data, text_data + char_count);
 
 		// TODO: I don't always want this to scroll to the bottom,
 		// I would like it to only do that when the scrollbar is already at the bottom!
 		log_box.scroll_to_bottom();
+
+        if(log_line_count > cv_console_log_max_row_count.data)
+        {
+			auto trim_cursor = log_box.text_data.begin();
+			auto trim_end = log_box.text_data.end();
+			for(; log_line_count > cv_console_log_max_row_count.data; log_line_count--)
+			{
+				for(; trim_cursor != trim_end && (trim_cursor++)->codepoint != '\n'; )
+				{
+				}
+			}
+			log_box.set_readonly(false);
+			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+			log_box.stb_delete_chars(0, std::distance(log_box.text_data.begin(), trim_cursor));
+			log_box.set_readonly(true);
+        }
 	}
 	if(!success)
 	{

@@ -1,106 +1,14 @@
 #include "global.h"
 
-#include "opengles2/gl3platform.h"
-#include "opengles2/gl3.h"
-#include "opengles2/gl2ext.h"
 #include "opengles2/opengl_stuff.h"
 
 #include "cvar.h"
 #include "app.h"
 #include "demo.h"
-#include "debug_tools.h"
 
 
 
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_keyboard.h>
-
-
-
-static const char* GetGLDebugSeverityKHR(GLenum severity)
-{
-#define GL_DEBUG_SEVERITY(x) \
-	case(GL_DEBUG_SEVERITY_##x##_KHR): return (#x);
-	switch(severity)
-	{
-		GL_DEBUG_SEVERITY(HIGH)
-		GL_DEBUG_SEVERITY(MEDIUM)
-		GL_DEBUG_SEVERITY(LOW)
-		GL_DEBUG_SEVERITY(NOTIFICATION)
-	}
-#undef GL_DEBUG_SEVERITY
-	return "UNKNOWN";
-}
-
-static const char* GetGLDebugTypeKHR(GLenum type)
-{
-#define GL_DEBUG_TYPE(x) \
-	case(GL_DEBUG_TYPE_##x##_KHR): return (#x);
-	switch(type)
-	{
-		GL_DEBUG_TYPE(DEPRECATED_BEHAVIOR)
-		GL_DEBUG_TYPE(ERROR)
-		GL_DEBUG_TYPE(MARKER)
-		GL_DEBUG_TYPE(OTHER)
-		GL_DEBUG_TYPE(PERFORMANCE)
-		GL_DEBUG_TYPE(POP_GROUP)
-		GL_DEBUG_TYPE(PUSH_GROUP)
-		GL_DEBUG_TYPE(UNDEFINED_BEHAVIOR)
-	}
-#undef GL_DEBUG_TYPE
-	return "UNKNOWN";
-}
-
-// from https://github.com/nvMcJohn/apitest
-// I am keeping the link because I want to look at the code as a reference
-// --------------------------------------------------------------------------------------------------------------------
-static void ErrorCallback(
-	GLenum source,
-	GLenum type,
-	GLuint id,
-	GLenum severity,
-	GLsizei length,
-	const char* message,
-	const void* userParam)
-{
-	(void)userParam;
-	(void)length;
-	(void)source;
-	(void)id;
-
-	if(type != GL_DEBUG_TYPE_ERROR_KHR && type != GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_KHR)
-	{
-		slogf(
-			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
-			GetGLDebugTypeKHR(type),
-			type,
-            GetGLDebugSeverityKHR(severity),
-			severity,
-			message);
-	}
-	else
-	{
-		serrf(
-			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
-			GetGLDebugTypeKHR(type),
-			type,
-            GetGLDebugSeverityKHR(severity),
-			severity,
-			message);
-
-		static bool only_once = false;
-		if(!only_once || cv_debug_opengl.data == 2.0)
-		{
-			only_once = true;
-			std::string stack_message;
-			debug_str_stacktrace(&stack_message, 0);
-			serrf(
-				"\nGL StackTrace:\n"
-				"%s\n",
-				stack_message.c_str());
-		}
-	}
-}
 
 static bool app_init(App_Info& app)
 {
@@ -142,7 +50,7 @@ static bool app_init(App_Info& app)
 
 	int gl_context_flags = 0;
 
-	if(cv_debug_opengl.data != 0)
+	if(cv_debug_opengl.data == 1)
 	{
 		gl_context_flags = SDL_GL_CONTEXT_DEBUG_FLAG;
 	}
@@ -203,26 +111,13 @@ static bool app_init(App_Info& app)
 		slogf("SDL_GL_CONTEXT_FLAGS Warning: %s", SDL_GetError());
 	}
 
-	if(cv_debug_opengl.data != 0)
+	if(cv_debug_opengl.data == 1 && cv_has_GL_KHR_debug.data == 1)
 	{
-		if(SDL_GL_ExtensionSupported("GL_KHR_debug") == SDL_FALSE)
-		{
-			slog("warning cv_opengl_debug: GL_KHR_debug unsupported\n");
-		}
-
 		if((gl_context_flags & SDL_GL_CONTEXT_DEBUG_FLAG) == 0)
 		{
 			slog("warning: SDL_GL_CONTEXT_DEBUG_FLAG failed to set\n");
 		}
-		else
-		{
-			ASSERT(ctx.glDebugMessageControl);
-			ASSERT(ctx.glDebugMessageCallback);
-			ctx.glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-			ctx.glDebugMessageCallback(ErrorCallback, nullptr);
-			ctx.glEnable(GL_DEBUG_OUTPUT_KHR);
-		}
-	}
+    }
 
 	// vsync
 	if(SDL_GL_SetSwapInterval(cv_vsync.data) != 0)
@@ -267,7 +162,7 @@ int main(int argc, char** argv)
 
 	bool success = true;
 
-    const char* path = "cvar.json";
+    const char* path = "cvar.cfg";
     FILE* fp = fopen(path, "rb");
     if(fp == NULL)
     {
@@ -281,8 +176,9 @@ int main(int argc, char** argv)
     }
     else
     {
+        slogf("info: cvar file found: %s\n", path);
         RWops_Stdio fp_raii(fp, path);
-        if(!cvar_json(&fp_raii))
+        if(!cvar_file(CVAR_T::STARTUP, &fp_raii))
         {
             success = false;
         }

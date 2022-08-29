@@ -19,6 +19,19 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
+//query timers
+NULL_PROC(void, glGenQueriesEXT, (GLsizei n, GLuint *ids))
+NULL_PROC(void, glDeleteQueriesEXT, (GLsizei n, const GLuint *ids))
+NULL_PROC(void, glBeginQueryEXT, (GLenum target, GLuint id))
+NULL_PROC(void, glEndQueryEXT, (GLenum target))
+NULL_PROC(void, glGetQueryivEXT, (GLenum target, GLenum pname, GLint *params))
+NULL_PROC(void, glGetQueryObjectivEXT, (GLuint id, GLenum pname, GLint *params))
+// es 3.2 GL_ARB_timer_query ONLY
+NULL_PROC(void, glGetQueryObjectui64vEXT, (GLuint id, GLenum pname, GLuint64 *params))
+NULL_PROC(void, glQueryCounterEXT, (GLuint id, GLenum target))
+
+
+// debug
 NULL_PROC(void, glDebugMessageControl, (GLenum source,
    GLenum type,
    GLenum severity,
@@ -26,6 +39,8 @@ NULL_PROC(void, glDebugMessageControl, (GLenum source,
    const GLuint* ids,
    GLboolean enabled))
 
+// NOTE: opengl es requires GLDEBUGPROCKHR, while opengl uses GLDEBUGPROC.
+// and all tokens need to have _KHR as well in ES.
 NULL_PROC(void, glDebugMessageCallback, (GLDEBUGPROCKHR, const void*))
 
 //opengl es 3
@@ -36,6 +51,8 @@ SDL_PROC(void, glDrawArraysInstanced, (GLenum, GLint, GLsizei,GLsizei))
 SDL_PROC(void, glDrawElementsInstanced, (GLenum, GLsizei, GLenum, const void *, GLsizei))
 SDL_PROC(void, glVertexAttribDivisor, (GLuint, GLuint))
 SDL_PROC(void, glTexStorage2D, (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height))
+// needed for query timer
+SDL_PROC(void, glGetInteger64v, (GLenum pname, GLint64 *data))
 
 //things missing from sdl's list
 SDL_PROC(void, glBlendFunc, (GLenum, GLenum))

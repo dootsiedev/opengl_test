@@ -144,6 +144,7 @@ struct demo_state
     NDSERR bool destroy_gl_font();
 
     NDSERR DEMO_RESULT input();
+    void unfocus();
     NDSERR bool render();
 
     NDSERR DEMO_RESULT process();

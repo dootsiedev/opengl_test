@@ -1,11 +1,11 @@
 #include "global.h"
 
-#include "BS_Archive/BS_json.h"
-#include "BS_Archive/BS_stream.h"
-
 #include <climits>
 
 #include "cvar.h"
+
+//for reading files, since I like the stream API.
+#include "BS_Archive/BS_stream.h"
 
 // unfortunately std::from_chars for doubles doesn't have great support on compilers...
 // so you need a pretty decent version of gcc or clang...
@@ -221,79 +221,125 @@ bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
 	return true;
 }
 
-
-bool cvar_json(RWops* file)
+// this IS stupid, but a portable strtok is complicated.
+// probably should put this into global.h if I used it more.
+static char* musl_strtok_r(char* __restrict s, const char* __restrict sep, char** __restrict p)
 {
-    // TODO: this SUCKS, just use a txt file ifstream + getline(), and parse the line like a console
-    TIMER_U tick1;
-	TIMER_U tick2;
-	tick1 = timer_now();
+	// NOLINTNEXTLINE(readability-implicit-bool-conversion)
+	if(!s && !(s = *p)) return NULL;
+	s += strspn(s, sep);
+	// NOLINTNEXTLINE(readability-implicit-bool-conversion)
+	if(!*s) return *p = 0;
+	*p = s + strcspn(s, sep);
+	// NOLINTNEXTLINE(readability-implicit-bool-conversion)
+	if(**p)
+		*(*p)++ = 0;
+	else
+		*p = 0;
+	return s;
+}
 
-	ASSERT(file != NULL);
-	char buffer[1000];
-	BS_ReadStream sb(file, buffer, sizeof(buffer));
-	BS_JsonReader<decltype(sb), rj::kParseCommentsFlag | rj::kParseNumbersAsStringsFlag> ar(sb);
-
-	std::string json_key;
-	ar.StartObject();
-	while(ar.Good())
-	{
-        auto key_cb = [](const char* str, size_t size, void* ud) {
-            (void)size;
-            if(strncmp(str, "END", size) == 0)
-            {
-                return true;
-            }
-			auto *it = static_cast<decltype(get_convars().end())*>(ud);
-			*it = get_convars().find(str);
-			if(*it == get_convars().end())
-			{
-				serrf("ERROR: cvar not found: `%s`\n", str);
-				return false;
-			}
-			return true;
-		};
-        auto temp_it = get_convars().end();
-
-		// This is actually sketchy because this should be a "Key"
-        // but rapidjson just casts Keys to Strings so this works.
-        if(!ar.String_CB(json_key, key_cb, &temp_it))
-        {
-            break;
-        }
-        if(temp_it == get_convars().end())
-        {
-            ar.Null();
-            break;
-        }
-
-		auto value_cb = [](const char* str, size_t size, void* ud) {
-            (void)size;
-			auto *it = static_cast<decltype(get_convars().end())*>(ud);
-			V_cvar& cv = (*it)->second;
-			std::string old_value = cv.cvar_write();
-			if(!cv.cvar_read(str))
-			{
-				return false;
-			}
-			slogf("%s (%s) = %s\n", (*it)->first, old_value.c_str(), str);
-
-			return true;
-		};
-		if(!ar.String_CB(std::string(), value_cb, &temp_it))
-		{
-			break;
-		}
-	}
-	ar.EndObject();
-
-	if(!ar.Finish(file->name()))
+bool cvar_line(CVAR_T flags_req, char* line)
+{
+	std::vector<const char*> arguments;
+    char* token = line;
+    bool in_quotes = false;
+    do
     {
+        char* next_quote = strchr(token, '\"');
+        if(next_quote != NULL)
+        {
+            *next_quote++ = '\0';
+            in_quotes = !in_quotes;
+            if(!in_quotes)
+            {
+                arguments.push_back(token);
+                token = next_quote;
+                continue;
+            }
+        }
+        
+        const char* delim = " ";
+        char* next_token = NULL;
+        token = musl_strtok_r(token, delim, &next_token);
+        while(token != NULL)
+        {
+            arguments.push_back(token);
+            token = musl_strtok_r(NULL, delim, &next_token);
+        }
+        
+        token = next_quote;
+    }while(token != NULL && *token != '\0');
+
+
+    if(in_quotes)
+    {
+        serrf("missing quote pair\n");
         return false;
     }
-	tick2 = timer_now();
-    slogf("%s time: %f\n", __func__, timer_delta_ms(tick1, tick2));
-    return true;
+
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	return cvar_args(flags_req, arguments.size(), arguments.data());
+}
+
+bool cvar_file(CVAR_T flags_req, RWops* file)
+{
+	ASSERT(file != NULL);
+	char buffer[1000];
+	BS_ReadStream reader(file, buffer, sizeof(buffer));
+
+	const size_t max_line_size = 1000;
+
+	char line_buf[max_line_size + 1];
+	size_t count = 0;
+	char* pos = line_buf;
+	char* end = line_buf + max_line_size;
+	while(pos < end)
+	{
+		*pos = reader.Take();
+		++count;
+		if(*pos == '\n')
+		{
+            if(line_buf[0] == '#' || pos == line_buf)
+            {
+                // comment or empty, ignore.
+                // ATM empty lines do not cause an error in cvar_line.
+                // but that might change.
+            }
+            else
+            {
+                *pos = '\0';
+                if(!cvar_line(flags_req, line_buf))
+                {
+                    return false;
+                }
+            }
+			pos = line_buf;
+		}
+		else if(*pos == '\r')
+		{
+			// don't parse this.
+			// windows will insert it for newlines.
+		}
+		else if(*pos == '\0')
+		{
+			if(!cvar_line(flags_req, line_buf))
+			{
+				return false;
+			}
+			break;
+		}
+		else
+		{
+			++pos;
+		}
+	}
+	if(pos == end)
+	{
+		serrf("line too long: %s (max: %zu)\n", file->name(), max_line_size);
+		return false;
+	}
+	return true;
 }
 
 void cvar_list(bool debug)

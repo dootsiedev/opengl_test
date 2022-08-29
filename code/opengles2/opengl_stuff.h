@@ -8,6 +8,11 @@
 #include "gl3.h"
 #include "gl2ext.h"
 
+#include "../cvar.h" 
+
+extern cvar_int cv_has_EXT_disjoint_timer_query;
+extern cvar_int cv_has_GL_KHR_debug;
+
 #define SAFE_GL_DELETE_VBO(x)             \
 	do                                    \
 	{                                     \
