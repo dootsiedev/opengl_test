@@ -92,6 +92,7 @@ static int bt_full_callback(
 	const char* module_name = NULL;
 
 	// on win32 this could be replicated through GetModuleHandleEx + GetModuleFileNameW
+    // but I don't think you can get the function name without symbols...
 #if defined(__linux__)
 
 	// gotta memcpy because it's possible uintptr_t and void* have incompatible alignment
