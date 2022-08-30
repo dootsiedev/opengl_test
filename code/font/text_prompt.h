@@ -65,7 +65,7 @@ struct text_prompt_wrapper
 	// this is a tad bit large
 	STB_TexteditState stb_state;
 
-	font_sprite_batcher* batcher = NULL;
+	font_sprite_painter* painter = NULL;
 
 	// IME text that is displayed.
 	std::string markedText;
@@ -144,7 +144,7 @@ struct text_prompt_wrapper
 
 	// batcher needs to have a style set, and must be anchored TOP_LEFT
 	// this requires the atlas texture to be bound with 1 byte packing
-	NDSERR bool init(std::string_view contents, font_sprite_batcher* batcher_, TEXTP_FLAG flags_);
+	NDSERR bool init(std::string_view contents, font_sprite_painter* batcher_, TEXTP_FLAG flags_);
 
 	// this will also check blink_timer and blink the cursor.
 	// NOTE: but blink_timer should be in a logic() function...

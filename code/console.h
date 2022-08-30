@@ -29,6 +29,9 @@ enum class CONSOLE_MESSAGE_TYPE
 
 struct console_state
 {
+    
+	font_manager_state* font_manager = NULL;
+
 	struct log_message
 	{
 		// the reason I use a unique_ptr is because
@@ -60,25 +63,31 @@ struct console_state
     // to cut lines from the top when the limit is reached.
     int log_line_count = 0;
 
+    // it's possible to use one VBO at the expense of 
+    // re-drawing everything for any modification.
+    font_sprite_painter console_painter;
+    mono_2d_batcher console_batcher;
+    std::unique_ptr<gl_mono_vertex[]> console_batcher_buffer;
+
     // the log of messages
-	font_manager_state* font_manager = NULL;
+    text_prompt_wrapper log_box;
 	GLuint gl_log_interleave_vbo = 0;
 	GLuint gl_log_vao_id = 0;
-    font_sprite_batcher log_batcher;
-    text_prompt_wrapper log_box;
+	GLsizei log_vertex_count = 0;
 
     // the text you type into
+    text_prompt_wrapper prompt_cmd;
     GLuint gl_prompt_interleave_vbo = 0;
     GLuint gl_prompt_vao_id = 0;
-    font_sprite_batcher prompt_batcher;
-    text_prompt_wrapper prompt_cmd;
+	GLsizei prompt_vertex_count = 0;
 
     // this is the last error that was printed
     // put into a static area so you can read it.
+    text_prompt_wrapper error_text;
     GLuint gl_error_interleave_vbo = 0;
     GLuint gl_error_vao_id = 0;
-    font_sprite_batcher error_batcher;
-    text_prompt_wrapper error_text;
+	GLsizei error_vertex_count = 0;
+    
 
 	const char* history_path = "console_hist.json";
 	std::deque<std::string> command_history;

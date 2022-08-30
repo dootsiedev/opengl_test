@@ -10,6 +10,9 @@ struct App_Info
 	SDL_Window* window;
 };
 
+bool app_init(App_Info& app);
+void app_destroy(App_Info& app);
+
 extern App_Info g_app;
 
 extern cvar_int cv_screen_width;

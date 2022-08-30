@@ -309,6 +309,8 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
             else
             {
                 *pos = '\0';
+                //print the line
+                slogf("%s\n",line_buf);
                 if(!cvar_line(flags_req, line_buf))
                 {
                     return false;

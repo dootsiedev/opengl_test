@@ -23,6 +23,17 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	ASSERT(font_style);
 	font_manager = font_style->font_manager;
 
+
+	console_painter.SetFont(font_style);
+
+
+    size_t max_quads = 1000;
+    console_batcher_buffer = std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
+	console_batcher.buffer = console_batcher_buffer.get();
+	console_batcher.size = max_quads;
+	console_batcher.set_cursor(0);
+    console_painter.batcher = &console_batcher;
+
 	//
 	// log
 	//
@@ -47,12 +58,11 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
-	log_batcher.SetFont(font_style);
 
 	// this requires the atlas texture to be bound with 1 byte packing
 	if(!log_box.init(
 		   "",
-		   &log_batcher,
+		   &console_painter,
 		   TEXTP_Y_SCROLL | TEXTP_WORD_WRAP | TEXTP_DRAW_BBOX | TEXTP_READ_ONLY |
 			   TEXTP_DRAW_BACKDROP))
 	{
@@ -83,11 +93,9 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
-	prompt_batcher.SetFont(font_style);
-
 	if(!prompt_cmd.init(
 		   "",
-		   &prompt_batcher,
+		   &console_painter,
 		   TEXTP_SINGLE_LINE | TEXTP_X_SCROLL | TEXTP_DRAW_BBOX | TEXTP_DRAW_BACKDROP))
 	{
 		return false;
@@ -117,10 +125,8 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
-	error_batcher.SetFont(font_style);
-
 	if(!error_text.init(
-		   "", &error_batcher, TEXTP_READ_ONLY | TEXTP_DISABLE_CULL | TEXTP_DRAW_BACKDROP))
+		   "", &console_painter, TEXTP_READ_ONLY | TEXTP_DISABLE_CULL | TEXTP_DRAW_BACKDROP))
 	{
 		return false;
 	}
@@ -250,7 +256,7 @@ void console_state::resize_text_area()
 		60,
 		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		prompt_batcher.GetLineSkip());
+		console_painter.GetLineSkip());
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
 	// but if it's too big it could potentially block UI elements in an annoying way
@@ -258,7 +264,7 @@ void console_state::resize_text_area()
 		60,
 		prompt_cmd.box_ymax + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		prompt_batcher.GetLineSkip() * 10);
+		console_painter.GetLineSkip() * 10);
 }
 
 CONSOLE_RESULT console_state::input(SDL_Event& e)
@@ -360,7 +366,7 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 	{
 		// Only parse input when there is actual content.
 		// possible because this is read only.
-		if(error_batcher.vertex_count() != 0)
+		/*if(error_batcher.vertex_count() != 0)
 		{
 			switch(error_text.input(e))
 			{
@@ -368,7 +374,7 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 			case TEXT_PROMPT_RESULT::EAT: input_eaten = true; break;
 			case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 			}
-		}
+		}*/
 	}
 
 	return input_eaten ? CONSOLE_RESULT::EAT : CONSOLE_RESULT::CONTINUE;
@@ -487,40 +493,74 @@ bool console_state::draw()
 
 	if(log_box.draw_requested())
 	{
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
-		log_batcher.begin();
+        console_batcher.set_cursor(0);
+		console_painter.begin();
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!log_box.draw())
 		{
-			return false;
+			// put the message into the console instead
+			if(!error_text.replace_string(serr_get_error()))
+			{
+				return false;
+			}
 		}
-		log_batcher.end();
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		console_painter.end();
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+        log_vertex_count = console_batcher.get_current_vertex_count();
+		if(console_batcher.get_quad_count() != 0)
+		{
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glBufferData(GL_ARRAY_BUFFER, console_batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, console_batcher.get_current_vertex_size(), console_batcher.buffer);
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
 	}
 
 	if(prompt_cmd.draw_requested())
 	{
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
-		prompt_batcher.begin();
+        console_batcher.set_cursor(0);
+		console_painter.begin();
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!prompt_cmd.draw())
 		{
 			return false;
 		}
-		prompt_batcher.end();
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		console_painter.end();
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+        prompt_vertex_count = console_batcher.get_current_vertex_count();
+		if(console_batcher.get_quad_count() != 0)
+		{
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glBufferData(GL_ARRAY_BUFFER, console_batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, console_batcher.get_current_vertex_size(), console_batcher.buffer);
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
 	}
 	if(error_text.draw_requested())
 	{
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
-		error_batcher.begin();
+        console_batcher.set_cursor(0);
+		console_painter.begin();
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!error_text.draw())
 		{
 			return false;
 		}
-		error_batcher.end();
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		console_painter.end();
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+        error_vertex_count = console_batcher.get_current_vertex_count();
+		if(console_batcher.get_quad_count() != 0)
+		{
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glBufferData(GL_ARRAY_BUFFER, console_batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, console_batcher.get_current_vertex_size(), console_batcher.buffer);
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
 	}
 
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;

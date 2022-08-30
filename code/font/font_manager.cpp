@@ -1388,35 +1388,19 @@ FT_Bitmap* font_bitmap_cache::render_tf_glyph(FT_UInt glyph_index, unique_ft_gly
 	return bitmap;
 }
 
-void font_sprite_batcher::begin()
+void font_sprite_painter::begin()
 {
-	// font_vertex_buffer.clear();
-	batcher.buffer = batcher_buffer;
-	batcher.size = std::size(batcher_buffer) / mono_2d_batcher::QUAD_VERTS;
-	batcher.set_cursor(0);
-	newline_cursor = 0;
-	flush_cursor = 0;
+	newline_cursor = batcher->get_current_vertex_count();
+	flush_cursor = batcher->get_current_vertex_count();
 }
 
-void font_sprite_batcher::end(GLenum type)
+void font_sprite_painter::end()
 {
-	if(batcher.get_quad_count() == 0)
-	{
-		return;
-	}
-
 	// fix the y axis alignment
 	internal_flush();
-
-	// orphaning
-	// The reason for using the capacity for orphaning even though it's not used
-	// is because I have seen other examples do it, probably helps with orphaning.
-	ctx.glBufferData(GL_ARRAY_BUFFER, sizeof(batcher_buffer), NULL, type);
-	GLsizeiptr bytes_to_write = batcher.get_vertex_count() * sizeof(gl_mono_vertex);
-	ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, bytes_to_write, batcher_buffer);
 }
 
-bool font_sprite_batcher::draw_format(const char* fmt, ...)
+bool font_sprite_painter::draw_format(const char* fmt, ...)
 {
 	ASSERT(fmt != NULL);
 
@@ -1485,7 +1469,7 @@ bool font_sprite_batcher::draw_format(const char* fmt, ...)
 	return draw_text(buffer, trunc_size);
 }
 
-bool font_sprite_batcher::draw_text(const char* text, size_t size)
+bool font_sprite_painter::draw_text(const char* text, size_t size)
 {
 	ASSERT(font_type != FONT_TYPES::UNDEFINED);
 	size = (size == 0) ? strlen(text) : size;
@@ -1529,7 +1513,7 @@ bool font_sprite_batcher::draw_text(const char* text, size_t size)
 	return true;
 }
 
-FONT_RESULT font_sprite_batcher::load_glyph_verts(char32_t codepoint)
+FONT_RESULT font_sprite_painter::load_glyph_verts(char32_t codepoint)
 {
 	ASSERT(font_type != FONT_TYPES::UNDEFINED);
 
@@ -1642,15 +1626,15 @@ FONT_RESULT font_sprite_batcher::load_glyph_verts(char32_t codepoint)
 		return FONT_RESULT::SUCCESS;
 	}
 
-	if(!batcher.draw_rect(pos, uv, cur_color))
+	if(!batcher->draw_rect(pos, uv, cur_color))
 	{
-		// TODO: shouln't be an error.
-		return FONT_RESULT::ERROR;
+		// TODO: shouldn't be an error?
+		return FONT_RESULT::SUCCESS;
 	}
 
 	return FONT_RESULT::SUCCESS;
 }
-std::array<float, 4> font_sprite_batcher::get_white_uv() const
+std::array<float, 4> font_sprite_painter::get_white_uv() const
 {
 	font_manager_state* font_m;
 
@@ -1673,7 +1657,7 @@ std::array<float, 4> font_sprite_batcher::get_white_uv() const
 	return font_m->white_uv;
 }
 
-float font_sprite_batcher::GetLineSkip() const
+float font_sprite_painter::GetLineSkip() const
 {
 	switch(font_type)
 	{
@@ -1691,7 +1675,7 @@ float font_sprite_batcher::GetLineSkip() const
 	return NAN;
 }
 
-float font_sprite_batcher::GetAdvance(char32_t codepoint) const
+float font_sprite_painter::GetAdvance(char32_t codepoint) const
 {
 	switch(font_type)
 	{
@@ -1762,12 +1746,12 @@ float font_sprite_batcher::GetAdvance(char32_t codepoint) const
 	return NAN;
 }
 
-void font_sprite_batcher::internal_flush()
+void font_sprite_painter::internal_flush()
 {
 	// finish the x axis alignment of any leftover newline
 	Newline();
 
-	size_t size = batcher.get_vertex_count();
+	size_t size = batcher->get_current_vertex_count();
 
 	switch(current_anchor)
 	{
@@ -1778,7 +1762,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = draw_cur_y - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher_buffer[flush_cursor].pos[1] -= off_h;
+			batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1786,7 +1770,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = draw_cur_y - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher_buffer[flush_cursor].pos[1] -= off_h;
+			batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1794,7 +1778,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher_buffer[flush_cursor].pos[1] -= off_h;
+			batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1803,7 +1787,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = draw_cur_y - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher_buffer[flush_cursor].pos[1] -= off_h;
+			batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1811,7 +1795,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher_buffer[flush_cursor].pos[1] -= off_h;
+			batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1819,7 +1803,7 @@ void font_sprite_batcher::internal_flush()
 		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher_buffer[flush_cursor].pos[1] -= off_h;
+			batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1828,9 +1812,9 @@ void font_sprite_batcher::internal_flush()
 	flush_cursor = size;
 }
 
-void font_sprite_batcher::Newline()
+void font_sprite_painter::Newline()
 {
-	size_t size = batcher.get_vertex_count();
+	size_t size = batcher->get_current_vertex_count();
 
 	switch(current_anchor)
 	{
@@ -1840,7 +1824,7 @@ void font_sprite_batcher::Newline()
 		float off_w = draw_cur_x - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher_buffer[newline_cursor].pos[0] -= off_w;
+			batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -1849,7 +1833,7 @@ void font_sprite_batcher::Newline()
 		float off_w = draw_cur_x - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher_buffer[newline_cursor].pos[0] -= off_w;
+			batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -1857,7 +1841,7 @@ void font_sprite_batcher::Newline()
 		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher_buffer[newline_cursor].pos[0] -= off_w;
+			batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -1865,7 +1849,7 @@ void font_sprite_batcher::Newline()
 		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher_buffer[newline_cursor].pos[0] -= off_w;
+			batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -1873,7 +1857,7 @@ void font_sprite_batcher::Newline()
 		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher_buffer[newline_cursor].pos[0] -= off_w;
+			batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -1882,7 +1866,7 @@ void font_sprite_batcher::Newline()
 		float off_w = draw_cur_x - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher_buffer[newline_cursor].pos[0] -= off_w;
+			batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;

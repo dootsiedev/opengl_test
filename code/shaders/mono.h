@@ -23,6 +23,10 @@ struct shader_mono_state
     bool destroy();
 };
 
+// this is a vao that works with interleaved gl_mono_vertex
+// bind the VBO and VAO
+void gl_create_interleaved_mono_vertex_vao(shader_mono_state& mono_shader);
+
 struct gl_mono_vertex
 {
 	gl_mono_vertex() = default;
@@ -47,6 +51,82 @@ struct gl_mono_vertex
 	GLubyte color[4];
 };
 
-// this is a vao that works with interleaved gl_mono_vertex
-// bind the VBO and VAO
-void gl_create_interleaved_mono_vertex_vao(shader_mono_state& mono_shader);
+
+struct mono_2d_batcher
+{
+    enum
+	{
+		QUAD_VERTS = 6
+	};
+
+	gl_mono_vertex* buffer = NULL;
+	size_t size = 0;
+	size_t cursor = 0;
+
+	size_t get_current_vertex_count() const
+	{
+		return cursor * QUAD_VERTS;
+	}
+    size_t get_current_vertex_size() const
+    {
+        return cursor * QUAD_VERTS * sizeof(gl_mono_vertex);
+    }
+    size_t get_total_vertex_size() const
+    {
+        return size * QUAD_VERTS * sizeof(gl_mono_vertex);
+    }
+    size_t get_quad_count() const
+	{
+        ASSERT(buffer != NULL);
+		return cursor;
+	}
+    //use the return from get_quad_count
+    void set_cursor(size_t pos)
+    {
+        ASSERT(buffer != NULL);
+        ASSERT(pos < size);
+        cursor = pos;
+	}
+
+	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy
+	bool draw_rect(std::array<float, 4> pos, std::array<float, 4> uv, std::array<uint8_t, 4> color)
+	{
+		ASSERT(buffer != NULL);
+        if(cursor >= size)
+		{
+			return false;
+		}
+		return draw_rect_at(cursor++, pos, uv, color);
+	}
+
+	int placeholder_rect()
+    {
+		ASSERT(buffer != NULL);
+        if(cursor >= size)
+		{
+			return -1;
+		}
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+        return cursor++;
+    }
+
+    // index is the quad index.
+	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy
+	bool draw_rect_at(
+		size_t index, std::array<float, 4> pos, std::array<float, 4> uv, std::array<uint8_t, 4> color)
+	{
+		ASSERT(buffer != NULL);
+		if(index >= size)
+		{
+			return false;
+		}
+        gl_mono_vertex *cur = buffer + index * QUAD_VERTS;
+		*cur++ = {pos[0], pos[1], 0.f, uv[0], uv[1], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[2], pos[3], 0.f, uv[2], uv[3], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[2], pos[1], 0.f, uv[2], uv[1], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[0], pos[1], 0.f, uv[0], uv[1], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[0], pos[3], 0.f, uv[0], uv[3], color[0], color[1], color[2], color[3]};
+		*cur++ = {pos[2], pos[3], 0.f, uv[2], uv[3], color[0], color[1], color[2], color[3]};
+		return true;
+	}
+};

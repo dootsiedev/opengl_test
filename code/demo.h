@@ -52,7 +52,7 @@ struct bench_data
         samples = 0;
     }
 
-    NDSERR bool display(const char* msg, font_sprite_batcher* font_batcher);
+    NDSERR bool display(const char* msg, font_sprite_painter* font_batcher);
 };
 
 enum class DEMO_RESULT
@@ -98,7 +98,12 @@ struct demo_state
     // stores the location of glyphs in the atlas
 	font_bitmap_cache font_style;
     // writes verticies for opengl, can be used with multiple fonts.
-	font_sprite_batcher font_batcher;
+	font_sprite_painter font_painter;
+
+
+    std::unique_ptr<gl_mono_vertex[]> batcher_buffer;
+    mono_2d_batcher batcher;
+
     //prompt?
 	//font_sprite_batcher prompt_batcher;
     //text_prompt_wrapper prompt;

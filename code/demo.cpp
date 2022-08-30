@@ -174,10 +174,6 @@ static void create_grid_cube(unsigned int divisions, glm::vec3* vbo_out, GLushor
 
 bool demo_state::init()
 {
-	int max;
-	ctx.glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max);
-	slogf("max texture: %d\n", max);
-
 	ctx.glEnable(GL_CULL_FACE);
 	ctx.glCullFace(GL_BACK);
 	ctx.glFrontFace(GL_CCW);
@@ -544,6 +540,13 @@ bool demo_state::init_gl_font()
         return false;
     }
 
+    size_t max_quads = 1000;
+    batcher_buffer = std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
+	batcher.buffer = batcher_buffer.get();
+	batcher.size = max_quads;
+	batcher.set_cursor(0);
+    font_painter.batcher = &batcher;
+
 	// set uniform globals that aren't set every frame
 	ctx.glUseProgram(mono_shader.gl_program_id);
 	ctx.glUniform1i(mono_shader.gl_uniforms.u_tex, 0);
@@ -871,43 +874,17 @@ bool demo_state::render()
 	// ctx.glActiveTexture(GL_TEXTURE0);
 	ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
 
-	if(font_batcher.vertex_count() != 0)
+	if(batcher.get_quad_count() != 0)
     {
         ctx.glBindVertexArray(gl_font_vao_id);
         // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        ctx.glDrawArrays(GL_TRIANGLES, 0, font_batcher.vertex_count());
+        ctx.glDrawArrays(GL_TRIANGLES, 0, batcher.get_current_vertex_count());
         ctx.glBindVertexArray(0);
     }
+    
 	if(show_console)
 	{
-		if(g_console.prompt_batcher.vertex_count() != 0)
-		{
-			float x;
-			float y;
-			float w;
-			float h;
-			g_console.prompt_cmd.get_bbox(&x, &y, &w, &h);
-			GLint scissor_x = static_cast<GLint>(x);
-			GLint scissor_y = static_cast<GLint>(y);
-			GLint scissor_w = static_cast<GLint>(w);
-			GLint scissor_h = static_cast<GLint>(h);
-			if(scissor_w > 0 && scissor_h > 0)
-			{
-				ctx.glEnable(GL_SCISSOR_TEST);
-				// don't forget that 0,0 is the bottom left corner...
-				ctx.glScissor(
-					scissor_x,
-					cv_screen_height.data - (scissor_y + scissor_h),
-					scissor_w,
-					scissor_h);
-				ctx.glBindVertexArray(g_console.gl_prompt_vao_id);
-				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-				ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.prompt_batcher.vertex_count());
-				ctx.glBindVertexArray(0);
-				ctx.glDisable(GL_SCISSOR_TEST);
-			}
-		}
-		if(g_console.log_batcher.vertex_count() != 0)
+        if(g_console.log_vertex_count != 0)
 		{
 			float x;
 			float y;
@@ -928,20 +905,47 @@ bool demo_state::render()
 					scissor_w,
 					scissor_h);
 				ctx.glBindVertexArray(g_console.gl_log_vao_id);
-				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-				ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.log_batcher.vertex_count());
+				ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.log_vertex_count);
 				ctx.glBindVertexArray(0);
 				ctx.glDisable(GL_SCISSOR_TEST);
 			}
 		}
-        if(g_console.error_batcher.vertex_count() != 0)
+
+		if(g_console.prompt_vertex_count != 0)
+		{
+			float x;
+			float y;
+			float w;
+			float h;
+			g_console.prompt_cmd.get_bbox(&x, &y, &w, &h);
+			GLint scissor_x = static_cast<GLint>(x);
+			GLint scissor_y = static_cast<GLint>(y);
+			GLint scissor_w = static_cast<GLint>(w);
+			GLint scissor_h = static_cast<GLint>(h);
+			if(scissor_w > 0 && scissor_h > 0)
+			{
+				ctx.glEnable(GL_SCISSOR_TEST);
+				// don't forget that 0,0 is the bottom left corner...
+				ctx.glScissor(
+					scissor_x,
+					cv_screen_height.data - (scissor_y + scissor_h),
+					scissor_w,
+					scissor_h);
+				ctx.glBindVertexArray(g_console.gl_prompt_vao_id);
+				ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.prompt_vertex_count);
+				ctx.glBindVertexArray(0);
+				ctx.glDisable(GL_SCISSOR_TEST);
+			}
+		}
+		
+        if(g_console.error_vertex_count != 0)
 		{
             ctx.glBindVertexArray(g_console.gl_error_vao_id);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.error_batcher.vertex_count());
+            ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.error_vertex_count);
             ctx.glBindVertexArray(0);
 		}
 	}
+    
 	ctx.glUseProgram(0);
 
 	if(cv_vsync.data == 0)
@@ -1003,25 +1007,26 @@ bool demo_state::perf_time()
 		bool success = true;
 		display_timer = tick_now;
 
+
+		// load the atlas texture.
+		ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
 		// since the text is stored in a GL_RED texture,
 		// I would need to pad each row to align to 4, but I don't.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		// load the atlas texture.
-		ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_font_interleave_vbo);
+
+        batcher.set_cursor(0);
+
+        font_painter.begin();
 
 
-        font_batcher.begin();
-
-
-        font_batcher.SetFont(&font_style);
+        font_painter.SetFont(&font_style);
 
         #if 1
 
         //font_settings.render_mode = FT_RENDER_MODE_NORMAL;
 
 		font_style.set_style(FONT_STYLE_OUTLINE);
-		font_batcher.set_color(0, 0, 0, 255);
+		font_painter.set_color(0, 0, 0, 255);
 		success = success && display_perf_text();
 
         #endif
@@ -1029,14 +1034,24 @@ bool demo_state::perf_time()
         //font_settings.render_mode = FT_RENDER_MODE_MONO;
 
 		font_style.set_style(FONT_STYLE_NORMAL);
-		font_batcher.set_color(255, 255, 255, 255);
+		font_painter.set_color(255, 255, 255, 255);
 		success = success && display_perf_text();
 
 
-		font_batcher.end();
-		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		font_painter.end();
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+
+	    if(batcher.get_quad_count() != 0)
+		{
+            ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_font_interleave_vbo);
+            // orphaning
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glBufferData(GL_ARRAY_BUFFER, batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+            ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, batcher.get_current_vertex_size(), batcher.buffer);
+            ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
 
 		success = success && GL_RUNTIME(__func__) == GL_NO_ERROR;
 
@@ -1067,7 +1082,7 @@ bool demo_state::display_perf_text()
 {
 	bool success = true;
 
-	font_batcher.SetFlag(TEXT_FLAGS::NEWLINE);
+	font_painter.SetFlag(TEXT_FLAGS::NEWLINE);
 
 	float x = 2;
 	float y = 2;
@@ -1082,24 +1097,24 @@ bool demo_state::display_perf_text()
 #endif
 	x = static_cast<float>(cv_screen_width.data) - 2;
 	y = 2;
-	font_batcher.SetXY(x, y);
-	font_batcher.SetAnchor(TEXT_ANCHOR::TOP_RIGHT);
+	font_painter.SetXY(x, y);
+	font_painter.SetAnchor(TEXT_ANCHOR::TOP_RIGHT);
 
 	//font_batcher.Limit(50);
-	success = success && font_batcher.draw_text("average / low / high\n");
+	success = success && font_painter.draw_text("average / low / high\n");
 	//font_batcher.Limit(50);
-	success = success && perf_total.display("total", &font_batcher);
+	success = success && perf_total.display("total", &font_painter);
 	//font_batcher.Limit(50);
-	success = success && perf_input.display("input", &font_batcher);
+	success = success && perf_input.display("input", &font_painter);
 	//font_batcher.Limit(50);
-	success = success && perf_render.display("render", &font_batcher);
+	success = success && perf_render.display("render", &font_painter);
 	//font_batcher.Limit(50);
-    success = success && perf_swap.display("swap", &font_batcher);
+    success = success && perf_swap.display("swap", &font_painter);
 	return success;
 }
 
 bool bench_data::display(
-	const char* msg, font_sprite_batcher* font_batcher)
+	const char* msg, font_sprite_painter* font_batcher)
 {
 	return font_batcher->draw_format("%s: %.2f / %.2f / %.2f\n", msg, accum_ms(), low_ms(), high_ms());
 }

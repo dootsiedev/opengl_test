@@ -23,9 +23,9 @@
 // I don't like enum classes, but here it's useful.
 enum class FONT_RESULT
 {
-	SUCCESS = 0,
-	NOT_FOUND = 1,
-	ERROR = -1
+	SUCCESS,
+	NOT_FOUND,
+	ERROR
 };
 
 enum
@@ -119,15 +119,16 @@ struct font_atlas
 	/*
 	optimzation: Use rectpack2d for caching the fonts onto the disk,
 			keep using my "very inefficient" atlas,
-			but when I gracefully quit, put all the fonts into rectpack,
+			but when I gracefully quit, put all the fonts into rectpack2d,
 			save it as a png, store the font path & glyph metrics into json,
+            (maybe do pessimistic garbage collecton for any unused fonts?)
 			then on startup load it back into the atlas,
             this has the benefit of no stutter from loading glyphs,
-            and techinically the cache could be used for "release".
-			Also works as a solution for "ran out of atlas space"
-			just allocate a larger altas and rectpack2d
-			but I would need to make all text to trigger a redraw (or just gracefully exit)
-            Only downside is that I might need a garbage collector for unused fonts/glyphs.
+            and techinically the cache could be distributed to help everyone.
+			Also a potential optimization for "ran out of atlas space"
+			just allocate a larger altas + rectpack2d
+			(but I currently I don't handle running out of atlas space...
+            and it would be difficult because all glyphs must be redrawn)
 	*/
 	uint32_t atlas_size = 0;
 
@@ -155,7 +156,7 @@ struct font_atlas
 		uint32_t bucket_depth;
 	};
 
-	// a buckets holds the number of spans (of span_granularity)
+	// a span is the unit yslot within the atlas 
 	// TODO: maybe make the buckets into a 2D grid
 	// bad fragmentation (and allocation errors) will occur
 	// once all the buckets have been allocated
@@ -168,7 +169,7 @@ struct font_atlas
 
 // stores the entire Basic Multilingual Plane of unicode
 // this is also embedded into the font_manager as a global fallback for all fonts.
-// NOTE: I need to put this somewhere, but I combine 2 unifont hex's to include emojis.
+// NOTE: I need to put this somewhere, but I combine 2 unifont hex files to include emojis.
 // First you need to get unifont-14.0.02.hex and unifont_upper-14.0.02.hex
 // Then you need to remove all codepoints that are overlap between both hexfonts,
 // or else you get an error, and then combine both fonts.
@@ -235,16 +236,11 @@ struct font_manager_state
     // font_atlas, hex_font_data, and font_manager_state together
 	font_atlas atlas;
 
-	// a fallback that supports pretty much all unicode if a font_style doesn't support it.
+	// a fallback that supports pretty much all unicode if a font doesn't support it.
 	hex_font_data hex_font;
 
     // for drawing primitives, this is a single white pixel.
     std::array<float, 4> white_uv;
-    /*
-    float white_uv_x = -1;
-	float white_uv_w = -1;
-	float white_uv_y = -1;
-	float white_uv_h = -1; */
     
 
 	NDSERR bool create();
@@ -338,75 +334,6 @@ struct font_ttf_rasterizer
 	NDSERR bool render_glyph(FT_Glyph* glyph_out, unsigned style_flags = FONT_STYLE_NORMAL);
 };
 
-// probably shouldn't be here
-struct mono_2d_batcher
-{
-    enum
-	{
-		QUAD_VERTS = 6
-	};
-
-	gl_mono_vertex* buffer = NULL;
-	size_t size = 0;
-	size_t cursor = 0;
-
-	size_t get_vertex_count() const
-	{
-        //ASSERT(buffer != NULL);
-		return cursor * QUAD_VERTS;
-	}
-    size_t get_quad_count() const
-	{
-        ASSERT(buffer != NULL);
-		return cursor;
-	}
-    //use the return from get_quad_count
-    void set_cursor(size_t pos)
-    {
-        ASSERT(buffer != NULL);
-        ASSERT(pos < size);
-        cursor = pos;
-	}
-
-	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy
-	bool draw_rect(std::array<float, 4> pos, std::array<float, 4> uv, std::array<uint8_t, 4> color)
-	{
-        if(cursor >= size)
-		{
-			return false;
-		}
-		return draw_rect_at(cursor++, pos, uv, color);
-	}
-
-	int placeholder_rect()
-    {
-        if(cursor >= size)
-		{
-			return -1;
-		}
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        return cursor++;
-    }
-
-	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy
-	bool draw_rect_at(
-		size_t index, std::array<float, 4> pos, std::array<float, 4> uv, std::array<uint8_t, 4> color)
-	{
-		ASSERT(buffer != NULL);
-		if(index >= size)
-		{
-			return false;
-		}
-        gl_mono_vertex *cur = buffer + index * QUAD_VERTS;
-		*cur++ = {pos[0], pos[1], 0.f, uv[0], uv[1], color[0], color[1], color[2], color[3]};
-		*cur++ = {pos[2], pos[3], 0.f, uv[2], uv[3], color[0], color[1], color[2], color[3]};
-		*cur++ = {pos[2], pos[1], 0.f, uv[2], uv[1], color[0], color[1], color[2], color[3]};
-		*cur++ = {pos[0], pos[1], 0.f, uv[0], uv[1], color[0], color[1], color[2], color[3]};
-		*cur++ = {pos[0], pos[3], 0.f, uv[0], uv[3], color[0], color[1], color[2], color[3]};
-		*cur++ = {pos[2], pos[3], 0.f, uv[2], uv[3], color[0], color[1], color[2], color[3]};
-		return true;
-	}
-};
 
 // cached in the atlas.
 struct font_bitmap_cache
@@ -500,7 +427,7 @@ enum TEXT_FLAGS : uint8_t
     //FORMATTING
 };
 
-struct font_sprite_batcher
+struct font_sprite_painter
 {
 	enum
 	{
@@ -513,9 +440,7 @@ struct font_sprite_batcher
 		HEX
 	};
 
-	//std::vector<gl_mono_vertex> font_vertex_buffer;
-    gl_mono_vertex batcher_buffer[1000 * mono_2d_batcher::QUAD_VERTS];
-    mono_2d_batcher batcher;
+    mono_2d_batcher *batcher = NULL;
 
 	size_t flush_cursor = 0;
 	size_t newline_cursor = 0;
@@ -555,10 +480,6 @@ struct font_sprite_batcher
 		current_flags = flag;
 	}
 
-	size_t vertex_count() const
-	{
-		return batcher.get_vertex_count();//font_vertex_buffer.size();
-	}
 
     //you can use this for knowing where the string left off.
     float draw_x_offset() const
@@ -608,7 +529,7 @@ struct font_sprite_batcher
 
 	// this will upload the buffer to opengl
 	// note: the buffer must be bound.
-	void end(GLenum type = GL_DYNAMIC_DRAW);
+	void end();
 
 	void SetXY(float x, float y)
 	{
