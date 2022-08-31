@@ -10,115 +10,118 @@
 #include "font/text_prompt.h"
 #include "console.h"
 
-#include <glm/vec2.hpp>           // vec2
-#include <glm/vec3.hpp>           // vec3
+#include <glm/vec2.hpp> // vec2
+#include <glm/vec3.hpp> // vec3
 #include <limits>
 
-//TODO: This is absolutely not the best way of doing this...
+// TODO: This is absolutely not the best way of doing this...
 struct bench_data
 {
-    //TODO: numeric_limits doesn't work if TIMER_U is a chrono time_point.
-    TIMER_RESULT accum = 0, high = 0, low = std::numeric_limits<TIMER_RESULT>::max();
-    size_t samples = 0;
-    void test(TIMER_RESULT dt)
-    {
-        if(dt < low) low = dt;
-        if(dt > high) high = dt;
-        accum += dt;
-        ++samples;
-    }
-    TIMER_RESULT accum_ms()
-    {
-        return accum / static_cast<TIMER_RESULT>(samples);
-    }
-    TIMER_RESULT high_ms()
-    {
-        return high;
-    }
-    TIMER_RESULT low_ms()
-    {
-        //this triggers UBsan if you tried to check low_ms without a single sample
-        if(low == std::numeric_limits<TIMER_RESULT>::max())
-        {
-            return 0;
-        }
-        return low;
-    }
-    void reset()
-    {
-        high = 0; // could use limits...
-        low = std::numeric_limits<TIMER_RESULT>::max();
-        accum = 0;
-        samples = 0;
-    }
+	// TODO: numeric_limits doesn't work if TIMER_U is a chrono time_point.
+	TIMER_RESULT accum = 0, high = 0, low = std::numeric_limits<TIMER_RESULT>::max();
+	size_t samples = 0;
+	void test(TIMER_RESULT dt)
+	{
+		if(dt < low) low = dt;
+		if(dt > high) high = dt;
+		accum += dt;
+		++samples;
+	}
+	TIMER_RESULT accum_ms()
+	{
+		return accum / static_cast<TIMER_RESULT>(samples);
+	}
+	TIMER_RESULT high_ms()
+	{
+		return high;
+	}
+	TIMER_RESULT low_ms()
+	{
+		// this triggers UBsan if you tried to check low_ms without a single sample
+		if(low == std::numeric_limits<TIMER_RESULT>::max())
+		{
+			return 0;
+		}
+		return low;
+	}
+	void reset()
+	{
+		high = 0; // could use limits...
+		low = std::numeric_limits<TIMER_RESULT>::max();
+		accum = 0;
+		samples = 0;
+	}
 
-    NDSERR bool display(const char* msg, font_sprite_painter* font_batcher);
+	NDSERR bool display(const char* msg, font_sprite_painter* font_painter);
 };
 
 enum class DEMO_RESULT
 {
-    CONTINUE,
-    EXIT,
-    ERROR
+	CONTINUE,
+	EXIT,
+	ERROR
 };
 
 struct demo_state
 {
 	shader_pointsprite_state point_shader;
 
-    GLuint gl_inst_table_tex_id = 0;
+	GLuint gl_inst_table_tex_id = 0;
 	GLuint gl_vert_vbo_id = 0;
 	GLuint gl_vert_ibo_id = 0;
 	GLuint gl_point_vbo_id = 0;
 	GLuint gl_vao_id = 0;
 
-    NDSERR bool init_gl_point_sprite();
-    NDSERR bool destroy_gl_point_sprite();
+	NDSERR bool init_gl_point_sprite();
+	NDSERR bool destroy_gl_point_sprite();
 
 	shader_mono_state mono_shader;
-    GLuint gl_font_interleave_vbo = 0;
+	GLuint gl_font_interleave_vbo = 0;
 	GLuint gl_font_vao_id = 0;
+	GLsizei gl_font_vertex_count = 0;
 
-    //GLuint gl_prompt_interleave_vbo = 0;
-    //GLuint gl_prompt_vao_id = 0;
+	// GLuint gl_prompt_interleave_vbo = 0;
+	// GLuint gl_prompt_vao_id = 0;
 
-    // stores the atlas and fallback hexfont
+	// stores the atlas and fallback hexfont
 	font_manager_state font_manager;
-    // stores the settings for the font_rasterizer
-    // this should only be initialized and not modified in runtime,
-    // but if you want you can modify the settings between styles,
-    // like FONT_STYLE_OUTLINE using a different FT_RENDER_MODE
-    // if you are very careful.
-    font_ttf_face_settings font_settings;
-    // owns the TTF file, and rasters bitmaps.
-    // you should only have one rasterizer for a font,
-    // and switch styles with font_ttf_face_settings.
+	// stores the settings for the font_rasterizer
+	// this should only be initialized and not modified in runtime,
+	// but if you want you can modify the settings between styles,
+	// like FONT_STYLE_OUTLINE using a different FT_RENDER_MODE
+	// if you are very careful.
+	font_ttf_face_settings font_settings;
+	// owns the TTF file, and rasters bitmaps.
+	// you should only have one rasterizer for a font,
+	// and switch styles with font_ttf_face_settings.
 	font_ttf_rasterizer font_rasterizer;
-    // places glyphs into the atlas texture, and
-    // stores the location of glyphs in the atlas
+	// places glyphs into the atlas texture, and
+	// stores the location of glyphs in the atlas
 	font_bitmap_cache font_style;
-    // writes verticies for opengl, can be used with multiple fonts.
+
+	// this puts the text on the screen and helps
 	font_sprite_painter font_painter;
 
+	// writes verticies for opengl, can be used with all fonts that use the same buffer size.
+	std::unique_ptr<gl_mono_vertex[]> font_batcher_buffer;
+	mono_2d_batcher font_batcher;
 
-    std::unique_ptr<gl_mono_vertex[]> batcher_buffer;
-    mono_2d_batcher batcher;
+	// prompt?
+	// font_sprite_batcher prompt_batcher;
+	// text_prompt_wrapper prompt;
+	// console_state console;
+	bool show_console = false;
 
-    //prompt?
-	//font_sprite_batcher prompt_batcher;
-    //text_prompt_wrapper prompt;
-    //console_state console; 
-    bool show_console = false;
-
-    bool update_projection = false;
+	bool update_projection = false;
 
 	TIMER_U timer_last = 0;
 
-	//this should be float or byte
-    //but ATM i use this as a incrementing number
-    double colors[3]= {};
+	// this should be float or byte
+	// but ATM i use this as a incrementing number
+	double colors[3] = {};
 
-	enum{
+	enum
+	{
 		MOVE_FORWARD,
 		MOVE_BACKWARD,
 		MOVE_LEFT,
@@ -130,30 +133,29 @@ struct demo_state
 	float camera_yaw = 0;
 	float camera_pitch = 0;
 	glm::vec3 camera_pos = {};
-	glm::vec3 camera_direction = {1.f,0.f,0.f};
-
+	glm::vec3 camera_direction = {1.f, 0.f, 0.f};
 
 	int point_buffer_size = 0;
 	int ibo_buffer_size = 0;
 	std::unique_ptr<GLushort[]> ibo_buffer;
 
-    bench_data perf_total;
-    bench_data perf_input;
-    bench_data perf_render;
-    bench_data perf_swap;
+	bench_data perf_total;
+	bench_data perf_input;
+	bench_data perf_render;
+	bench_data perf_swap;
 
-    NDSERR bool init();
+	NDSERR bool init();
 	NDSERR bool init_gl_font();
 
-    NDSERR bool destroy();
-    NDSERR bool destroy_gl_font();
+	NDSERR bool destroy();
+	NDSERR bool destroy_gl_font();
 
-    NDSERR DEMO_RESULT input();
-    void unfocus();
-    NDSERR bool render();
+	NDSERR DEMO_RESULT input();
+	void unfocus();
+	NDSERR bool render();
 
-    NDSERR DEMO_RESULT process();
+	NDSERR DEMO_RESULT process();
 
-    NDSERR bool perf_time();
-    NDSERR bool display_perf_text();
+	NDSERR bool perf_time();
+	NDSERR bool display_perf_text();
 };

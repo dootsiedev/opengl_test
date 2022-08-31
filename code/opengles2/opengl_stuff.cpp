@@ -14,11 +14,11 @@ REGISTER_CVAR_INT(cv_has_GL_KHR_debug, 0, "0 = not found, 1 = found", CVAR_T::RE
 
 GLenum implement_GL_RUNTIME(const char* msg, const char* file, int line)
 {
-    if(cv_debug_opengl.data == 0)
-    {
-        return GL_NO_ERROR;
-    }
-    return implement_GL_CHECK(msg, file, line);
+	if(cv_debug_opengl.data == 0)
+	{
+		return GL_NO_ERROR;
+	}
+	return implement_GL_CHECK(msg, file, line);
 }
 
 // not as useful as debug callbacks, but better than a number.
@@ -65,8 +65,6 @@ GLenum implement_GL_CHECK(const char* msg, const char* file, int line)
 
 	return first_glError;
 }
-
-
 
 static const char* GetGLDebugSeverityKHR(GLenum severity)
 {
@@ -125,7 +123,7 @@ static void ErrorCallback(
 			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
 			GetGLDebugTypeKHR(type),
 			type,
-            GetGLDebugSeverityKHR(severity),
+			GetGLDebugSeverityKHR(severity),
 			severity,
 			message);
 	}
@@ -135,7 +133,7 @@ static void ErrorCallback(
 			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
 			GetGLDebugTypeKHR(type),
 			type,
-            GetGLDebugSeverityKHR(severity),
+			GetGLDebugSeverityKHR(severity),
 			severity,
 			message);
 
@@ -152,7 +150,6 @@ static void ErrorCallback(
 		}
 	}
 }
-
 
 #if 1 // def _WIN32
 NDSERR static void* wrapper_SDL_GL_GetProcAddress(const char* name)
@@ -173,9 +170,9 @@ bool LoadGLContext(GLES2_Context* data)
 #define SDL_PROC(ret, func, params) data->func = func;
 #define NULL_PROC(ret, func, params) data->func = func;
 #else
-#define SDL_PROC(ret, func, params) \
-	data->func = reinterpret_cast<decltype(data->func)>(wrapper_SDL_GL_GetProcAddress(#func));\
-    if(data->func == NULL) return false;
+#define SDL_PROC(ret, func, params)                                                            \
+	data->func = reinterpret_cast<decltype(data->func)>(wrapper_SDL_GL_GetProcAddress(#func)); \
+	if(data->func == NULL) return false;
 #define NULL_PROC(ret, func, params) \
 	data->func = reinterpret_cast<decltype(data->func)>(SDL_GL_GetProcAddress(#func));
 #endif
@@ -185,8 +182,7 @@ bool LoadGLContext(GLES2_Context* data)
 #undef NULL_PROC
 #undef SDL_PROC
 
-
-    if(cv_debug_opengl.data == 1)
+	if(cv_debug_opengl.data == 1)
 	{
 		if(SDL_GL_ExtensionSupported("GL_KHR_debug") == SDL_FALSE)
 		{
@@ -199,7 +195,7 @@ bool LoadGLContext(GLES2_Context* data)
 			ctx.glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
 			ctx.glDebugMessageCallback(ErrorCallback, nullptr);
 			ctx.glEnable(GL_DEBUG_OUTPUT_KHR);
-            cv_has_GL_KHR_debug.data = 1;
+			cv_has_GL_KHR_debug.data = 1;
 		}
 	}
 
@@ -223,15 +219,15 @@ bool LoadGLContext(GLES2_Context* data)
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
-
-NDSERR static GLuint gl_compile_shader(const char* file_info, int shader_count, const GLchar* const* shader_script, GLenum type)
+NDSERR static GLuint gl_compile_shader(
+	const char* file_info, int shader_count, const GLchar* const* shader_script, GLenum type)
 {
-    ASSERT(file_info != NULL);
+	ASSERT(file_info != NULL);
 	ASSERT(shader_script != NULL);
 	ASSERT(type == GL_VERTEX_SHADER || type == GL_FRAGMENT_SHADER);
 
-    GLuint shader_id;
-    shader_id = ctx.glCreateShader(type);
+	GLuint shader_id;
+	shader_id = ctx.glCreateShader(type);
 	if(shader_id == 0)
 	{
 		serrf("<%s> error: glCreateShader returned 0\n", file_info);
@@ -243,7 +239,7 @@ NDSERR static GLuint gl_compile_shader(const char* file_info, int shader_count, 
 
 	GLint compile_status;
 	ctx.glGetShaderiv(shader_id, GL_COMPILE_STATUS, &compile_status);
-	
+
 	GLint log_length;
 	GLint infoLogLength;
 
@@ -264,7 +260,7 @@ NDSERR static GLuint gl_compile_shader(const char* file_info, int shader_count, 
 		ctx.glDeleteShader(shader_id);
 		return 0;
 	}
-	
+
 	return shader_id;
 }
 

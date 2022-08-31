@@ -45,7 +45,8 @@ void main()
 
 bool shader_mono_state::create()
 {
-	gl_program_id = gl_create_program("shader_mono_vs", shader_mono_vs, "shader_mono_fs", shader_mono_fs);
+	gl_program_id =
+		gl_create_program("shader_mono_vs", shader_mono_vs, "shader_mono_fs", shader_mono_fs);
 	if(gl_program_id == 0)
 	{
 		return false;
@@ -92,12 +93,12 @@ bool shader_mono_state::destroy()
 		ctx.glDeleteProgram(gl_program_id);
 		gl_program_id = 0;
 	}
-    return GL_CHECK(__func__) == GL_NO_ERROR;
+	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
 void gl_create_interleaved_mono_vertex_vao(shader_mono_state& mono_shader)
 {
-    if(mono_shader.gl_attributes.a_pos != -1)
+	if(mono_shader.gl_attributes.a_pos != -1)
 	{
 		ctx.glEnableVertexAttribArray(mono_shader.gl_attributes.a_pos);
 		ctx.glVertexAttribPointer(

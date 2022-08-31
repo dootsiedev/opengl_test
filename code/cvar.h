@@ -90,7 +90,8 @@ public:
 	int data;
 
 	// you should use REGISTER_CVAR_ to fill in file and line.
-	cvar_int(const char* key, int value, const char* comment, CVAR_T type, const char* file, int line);
+	cvar_int(
+		const char* key, int value, const char* comment, CVAR_T type, const char* file, int line);
 
 	NDSERR bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;
@@ -103,7 +104,12 @@ public:
 
 	// you should use REGISTER_CVAR_ to fill in file and line.
 	cvar_double(
-		const char* key, double value, const char* comment, CVAR_T type, const char* file, int line);
+		const char* key,
+		double value,
+		const char* comment,
+		CVAR_T type,
+		const char* file,
+		int line);
 
 	NDSERR bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;

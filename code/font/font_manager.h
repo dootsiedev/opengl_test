@@ -64,7 +64,7 @@ typedef std::unique_ptr<FT_GlyphRec, FT_Done_Glyph_wrapper> unique_ft_glyph;
 enum class FONT_ENTRY : uint16_t
 {
 	// undefined is used internally to define initialization.
-    // note that I memset zero font_glyph_entry so this MUST be zero.
+	// note that I memset zero font_glyph_entry so this MUST be zero.
 	UNDEFINED = 0,
 	// normal means this is an vector image
 	NORMAL,
@@ -123,15 +123,15 @@ struct font_atlas
 			keep using my "very inefficient" atlas,
 			but when I gracefully quit, put all the fonts into rectpack2d,
 			save it as a png, store the font path & glyph metrics into json,
-            (maybe do pessimistic garbage collecton for any unused fonts?)
+			(maybe do pessimistic garbage collecton for any unused fonts?)
 			then on startup load it back into the atlas,
-            this has the benefit of no stutter from loading glyphs,
-            and techinically the cache could be distributed to help everyone.
+			this has the benefit of no stutter from loading glyphs,
+			and techinically the cache could be distributed to help everyone.
 			Also a potential optimization for "ran out of atlas space"
 			just allocate a larger altas + rectpack2d
 			(but I currently I don't handle running out of atlas space...
-            and it would be difficult because all glyphs must be redrawn)
-            This would also help prevent the problem of "running out of spans"
+			and it would be difficult because all glyphs must be redrawn)
+			This would also help prevent the problem of "running out of spans"
 	*/
 	uint32_t atlas_size = 0;
 
@@ -159,7 +159,7 @@ struct font_atlas
 		uint32_t bucket_depth;
 	};
 
-	// a span is the unit yslot within the atlas 
+	// a span is the unit yslot within the atlas
 	// TODO: maybe make the buckets into a 2D grid
 	// bad fragmentation (and allocation errors) will occur
 	// once all the buckets have been allocated
@@ -167,19 +167,26 @@ struct font_atlas
 	// it does mean that the largest sized glyph must be smaller than the grid.
 	std::deque<span_bucket> span_buckets;
 
+	// for drawing primitives, this is a single white pixel.
+	std::array<float, 4> white_uv;
+
 	NDSERR bool find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, uint32_t* y_out);
 };
 
 // abstract interface to work with a font that could be a hexfont or truetype font.
 struct font_style_interface
 {
+	virtual font_atlas* get_font_atlas() = 0;
 	virtual float get_point_size() = 0;
 	virtual float get_ascent() = 0;
 	virtual float get_lineskip() = 0;
-    // optional, used for scaling FONT_ENTRY::BITMAP
+	// optional, used for scaling FONT_ENTRY::BITMAP
 	virtual float get_bitmap_size() = 0;
+	// getting the advance does not require the atlas to be bound unlike get_glyph.
 	NDSERR virtual FONT_RESULT get_advance(char32_t codepoint, float* advance) = 0;
-	NDSERR virtual FONT_RESULT get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph_out) = 0;
+	// you require to bind the atlas texture and set the GL_UNPACK_ALIGNMENT to 1
+	NDSERR virtual FONT_RESULT
+		get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph_out) = 0;
 	virtual ~font_style_interface() = default;
 };
 
@@ -230,76 +237,89 @@ struct hex_font_data : public font_style_interface
 	std::vector<hex_block_chunk> hex_block_chunks;
 
 	Unique_RWops hex_font_file;
-    font_atlas* atlas = NULL;
+	font_atlas* atlas = NULL;
 
 	NDSERR bool init(Unique_RWops file, font_atlas* atlas_);
 	NDSERR bool destroy();
 
 	NDSERR bool load_hex_block(hex_block_chunk* chunk);
 
-    //virtual functions
+	// virtual functions
+	font_atlas* get_font_atlas() override
+	{
+		return atlas;
+	}
 	float get_point_size() override
-    {
-        ASSERT(false && "hex_font_data is for fallbacks ONLY");
-        return NAN;
-    }
+	{
+		ASSERT(false && "hex_font_data is for fallbacks ONLY");
+		return NAN;
+	}
 	float get_ascent() override
-    {
-        ASSERT(false && "hex_font_data is for fallbacks ONLY");
-        return NAN;
-    }
+	{
+		ASSERT(false && "hex_font_data is for fallbacks ONLY");
+		return NAN;
+	}
 	float get_lineskip() override
-    {
-        ASSERT(false && "hex_font_data is for fallbacks ONLY");
-        return NAN;
-    }
+	{
+		ASSERT(false && "hex_font_data is for fallbacks ONLY");
+		return NAN;
+	}
 	float get_bitmap_size() override
-    {
-        ASSERT(false && "hex_font_data is for fallbacks ONLY");
-        return NAN;
-    }
-	NDSERR FONT_RESULT get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph) override;
+	{
+		ASSERT(false && "hex_font_data is for fallbacks ONLY");
+		return NAN;
+	}
+	NDSERR FONT_RESULT
+		get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph) override;
 	NDSERR FONT_RESULT get_advance(char32_t codepoint, float* advance) override;
 };
 
 // if you don't have a font, and you want to use hexfont, you can use this.
 struct hex_font_placeholder : public font_style_interface
 {
-    hex_font_data* hex_font = NULL;
-    float height = -1;
-    void init(hex_font_data* hex_font_, float height_)
-    {
-        hex_font = hex_font_;
-        height = height_;
-    }
+	hex_font_data* hex_font = NULL;
+	float height = -1;
+	void init(hex_font_data* hex_font_, float height_)
+	{
+		hex_font = hex_font_;
+		height = height_;
+	}
+	font_atlas* get_font_atlas() override
+	{
+		ASSERT(hex_font != NULL);
+		return hex_font->atlas;
+	}
 	float get_point_size() override
-    {
-        ASSERT(hex_font != NULL);
-        return height;
-    }
-    float get_ascent() override
-    {
-        ASSERT(hex_font != NULL);
-        return height;
-    }
+	{
+		ASSERT(hex_font != NULL);
+		return height;
+	}
+	float get_ascent() override
+	{
+		ASSERT(hex_font != NULL);
+		return height;
+	}
 	float get_lineskip() override
-    {
-        ASSERT(hex_font != NULL);
-        return height;
-    }
+	{
+		ASSERT(hex_font != NULL);
+		return height;
+	}
 	float get_bitmap_size() override
-    {
-        ASSERT(false && "no bitmaps in hex font");
-        return NAN;
-    }
-    NDSERR FONT_RESULT get_advance(char32_t codepoint, float* advance) override
-    {
-        return hex_font->get_advance(codepoint, advance);
-    }
-    NDSERR FONT_RESULT get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph) override
-    {
-        return hex_font->get_glyph(codepoint, style, glyph);
-    }
+	{
+		ASSERT(false && "no bitmaps in hex font");
+		return NAN;
+	}
+	NDSERR FONT_RESULT get_advance(char32_t codepoint, float* advance) override
+	{
+		ASSERT(hex_font != NULL);
+		return hex_font->get_advance(codepoint, advance);
+	}
+	NDSERR FONT_RESULT
+		get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph) override
+	{
+		ASSERT(hex_font != NULL);
+		return hex_font->get_glyph(codepoint, style, glyph);
+	}
 };
 
 struct font_manager_state
@@ -308,16 +328,12 @@ struct font_manager_state
 
 	GLuint gl_atlas_tex_id = 0;
 
-    // to simplify the code a bit, I am considering just combining 
-    // font_atlas, hex_font_data, and font_manager_state together
+	// to simplify the code a bit, I am considering just combining
+	// font_atlas, hex_font_data, and font_manager_state together
 	font_atlas atlas;
 
 	// a fallback that supports pretty much all unicode if a font doesn't support it.
 	hex_font_data hex_font;
-
-    // for drawing primitives, this is a single white pixel.
-    std::array<float, 4> white_uv;
-    
 
 	NDSERR bool create();
 	NDSERR bool destroy();
@@ -392,7 +408,7 @@ struct font_ttf_rasterizer
 
 	NDSERR bool create(FT_Library ftstate, Unique_RWops file);
 	NDSERR bool destroy();
-    ~font_ttf_rasterizer();
+	~font_ttf_rasterizer();
 
 	// for every style you must set this before loading glyphs.
 	// the lifetime of the settings must live as long as you need glyphs.
@@ -402,14 +418,13 @@ struct font_ttf_rasterizer
 	// note that these values are not scaled for bitmap fonts,
 	// so if you are scaling, check FT_IS_SCALABLE(this->face)
 	// and apply the same scale factor you use for rendering.
-	//void get_face_metrics_px(int* ascent, int* height);
+	// void get_face_metrics_px(int* ascent, int* height);
 
 	// face->glyph->format == FT_GLYPH_FORMAT_OUTLINE
 	// if no error, you must call FT_Done_Glyph on glyph_out,
 	// and glyph_out needs to be casted to FT_BitmapGlyph.
 	NDSERR bool render_glyph(FT_Glyph* glyph_out, unsigned style_flags = FONT_STYLE_NORMAL);
 };
-
 
 // cached in the atlas.
 struct font_bitmap_cache : public font_style_interface
@@ -424,10 +439,10 @@ struct font_bitmap_cache : public font_style_interface
 
 	struct font_cache_block
 	{
-        // quick bit check if a glyph is known to not exist.
-        // I really like std::bitset, but I probably need to replace this
-        // with a C style bitset in a unique_ptr or a std::vector<bool>
-        // TODO(dootise): because I want to store FONT_CACHE_CHUNK_GLYPHS in a cvar.
+		// quick bit check if a glyph is known to not exist.
+		// I really like std::bitset, but I probably need to replace this
+		// with a C style bitset in a unique_ptr or a std::vector<bool>
+		// TODO(dootise): because I want to store FONT_CACHE_CHUNK_GLYPHS in a cvar.
 		std::bitset<FONT_CACHE_CHUNK_GLYPHS> bad_indexes;
 
 		// FONT_ENTRY::UNDEFINED is used to check if initialized.
@@ -439,21 +454,21 @@ struct font_bitmap_cache : public font_style_interface
 	// RAII_FT_Bitmap convert_bitmap;
 	FT_Bitmap convert_bitmap;
 
-	//font_manager_state* font_manager = NULL;
-    font_atlas* atlas = NULL;
-    font_style_interface* fallback = NULL;
+	// font_manager_state* font_manager = NULL;
+	font_atlas* atlas = NULL;
+	font_style_interface* fallback = NULL;
 	font_ttf_rasterizer* current_rasterizer = NULL;
-	//int current_style = FONT_STYLE_NORMAL;
+	// int current_style = FONT_STYLE_NORMAL;
 
 	void init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer);
-    NDSERR bool destroy();
+	NDSERR bool destroy();
 	~font_bitmap_cache() override;
 
-/*
-	void set_style(int style)
-	{
-		current_style = style;
-	}*/
+	/*
+		void set_style(int style)
+		{
+			current_style = style;
+		}*/
 
 	// internal use only
 	// returns NULL if failed to load.
@@ -461,19 +476,54 @@ struct font_bitmap_cache : public font_style_interface
 	// ftglyph holds the lifetime of bitmap returned,
 	// but sometimes the bitmap is stored in convert_bitmap
 	// if the glyph was not an outline or FT_PIXEL_MODE_GRAY.
-	NDSERR FT_Bitmap* render_tf_glyph(FT_UInt glyph_index, font_style_type style, unique_ft_glyph& ftglyph);
+	NDSERR FT_Bitmap*
+		render_tf_glyph(FT_UInt glyph_index, font_style_type style, unique_ft_glyph& ftglyph);
 
-
+	font_atlas* get_font_atlas() override
+	{
+		return atlas;
+	}
 	float get_point_size() override;
-    float get_ascent() override;
+	float get_ascent() override;
 	float get_lineskip() override;
 	float get_bitmap_size() override;
 	NDSERR FONT_RESULT get_advance(char32_t codepoint, float* advance) override;
 
 	// you must set opengl's GL_UNPACK_ALIGNMENT to 1 for this to work.
-	NDSERR FONT_RESULT get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph_out) override;
+	NDSERR FONT_RESULT
+		get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph_out) override;
+};
 
-    
+// shared data between the text painter and text prompt.
+// converts glyph data into opengl data.
+struct internal_font_painter_state
+{
+	// buffer to write into
+	mono_2d_batcher* batcher = NULL;
+	// holds the font
+	font_style_interface* font = NULL;
+	// the drawing position, only the x is modified from load_glyph_verts
+	float draw_x_pos = 0;
+	float draw_y_pos = 0;
+
+	void init(mono_2d_batcher* batcher_, font_style_interface* font_)
+	{
+		ASSERT(font_ != NULL);
+		ASSERT(batcher_ != NULL);
+		batcher = batcher_;
+		font = font_;
+	}
+
+	void set_xy(float x, float y)
+	{
+		draw_x_pos = std::floor(x);
+		draw_y_pos = std::floor(y);
+	}
+
+	NDSERR FONT_RESULT load_glyph_verts(
+		char32_t codepoint,
+		std::array<uint8_t, 4> color,
+		font_style_type style = FONT_STYLE_NORMAL);
 };
 
 // the anchor for which side to align to.
@@ -487,7 +537,7 @@ struct font_bitmap_cache : public font_style_interface
 // and change the anchor & cursor based on it.
 // EX: TOP_LEFT 0,0 = draw text topleft of screen
 //  append will add to the right of the text
-// EX: BOTTOM_RIGHT "screen_w", "screen_h" 
+// EX: BOTTOM_RIGHT "screen_w", "screen_h"
 //  = draw text bottom right of screen,
 //  append will add to the left of the text
 // EX: CENTER_LEFT: 0, "screen_h / 2"
@@ -497,22 +547,22 @@ struct font_bitmap_cache : public font_style_interface
 
 enum class TEXT_ANCHOR : uint8_t
 {
-    TOP_LEFT,
-    TOP_RIGHT,
-    BOTTOM_LEFT,
-    BOTTOM_RIGHT,
-    CENTER_PERFECT,
-    CENTER_TOP,
-    CENTER_BOTTOM,
-    CENTER_LEFT,
-    CENTER_RIGHT
+	TOP_LEFT,
+	TOP_RIGHT,
+	BOTTOM_LEFT,
+	BOTTOM_RIGHT,
+	CENTER_PERFECT,
+	CENTER_TOP,
+	CENTER_BOTTOM,
+	CENTER_LEFT,
+	CENTER_RIGHT
 };
 
 enum TEXT_FLAGS : uint8_t
 {
-    NONE,
-    NEWLINE
-    //FORMATTING
+	NONE,
+	NEWLINE
+	// FORMATTING
 };
 
 struct font_sprite_painter
@@ -521,25 +571,25 @@ struct font_sprite_painter
 	{
 		FONT_BATCH_VERTS = 6
 	};
-	
-	font_manager_state* font_manager = NULL;
-	mono_2d_batcher* batcher = NULL;
-    font_style_interface* font = NULL;
+
+	internal_font_painter_state state;
 
 	size_t flush_cursor = 0;
 	size_t newline_cursor = 0;
 
-    float anchor_x = 0;
-    float anchor_y = 0;
-
-	float draw_cur_x = 0;
-    float draw_cur_y = 0;
+	float anchor_x = 0;
+	float anchor_y = 0;
 
 	std::array<uint8_t, 4> cur_color{255, 255, 255, 255};
 
 	TEXT_ANCHOR current_anchor = TEXT_ANCHOR::TOP_LEFT;
 	TEXT_FLAGS current_flags = TEXT_FLAGS::NONE;
-    font_style_type current_style = 0;
+	font_style_type current_style = 0;
+
+	void init(mono_2d_batcher* batcher_, font_style_interface* font_)
+	{
+		state.init(batcher_, font_);
+	}
 
 	void set_anchor(TEXT_ANCHOR anchor)
 	{
@@ -551,51 +601,45 @@ struct font_sprite_painter
 		current_flags = flag;
 	}
 
-    void set_style(font_style_type style)
+	void set_style(font_style_type style)
 	{
 		current_style = style;
 	}
 
-    void set_font(font_style_interface* font_)
-	{
-		font = font_;
-	}
-
-    // start drawing at a new position.
-    // YOU MUST SET THE ANCHOR AFTER THIS (if you change the alignment)
+	// start drawing at a new position.
+	// YOU MUST SET THE ANCHOR AFTER THIS (if you change the alignment)
 	void set_xy(float x, float y)
 	{
-        // fix the y axis alignment of any previous batch
-        internal_flush();
-        anchor_x = std::floor(x);
-        anchor_y = std::floor(y);
-		draw_cur_x = anchor_x;
-		draw_cur_y = anchor_y;
+		// fix the y axis alignment of any previous batch
+		internal_flush();
+		anchor_x = std::floor(x);
+		anchor_y = std::floor(y);
+		state.draw_x_pos = anchor_x;
+		state.draw_y_pos = anchor_y;
 	}
 
+	// you can use this for knowing where the string left off.
+	float draw_x_offset() const
+	{
+		return state.draw_x_pos - anchor_x;
+	}
+	float draw_y_offset() const
+	{
+		return state.draw_y_pos - anchor_y;
+	}
+	float draw_x_pos() const
+	{
+		return state.draw_x_pos;
+	}
+	float draw_y_pos() const
+	{
+		return state.draw_x_pos;
+	}
 
-    //you can use this for knowing where the string left off.
-    float draw_x_offset() const
-    {
-        return draw_cur_x - anchor_x;
-    }
-    float draw_y_offset() const
-    {
-        return draw_cur_y - anchor_y;
-    }
-    float draw_x_pos() const
-    {
-        return draw_cur_x;
-    }
-    float draw_y_pos() const
-    {
-        return draw_cur_y;
-    }
-
-    void insert_padding(float x)
-    {
-        draw_cur_x += x;
-    }
+	void insert_padding(float x)
+	{
+		state.draw_x_pos += x;
+	}
 
 	// set the current color
 	// the default is black.
@@ -603,43 +647,29 @@ struct font_sprite_painter
 	{
 		cur_color = {r, g, b, a};
 	}
-    void set_color(std::array<uint8_t, 4> color)
+	void set_color(std::array<uint8_t, 4> color)
 	{
 		cur_color = color;
 	}
 
 	// you need to enclose all your drawing within begin() and end()
-    // begin will detect where the batch starts, end will flush.
+	// begin will detect where the batch starts, end will flush.
 	void begin();
 	void end();
 
-    
+	// If you use an anchor that offsets the y axis
+	// (BOTTOM_LEFT+RIGHT, CENTER_PERFECT+LEFT+RIGHT+BOTTOM)
+	// you need to call flush at the end to correct the offset.
+	// this is done during end() and SetXY()
+	void internal_flush();
 
-    // If you use an anchor that offsets the y axis
-    // (BOTTOM_LEFT+RIGHT, CENTER_PERFECT+LEFT+RIGHT+BOTTOM)
-    // you need to call flush at the end to correct the offset.
-    // this is done during end() and SetXY()
-    void internal_flush();
-
-    // You should use the newline flag if you need it,
-    // but you want a newline without '\n', use this.
-    void newline();
+	// You should use the newline flag if you need it,
+	// but you want a newline without '\n', use this.
+	void newline();
 
 	// You must call this between begin() and end()
 	NDSERR bool draw_format(const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 
 	// you can use null terminated strings if size = 0, but strlen will be used.
 	NDSERR bool draw_text(const char* text, size_t size = 0);
-
-
-	FONT_RESULT load_glyph_verts(char32_t codepoint);
-
-	// using a single pixel in the atlas, you can draw primitives,
-	// I use this for drawing the text selection, and potentially strikeout, underline.
-	///void draw_rect(float minx, float maxx, float miny, float maxy);
-
-    // index references the vertex
-    // you can use vertex_count() to reference the index.
-	//void move_rect(size_t index, float minx, float maxx, float miny, float maxy);
 };
-

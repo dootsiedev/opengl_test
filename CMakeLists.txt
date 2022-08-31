@@ -420,7 +420,7 @@ if(NOT WIN32)
 endif()
 
 #enable this just in case (clang on linux doesn't use PIE)
-option(USE_PIE "makes stronger security" ON)
+option(USE_PIE "makes stronger security" OFF)
 include(CheckPIESupported)
 check_pie_supported()
 set_property(TARGET ${PROJECT_NAME} PROPERTY POSITION_INDEPENDENT_CODE ${USE_PIE})

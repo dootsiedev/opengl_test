@@ -115,7 +115,10 @@ int main(int argc, char** argv)
 				success = false;
 			}
 		}
-		app_destroy(g_app);
+		if(!app_destroy(g_app))
+		{
+			success = false;
+		}
 	}
 
 	if(!success)

@@ -26,8 +26,8 @@ bool app_init(App_Info& app)
 		return false;
 	}
 
-    // this is started for some reason...
-    SDL_StopTextInput();
+	// this is started for some reason...
+	SDL_StopTextInput();
 
 #define SDL_CHECK(x)                                  \
 	do                                                \
@@ -39,9 +39,9 @@ bool app_init(App_Info& app)
 	} while(0)
 
 	// SDL_CHECK(SDL_SetHint("SDL_HINT_MOUSE_RELATIVE_MODE_WARP", "1"));
-	//SDL_CHECK(SDL_SetHint("SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH", "1"));
+	// SDL_CHECK(SDL_SetHint("SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH", "1"));
 #ifdef IME_TEXTEDIT_EXT
-    // seems like this only works for wayland ATM.
+	// seems like this only works for wayland ATM.
 	SDL_CHECK(SDL_SetHint("SDL_HINT_IME_SUPPORT_EXTENDED_TEXT", "1"));
 #endif
 	// SDL_CHECK(SDL_SetHint("SDL_HINT_IME_SHOW_UI", "1"));
@@ -125,7 +125,7 @@ bool app_init(App_Info& app)
 		{
 			slog("warning: SDL_GL_CONTEXT_DEBUG_FLAG failed to set\n");
 		}
-    }
+	}
 
 	// vsync
 	if(SDL_GL_SetSwapInterval(cv_vsync.data) != 0)
@@ -136,11 +136,16 @@ bool app_init(App_Info& app)
 	return true;
 }
 
-void app_destroy(App_Info& app)
+bool app_destroy(App_Info& app)
 {
+	bool success = true;
 	if(app.gl_context != NULL)
 	{
-		ASSERT(SDL_GL_GetCurrentContext() == app.gl_context);
+		if(SDL_GL_GetCurrentContext() != app.gl_context)
+		{
+			serr("gl context was not bound as the current context\n");
+			success = false;
+		}
 		SDL_GL_DeleteContext(app.gl_context);
 		app.gl_context = NULL;
 		memset(&ctx, 0, sizeof(ctx));
@@ -148,13 +153,20 @@ void app_destroy(App_Info& app)
 
 	if(app.window != NULL)
 	{
+		SDL_ClearError();
 		SDL_DestroyWindow(app.window);
+		const char* error = SDL_GetError();
+		if(error[0] != '\0')
+		{
+			serrf("error SDL_DestroyWindow: %s\n", SDL_GetError());
+			success = false;
+		}
 		app.window = NULL;
 	}
 
 	SDL_Quit();
+	return success;
 }
-
 
 cvar_fullscreen::cvar_fullscreen()
 : cvar_int("cv_fullscreen", 0, "0 = windowed, 1 = fullscreen", CVAR_T::RUNTIME, __FILE__, __LINE__)

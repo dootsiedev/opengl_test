@@ -4,14 +4,15 @@
 
 #include <SDL2/SDL.h>
 
+// Note this is not RAII safe
 struct App_Info
 {
 	SDL_GLContext gl_context;
 	SDL_Window* window;
 };
 
-bool app_init(App_Info& app);
-void app_destroy(App_Info& app);
+NDSERR bool app_init(App_Info& app);
+NDSERR bool app_destroy(App_Info& app);
 
 extern App_Info g_app;
 

@@ -4,7 +4,7 @@
 
 #include "cvar.h"
 
-//for reading files, since I like the stream API.
+// for reading files, since I like the stream API.
 #include "BS_Archive/BS_stream.h"
 
 // unfortunately std::from_chars for doubles doesn't have great support on compilers...
@@ -24,7 +24,7 @@ cvar_int::cvar_int(
 , data(value)
 {
 	auto [it, success] = get_convars().try_emplace(key, *this);
-    (void)success;
+	(void)success;
 	// this shouldn't be possible.
 	ASSERT(success && "cvar already registered");
 }
@@ -34,11 +34,11 @@ bool cvar_int::cvar_read(const char* buffer)
 
 	pop_errno_t pop_errno;
 
-    // unfortunatly there is no strtoi, and longs could be 4 or 8 bytes...
+	// unfortunatly there is no strtoi, and longs could be 4 or 8 bytes...
 	// NOLINTNEXTLINE(google-runtime-int)
 	long value = strtol(buffer, &end_ptr, 10);
 
-    const int cmax = std::numeric_limits<int>::max();
+	const int cmax = std::numeric_limits<int>::max();
 	const int cmin = std::numeric_limits<int>::min();
 
 	if(errno == ERANGE)
@@ -46,7 +46,7 @@ bool cvar_int::cvar_read(const char* buffer)
 		serrf("Error: cvar value out of range: \"+%s %s\"\n", cvar_key, buffer);
 		return false;
 	}
-    if(value > cmax || value < cmin)
+	if(value > cmax || value < cmin)
 	{
 		serrf(
 			"Error: cvar value out of range: \"+%s %s\" min: %d, max: %d, result: %ld\n",
@@ -68,7 +68,7 @@ bool cvar_int::cvar_read(const char* buffer)
 		slogf("warning: cvar value extra characters on input: \"+%s %s\"\n", cvar_key, buffer);
 	}
 
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	data = value;
 
 	return true;
@@ -86,7 +86,7 @@ cvar_double::cvar_double(
 , data(value)
 {
 	auto [it, success] = get_convars().try_emplace(key, *this);
-    (void)success;
+	(void)success;
 	// this shouldn't be possible.
 	ASSERT(success && "cvar already registered");
 }
@@ -125,12 +125,17 @@ std::string cvar_double::cvar_write()
 }
 
 cvar_string::cvar_string(
-	const char* key, std::string value, const char* comment, CVAR_T type, const char* file, int line)
+	const char* key,
+	std::string value,
+	const char* comment,
+	CVAR_T type,
+	const char* file,
+	int line)
 : V_cvar(key, comment, type, file, line)
 , data(std::move(value))
 {
 	auto [it, success] = get_convars().try_emplace(key, *this);
-    (void)success;
+	(void)success;
 	// this shouldn't be possible.
 	ASSERT(success && "cvar already registered");
 }
@@ -210,7 +215,7 @@ bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
 		default: ASSERT(false && "flags_req not implemented");
 		}
 
-        std::string old_value = cv.cvar_write();
+		std::string old_value = cv.cvar_write();
 
 		if(!cv.cvar_read(argv[i]))
 		{
@@ -241,44 +246,44 @@ static char* musl_strtok_r(char* __restrict s, const char* __restrict sep, char*
 
 bool cvar_line(CVAR_T flags_req, char* line)
 {
+	// TODO (dootsie): could try to support escape keys since I can't insert quotes or newlines?
 	std::vector<const char*> arguments;
-    char* token = line;
-    bool in_quotes = false;
-    do
-    {
-        char* next_quote = strchr(token, '\"');
-        if(next_quote != NULL)
-        {
-            *next_quote++ = '\0';
-            in_quotes = !in_quotes;
-            if(!in_quotes)
-            {
-                arguments.push_back(token);
-                token = next_quote;
-                continue;
-            }
-        }
-        
-        const char* delim = " ";
-        char* next_token = NULL;
-        token = musl_strtok_r(token, delim, &next_token);
-        while(token != NULL)
-        {
-            arguments.push_back(token);
-            token = musl_strtok_r(NULL, delim, &next_token);
-        }
-        
-        token = next_quote;
-    }while(token != NULL && *token != '\0');
+	char* token = line;
+	bool in_quotes = false;
+	do
+	{
+		char* next_quote = strchr(token, '\"');
+		if(next_quote != NULL)
+		{
+			*next_quote++ = '\0';
+			in_quotes = !in_quotes;
+			if(!in_quotes)
+			{
+				arguments.push_back(token);
+				token = next_quote;
+				continue;
+			}
+		}
 
+		const char* delim = " ";
+		char* next_token = NULL;
+		token = musl_strtok_r(token, delim, &next_token);
+		while(token != NULL)
+		{
+			arguments.push_back(token);
+			token = musl_strtok_r(NULL, delim, &next_token);
+		}
 
-    if(in_quotes)
-    {
-        serrf("missing quote pair\n");
-        return false;
-    }
+		token = next_quote;
+	} while(token != NULL);
 
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	if(in_quotes)
+	{
+		serrf("missing quote pair\n");
+		return false;
+	}
+
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	return cvar_args(flags_req, arguments.size(), arguments.data());
 }
 
@@ -300,22 +305,22 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
 		++count;
 		if(*pos == '\n')
 		{
-            if(line_buf[0] == '#' || pos == line_buf)
-            {
-                // comment or empty, ignore.
-                // ATM empty lines do not cause an error in cvar_line.
-                // but that might change.
-            }
-            else
-            {
-                *pos = '\0';
-                //print the line
-                slogf("%s\n",line_buf);
-                if(!cvar_line(flags_req, line_buf))
-                {
-                    return false;
-                }
-            }
+			if(line_buf[0] == '#' || pos == line_buf)
+			{
+				// comment or empty, ignore.
+				// ATM empty lines do not cause an error in cvar_line.
+				// but that might change.
+			}
+			else
+			{
+				*pos = '\0';
+				// print the line
+				slogf("%s\n", line_buf);
+				if(!cvar_line(flags_req, line_buf))
+				{
+					return false;
+				}
+			}
 			pos = line_buf;
 		}
 		else if(*pos == '\r')

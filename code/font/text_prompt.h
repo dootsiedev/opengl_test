@@ -31,9 +31,9 @@ enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 	TEXTP_X_SCROLL = (1 << 3),
 	TEXTP_READ_ONLY = (1 << 4),
 	// don't mix with TEXTP_Y_SCROLL or TEXTP_WORD_WRAP
-    // you probably should combine this with TEXTP_X_SCROLL
-    // or TEXTP_DISABLE_CULL because this will disable line wrapping
-    // any newlines that are pasted are converted to '#'
+	// you probably should combine this with TEXTP_X_SCROLL
+	// or TEXTP_DISABLE_CULL because this will disable line wrapping
+	// any newlines that are pasted are converted to '#'
 	TEXTP_SINGLE_LINE = (1 << 5),
 	// draw a box around the text and scrollbar
 	// without it the scrollbar thumb will still draw (if you have one)
@@ -42,8 +42,8 @@ enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 	// this will disable line wrapping if TEXTP_WORD_WRAP is false
 	// if the text is outside the box, the mouse events wont work.
 	TEXTP_DISABLE_CULL = (1 << 7),
-    // fill the back of each letter of text with a backdrop
-    // if you want a full backdrop, just draw it yourself.
+	// fill the back of each letter of text with a backdrop
+	// if you want a full backdrop, just draw it yourself.
 	TEXTP_DRAW_BACKDROP = (1 << 8)
 };
 
@@ -53,7 +53,6 @@ struct text_prompt_wrapper
 	// a std::vector<std::string> would be better.
 	// If I can't handle 100k character files,
 	// I will probably need to switch to that.
-
 
 	// this is a tad bit large
 	STB_TexteditState stb_state;
@@ -69,8 +68,11 @@ struct text_prompt_wrapper
 
 	std::deque<prompt_char> text_data;
 
+	internal_font_painter_state state;
 
-	font_sprite_painter* painter = NULL;
+	// I REALLY want to get rid of this,
+	// since I don't use the alignment at all.
+	// font_sprite_painter* painter = NULL;
 
 	// IME text that is displayed.
 	std::string markedText;
@@ -114,8 +116,8 @@ struct text_prompt_wrapper
 	float scrollbar_thickness = 20;
 	float scrollbar_thumb_min_size = 20;
 
-    // this is padding to help show the cursor at the right side of the screen
-    float horizontal_padding = 30;
+	// this is padding to help show the cursor at the right side of the screen
+	float horizontal_padding = 30;
 
 	std::array<uint8_t, 4> text_color{0, 0, 0, 255};
 	std::array<uint8_t, 4> select_text_color{255, 255, 255, 255};
@@ -124,7 +126,7 @@ struct text_prompt_wrapper
 	std::array<uint8_t, 4> scrollbar_color = RGBA8_PREMULT(80, 80, 80, 200);
 	std::array<uint8_t, 4> caret_color{0, 0, 0, 255};
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
-    // also used for the backdrop of the IME text.
+	// also used for the backdrop of the IME text.
 	std::array<uint8_t, 4> backdrop_color = RGBA8_PREMULT(255, 255, 255, 200);
 
 	// I could use the bitfield trick to compress the size of bools,
@@ -147,25 +149,26 @@ struct text_prompt_wrapper
 
 	TEXTP_FLAG flags = 0;
 
-	// batcher needs to have a style set, and must be anchored TOP_LEFT
-	// this requires the atlas texture to be bound with 1 byte packing
-	NDSERR bool init(std::string_view contents, font_sprite_painter* batcher_, TEXTP_FLAG flags_);
+	NDSERR bool init(
+		std::string_view contents,
+		mono_2d_batcher* batcher_,
+		font_style_interface* font_,
+		TEXTP_FLAG flags_);
 
 	// this will also check blink_timer and blink the cursor.
 	// NOTE: but blink_timer should be in a logic() function...
 	bool draw_requested();
 
-	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool replace_string(std::string_view contents);
 	void clear_string();
 
 	// this is an expensive operation
 	std::string get_string() const;
 
-	// this requires the atlas texture to be bound with 1 byte packing
 	TEXT_PROMPT_RESULT input(SDL_Event& e);
 
 	// this draws into the batcher
+	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool draw();
 
 	void scroll_to_top()
@@ -217,26 +220,26 @@ struct text_prompt_wrapper
 	{
 		if(text_focus)
 		{
-            if(!read_only())
+			if(!read_only())
 			{
 				SDL_StopTextInput();
 			}
 			text_focus = false;
 			mouse_held = false;
-            x_scrollbar_held = false;
-            y_scrollbar_held = false;
+			x_scrollbar_held = false;
+			y_scrollbar_held = false;
 			drag_x = -1;
 			drag_y = -1;
 			update_buffer = true;
-            markedText.clear();
+			markedText.clear();
 		}
 	}
 
-    void focus()
+	void focus()
 	{
 		if(!text_focus)
 		{
-            if(!read_only())
+			if(!read_only())
 			{
 				SDL_StartTextInput();
 			}
@@ -245,7 +248,11 @@ struct text_prompt_wrapper
 		}
 	}
 
-    void set_readonly(bool on)
+	// this function is currently used to modify a read only prompt
+	// (useful for text that can be selected and copied)
+	// so doing an unfocus in here isn't a good idea.
+	// probably should give an alternative API.
+	void set_readonly(bool on)
 	{
 		if(on)
 		{
@@ -288,10 +295,10 @@ struct text_prompt_wrapper
 	{
 		return (flags & TEXTP_DISABLE_CULL) == 0;
 	}
-    bool draw_backdrop() const
-    {
-        return (flags & TEXTP_DRAW_BACKDROP) != 0;
-    }
+	bool draw_backdrop() const
+	{
+		return (flags & TEXTP_DRAW_BACKDROP) != 0;
+	}
 
 	// scroll_w will not account for the padding for the scrollbar
 	float get_scroll_width()
@@ -323,7 +330,8 @@ struct text_prompt_wrapper
 
 	NDSERR bool internal_draw_pretext();
 	// TODO(dootsie): the offset was supposed to be from pretext to speed up scanning
-	NDSERR bool internal_draw_text(size_t offset, bool* caret_visible, float* caret_x, float* caret_y);
+	NDSERR bool
+		internal_draw_text(size_t offset, bool* caret_visible, float* caret_x, float* caret_y);
 	NDSERR bool internal_draw_marked(float x, float y);
 	void internal_draw_widgets();
 

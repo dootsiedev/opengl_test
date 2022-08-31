@@ -2,29 +2,28 @@
 #include "cvar.h"
 #include "debug_tools.h"
 
-#ifndef DISABLE_CONSOLE 
+#ifndef DISABLE_CONSOLE
 #include "console.h"
 #endif
 
 #include <cstring>
 
-// NDEBUG means that a stacktrace isn't valuable
-static int no_debug_information =
-#ifdef NDEBUG
-	0;
-#else
+// USE_LIBBACKTRACE should imply debug information exists.
+static int has_libbacktrace =
+#if defined(USE_LIBBACKTRACE)
 	1;
+#else
+	0;
 #endif
 
 static REGISTER_CVAR_INT(
 	cv_serr_bt,
-	no_debug_information,
-    // I don't reccomend "always stacktrace" because some errors are nested, 
-    // which will make the error very hard to read.
-    // a "capture" is a error that is handled, using serr_get_error()
+	has_libbacktrace,
+	// I don't reccomend "always stacktrace" because some errors are nested,
+	// which will make the error very hard to read.
+	// a "capture" is a error that is handled, using serr_get_error()
 	"0 = nothing, 1 = stacktrace (once per capture), 2 = always stacktrace (spam)",
 	CVAR_T::RUNTIME);
-
 
 // I would use this if I was profiling, or if the logs were spamming.
 static REGISTER_CVAR_INT(
@@ -32,7 +31,6 @@ static REGISTER_CVAR_INT(
 	0,
 	"0 = keep log, 1 = disable info logs, 2 = disable info and error logs",
 	CVAR_T::RUNTIME);
-
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -161,10 +159,10 @@ bool serr_check_error()
 
 void slog_raw(const char* msg, size_t len)
 {
-    if(cv_disable_log.data != 0)
-    {
-        return;
-    }
+	if(cv_disable_log.data != 0)
+	{
+		return;
+	}
 	// on win32, if did a /subsystem:windows, I would probably
 	// replace stdout with OutputDebugString on the debug build.
 	fwrite(msg, 1, len, stdout);
@@ -181,11 +179,11 @@ void serr_raw(const char* msg, size_t len)
 {
 	if(cv_disable_log.data == 2)
 	{
-        // if I didn't do this, there would be side effects 
-        // since I sometimes depend on serr_check_error for checking.
-        *internal_get_serr_buffer() = '!';
-        return;
-    }
+		// if I didn't do this, there would be side effects
+		// since I sometimes depend on serr_check_error for checking.
+		*internal_get_serr_buffer() = '!';
+		return;
+	}
 	serr_safe_stacktrace(1);
 	slog_raw(msg, len);
 	internal_get_serr_buffer()->append(msg, msg + len);
@@ -193,10 +191,10 @@ void serr_raw(const char* msg, size_t len)
 
 void slog(const char* msg)
 {
-    if(cv_disable_log.data != 0)
-    {
-        return;
-    }
+	if(cv_disable_log.data != 0)
+	{
+		return;
+	}
 #ifdef DISABLE_CONSOLE
 	// don't use puts because it inserts a newline.
 	fputs(msg, stdout);
@@ -207,13 +205,13 @@ void slog(const char* msg)
 
 void serr(const char* msg)
 {
-    if(cv_disable_log.data == 2)
-    {
-        // if I didn't do this, there would be side effects 
-        // since I sometimes depend on serr_check_error for checking.
-        *internal_get_serr_buffer() = '!';
-        return;
-    }
+	if(cv_disable_log.data == 2)
+	{
+		// if I didn't do this, there would be side effects
+		// since I sometimes depend on serr_check_error for checking.
+		*internal_get_serr_buffer() = '!';
+		return;
+	}
 	serr_safe_stacktrace(1);
 	slog(msg);
 	internal_get_serr_buffer()->append(msg);
@@ -221,10 +219,10 @@ void serr(const char* msg)
 
 void slogf(const char* fmt, ...)
 {
-    if(cv_disable_log.data != 0)
-    {
-        return;
-    }
+	if(cv_disable_log.data != 0)
+	{
+		return;
+	}
 #ifdef DISABLE_CONSOLE
 	va_list args;
 	va_start(args, fmt);
@@ -251,13 +249,13 @@ void slogf(const char* fmt, ...)
 
 void serrf(const char* fmt, ...)
 {
-    if(cv_disable_log.data == 2)
-    {
-        // if I didn't do this, there would be side effects 
-        // since I sometimes depend on serr_check_error for checking.
-        *internal_get_serr_buffer() = '!';
-        return;
-    }
+	if(cv_disable_log.data == 2)
+	{
+		// if I didn't do this, there would be side effects
+		// since I sometimes depend on serr_check_error for checking.
+		*internal_get_serr_buffer() = '!';
+		return;
+	}
 
 	serr_safe_stacktrace(1);
 
@@ -271,14 +269,14 @@ void serrf(const char* fmt, ...)
 	internal_get_serr_buffer()->append(buffer.get(), buffer.get() + length);
 
 #ifdef DISABLE_CONSOLE
-    // would it be much faster if I added vslogf and did a va_copy?
+	// would it be much faster if I added vslogf and did a va_copy?
 	slog_raw(buffer.get(), length);
 #else
 	fwrite(buffer.get(), 1, length, stdout);
-    {
+	{
 		std::lock_guard<std::mutex> lk(g_console.mut);
 		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), length);
-	}    
+	}
 #endif
 }
 

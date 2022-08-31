@@ -126,7 +126,9 @@ RWops_Stdio::~RWops_Stdio()
 {
 	if(fp != NULL)
 	{
-		close();
+		slogf("info: file destroyed without closing: %s\n", stream_name.c_str());
+		fclose(fp);
+		fp = NULL;
 	}
 }
 
@@ -254,7 +256,9 @@ public:
 	{
 		if(sdl_ops != NULL)
 		{
-			close();
+			slogf("info: file destroyed without closing: %s\n", stream_name.c_str());
+			SDL_RWclose(sdl_ops);
+			sdl_ops = NULL;
 		}
 	}
 };

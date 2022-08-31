@@ -24,21 +24,15 @@ static REGISTER_CVAR_INT(
 	CVAR_T::RUNTIME);
 
 bool console_state::init(
-	font_manager_state* font_manager, font_bitmap_cache* font_style, shader_mono_state& mono_shader)
+	font_style_interface* console_font_,
+	mono_2d_batcher* console_batcher_,
+	shader_mono_state& mono_shader)
 {
-	ASSERT(font_style != NULL);
-	ASSERT(font_manager != NULL);
+	ASSERT(console_font_ != NULL);
+	ASSERT(console_batcher_ != NULL);
 
-	console_painter.font_manager = font_manager;
-	console_painter.set_font(font_style);
-
-	size_t max_quads = 1000;
-	console_batcher_buffer =
-		std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
-	console_batcher.buffer = console_batcher_buffer.get();
-	console_batcher.size = max_quads;
-	console_batcher.set_cursor(0);
-	console_painter.batcher = &console_batcher;
+	console_font = console_font_;
+	console_batcher = console_batcher_;
 
 	//
 	// log
@@ -67,7 +61,8 @@ bool console_state::init(
 	// this requires the atlas texture to be bound with 1 byte packing
 	if(!log_box.init(
 		   "",
-		   &console_painter,
+		   console_batcher,
+		   console_font,
 		   TEXTP_Y_SCROLL | TEXTP_WORD_WRAP | TEXTP_DRAW_BBOX | TEXTP_READ_ONLY |
 			   TEXTP_DRAW_BACKDROP))
 	{
@@ -100,7 +95,8 @@ bool console_state::init(
 
 	if(!prompt_cmd.init(
 		   "",
-		   &console_painter,
+		   console_batcher,
+		   console_font,
 		   TEXTP_SINGLE_LINE | TEXTP_X_SCROLL | TEXTP_DRAW_BBOX | TEXTP_DRAW_BACKDROP))
 	{
 		return false;
@@ -131,7 +127,10 @@ bool console_state::init(
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
 	if(!error_text.init(
-		   "", &console_painter, TEXTP_READ_ONLY | TEXTP_DISABLE_CULL | TEXTP_DRAW_BACKDROP))
+		   "",
+		   console_batcher,
+		   console_font,
+		   TEXTP_READ_ONLY | TEXTP_DISABLE_CULL | TEXTP_DRAW_BACKDROP))
 	{
 		return false;
 	}
@@ -167,7 +166,8 @@ bool console_state::init(
 	else
 	{
 		// in hindsight the one downside of using JSON is that it would be better
-		// to just append the file + flush than writing the whole json for every command.
+		// to just append the file + flush than writing the whole json for every command
+		// if I wanted to support the ability to save the history even after a segfault.
 		RWops_Stdio history_file(fp, history_path);
 		char buffer[1000];
 		BS_ReadStream sb(&history_file, buffer, sizeof(buffer));
@@ -176,6 +176,13 @@ bool console_state::init(
 		if(!ar.Finish(history_file.name()))
 		{
 			// put the message into the console instead
+			if(!post_error(serr_get_error()))
+			{
+				return false;
+			}
+		}
+		if(!history_file.close())
+		{
 			if(!post_error(serr_get_error()))
 			{
 				return false;
@@ -194,28 +201,36 @@ bool console_state::destroy()
 	SAFE_GL_DELETE_VBO(gl_error_interleave_vbo);
 	SAFE_GL_DELETE_VAO(gl_error_vao_id);
 
+	bool success = true;
+
 	FILE* fp = serr_wrapper_fopen(history_path, "wb");
 	if(fp == NULL)
 	{
-		return false;
+		success = false;
 	}
-
-	if(command_history.size() > static_cast<size_t>(cv_console_history_max.data))
+	else
 	{
-		command_history.resize(cv_console_history_max.data);
+		if(command_history.size() > static_cast<size_t>(cv_console_history_max.data))
+		{
+			command_history.resize(cv_console_history_max.data);
+		}
+
+		RWops_Stdio history_file(fp, history_path);
+		char buffer[1000];
+		BS_WriteStream sb(&history_file, buffer, sizeof(buffer));
+		BS_JsonWriter ar(sb);
+		serialize_history(ar);
+		if(!ar.Finish(history_file.name()))
+		{
+			success = false;
+		}
+		if(!history_file.close())
+		{
+			success = false;
+		}
 	}
 
-	RWops_Stdio history_file(fp, history_path);
-	char buffer[1000];
-	BS_WriteStream sb(&history_file, buffer, sizeof(buffer));
-	BS_JsonWriter ar(sb);
-	serialize_history(ar);
-	if(!ar.Finish(history_file.name()))
-	{
-		return false;
-	}
-
-	return GL_CHECK(__func__) == GL_NO_ERROR;
+	return GL_CHECK(__func__) == GL_NO_ERROR && success;
 }
 
 void console_state::serialize_history(BS_Archive& ar)
@@ -261,7 +276,7 @@ void console_state::resize_text_area()
 		60,
 		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_painter.font->get_lineskip());
+		console_font->get_lineskip());
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
 	// but if it's too big it could potentially block UI elements in an annoying way
@@ -269,7 +284,7 @@ void console_state::resize_text_area()
 		60,
 		prompt_cmd.box_ymax + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_painter.font->get_lineskip() * 10);
+		console_font->get_lineskip() * 10);
 }
 
 CONSOLE_RESULT console_state::input(SDL_Event& e)
@@ -393,8 +408,6 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 
 bool console_state::parse_input()
 {
-	// TODO: this is way too simple, it can't support escape keys or quotes.
-	// The quick and ugly solution would be to use boost spirit.
 	std::string line = prompt_cmd.get_string();
 	prompt_cmd.clear_string();
 
@@ -413,11 +426,21 @@ bool console_state::parse_input()
 	}
 	history_index = -1;
 
-	// this will modify the string which means you can't use line after this.
-	if(!cvar_line(CVAR_T::RUNTIME, line.data()))
+	if(line == "help")
 	{
-		return post_error(serr_get_error());
+		// TODO: probably should have an option to only show runtime options
+		cvar_list(false);
 	}
+	else
+	{
+		// this will modify the string which means you can't use line after this.
+		if(!cvar_line(CVAR_T::RUNTIME, line.data()))
+		{
+			return post_error(serr_get_error());
+		}
+	}
+
+	// slogf("log text count: %zu\n", log_box.text_data.size());
 
 	return true;
 }
@@ -503,8 +526,7 @@ bool console_state::draw()
 
 	if(log_box.draw_requested())
 	{
-		console_batcher.set_cursor(0);
-		console_painter.begin();
+		console_batcher->set_cursor(0);
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!log_box.draw())
 		{
@@ -514,80 +536,63 @@ bool console_state::draw()
 				return false;
 			}
 		}
-		console_painter.end();
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		log_vertex_count = console_batcher.get_current_vertex_count();
-		if(console_batcher.get_quad_count() != 0)
+		log_vertex_count = console_batcher->get_current_vertex_count();
+		if(console_batcher->get_quad_count() != 0)
 		{
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
 			ctx.glBufferData(
-				GL_ARRAY_BUFFER,
-				console_batcher.get_total_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
-				NULL,
-				GL_STREAM_DRAW);
+				GL_ARRAY_BUFFER, console_batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
 			ctx.glBufferSubData(
 				GL_ARRAY_BUFFER,
 				0,
-				console_batcher.get_current_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
-				console_batcher.buffer);
+				console_batcher->get_current_vertex_size(),
+				console_batcher->buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 	}
 
 	if(prompt_cmd.draw_requested())
 	{
-		console_batcher.set_cursor(0);
-		console_painter.begin();
+		console_batcher->set_cursor(0);
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!prompt_cmd.draw())
 		{
 			return false;
 		}
-		console_painter.end();
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		prompt_vertex_count = console_batcher.get_current_vertex_count();
-		if(console_batcher.get_quad_count() != 0)
+		prompt_vertex_count = console_batcher->get_current_vertex_count();
+		if(console_batcher->get_quad_count() != 0)
 		{
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
 
 			ctx.glBufferData(
-				GL_ARRAY_BUFFER,
-				console_batcher.get_total_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
-				NULL,
-				GL_STREAM_DRAW);
+				GL_ARRAY_BUFFER, console_batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
 			ctx.glBufferSubData(
 				GL_ARRAY_BUFFER,
 				0,
-				console_batcher.get_current_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
-				console_batcher.buffer);
+				console_batcher->get_current_vertex_size(),
+				console_batcher->buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 	}
 	if(error_text.draw_requested())
 	{
-		console_batcher.set_cursor(0);
-		console_painter.begin();
+		console_batcher->set_cursor(0);
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!error_text.draw())
 		{
 			return false;
 		}
-		console_painter.end();
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		error_vertex_count = console_batcher.get_current_vertex_count();
-		if(console_batcher.get_quad_count() != 0)
+		error_vertex_count = console_batcher->get_current_vertex_count();
+		if(console_batcher->get_quad_count() != 0)
 		{
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
 			ctx.glBufferData(
-				GL_ARRAY_BUFFER,
-				console_batcher.get_total_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
-				NULL,
-				GL_STREAM_DRAW);
+				GL_ARRAY_BUFFER, console_batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
 			ctx.glBufferSubData(
 				GL_ARRAY_BUFFER,
 				0,
-				console_batcher.get_current_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
-				console_batcher.buffer);
+				console_batcher->get_current_vertex_size(),
+				console_batcher->buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 	}

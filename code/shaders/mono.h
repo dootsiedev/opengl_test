@@ -63,16 +63,26 @@ struct mono_2d_batcher
 	size_t size = 0;
 	size_t cursor = 0;
 
-	size_t get_current_vertex_count() const
+    void init(gl_mono_vertex* buffer_, size_t size_)
+    {
+        ASSERT(buffer_);
+        buffer = buffer_;
+        size = size_;
+    }
+
+	GLsizei get_current_vertex_count() const
 	{
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		return cursor * QUAD_VERTS;
 	}
-    size_t get_current_vertex_size() const
+    GLsizeiptr get_current_vertex_size() const
     {
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
         return cursor * QUAD_VERTS * sizeof(gl_mono_vertex);
     }
-    size_t get_total_vertex_size() const
+    GLsizeiptr get_total_vertex_size() const
     {
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
         return size * QUAD_VERTS * sizeof(gl_mono_vertex);
     }
     size_t get_quad_count() const

@@ -20,7 +20,7 @@
 
 
 // assert is bad, but sometimes an explosion is the only choice, eg: PTR IS NULL
-#define ASSERT(x) assert(x)
+#define ASSERT assert
 
 // this is a vague signal to say "THIS FUNCTION PRINTS TO SERR, CAPTURE IT!"
 // if a function return is not for serr, just use [[nodiscard]].

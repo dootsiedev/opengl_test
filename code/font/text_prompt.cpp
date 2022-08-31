@@ -58,11 +58,14 @@ static REGISTER_CVAR_DOUBLE(
 	cv_prompt_scroll_rate, 3, "scroll rate factor of size of a row", CVAR_T::RUNTIME);
 
 bool text_prompt_wrapper::init(
-	std::string_view contents, font_sprite_painter* batcher_, TEXTP_FLAG flags_)
+	std::string_view contents,
+	mono_2d_batcher* batcher_,
+	font_style_interface* font_,
+	TEXTP_FLAG flags_)
 {
 	ASSERT(batcher_ != NULL);
-	ASSERT(batcher_->current_anchor == TEXT_ANCHOR::TOP_LEFT);
-	painter = batcher_;
+	ASSERT(font_ != NULL);
+	state.init(batcher_, font_);
 	flags = flags_;
 
 	// does this need to be zero'd?
@@ -74,7 +77,7 @@ bool text_prompt_wrapper::init(
 	}
 
 	// space_advance_cache = painter->font->GetAdvance(' ');
-	return painter->font->get_advance(' ', &space_advance_cache) == FONT_RESULT::SUCCESS;
+	return state.font->get_advance(' ', &space_advance_cache) == FONT_RESULT::SUCCESS;
 }
 
 bool text_prompt_wrapper::replace_string(std::string_view contents)
@@ -220,10 +223,7 @@ bool text_prompt_wrapper::draw_requested()
 
 bool text_prompt_wrapper::draw()
 {
-	ASSERT(painter != NULL);
-	ASSERT(painter->current_anchor == TEXT_ANCHOR::TOP_LEFT);
-
-	float lineskip = painter->font->get_lineskip(); // painter->GetLineSkip();
+	float lineskip = state.font->get_lineskip();
 
 	// we don't need to draw again.
 	update_buffer = false;
@@ -257,8 +257,8 @@ bool text_prompt_wrapper::draw()
 				ASSERT(text_focus);
 				ASSERT(!read_only());
 				std::array<float, 4> caret_pos{caret_x, caret_y, caret_x + 2, caret_y + lineskip};
-				painter->batcher->draw_rect(
-					caret_pos, painter->font_manager->white_uv, caret_color);
+				state.batcher->draw_rect(
+					caret_pos, state.font->get_font_atlas()->white_uv, caret_color);
 			}
 		}
 	}
@@ -275,17 +275,17 @@ bool text_prompt_wrapper::draw()
 
 void text_prompt_wrapper::internal_draw_widgets()
 {
-	auto white_uv = painter->font_manager->white_uv;
+	auto white_uv = state.font->get_font_atlas()->white_uv;
 	// draw the bbox
 	if(draw_bbox())
 	{
-		painter->batcher->draw_rect(
+		state.batcher->draw_rect(
 			{box_xmin, box_ymin, box_xmin + 1, box_ymax}, white_uv, bbox_color);
-		painter->batcher->draw_rect(
+		state.batcher->draw_rect(
 			{box_xmin, box_ymin, box_xmax, box_ymin + 1}, white_uv, bbox_color);
-		painter->batcher->draw_rect(
+		state.batcher->draw_rect(
 			{box_xmax - 1, box_ymin, box_xmax, box_ymax}, white_uv, bbox_color);
-		painter->batcher->draw_rect(
+		state.batcher->draw_rect(
 			{box_xmin, box_ymax - 1, box_xmax, box_ymax}, white_uv, bbox_color);
 
 		// draw the scroll bar bbox
@@ -302,19 +302,19 @@ void text_prompt_wrapper::internal_draw_widgets()
 				float scrollbar_ymin = box_ymin;
 				float scrollbar_ymax = box_ymin + scrollbar_max_height;
 
-				painter->batcher->draw_rect(
+				state.batcher->draw_rect(
 					{scrollbar_xmin, scrollbar_ymin, scrollbar_xmin + 1, scrollbar_ymax},
 					white_uv,
 					bbox_color);
-				painter->batcher->draw_rect(
+				state.batcher->draw_rect(
 					{scrollbar_xmin, scrollbar_ymin, scrollbar_xmax, scrollbar_ymin + 1},
 					white_uv,
 					bbox_color);
-				painter->batcher->draw_rect(
+				state.batcher->draw_rect(
 					{scrollbar_xmax - 1, scrollbar_ymin, scrollbar_xmax, scrollbar_ymax},
 					white_uv,
 					bbox_color);
-				painter->batcher->draw_rect(
+				state.batcher->draw_rect(
 					{scrollbar_xmin, scrollbar_ymax - 1, scrollbar_xmax, scrollbar_ymax},
 					white_uv,
 					bbox_color);
@@ -328,19 +328,19 @@ void text_prompt_wrapper::internal_draw_widgets()
 				float scrollbar_ymin = box_ymax - scrollbar_thickness;
 				float scrollbar_ymax = box_ymax;
 
-				painter->batcher->draw_rect(
+				state.batcher->draw_rect(
 					{scrollbar_xmin, scrollbar_ymin, scrollbar_xmin + 1, scrollbar_ymax},
 					white_uv,
 					bbox_color);
-				painter->batcher->draw_rect(
+				state.batcher->draw_rect(
 					{scrollbar_xmin, scrollbar_ymin, scrollbar_xmax, scrollbar_ymin + 1},
 					white_uv,
 					bbox_color);
-				painter->batcher->draw_rect(
+				state.batcher->draw_rect(
 					{scrollbar_xmax - 1, scrollbar_ymin, scrollbar_xmax, scrollbar_ymax},
 					white_uv,
 					bbox_color);
-				painter->batcher->draw_rect(
+				state.batcher->draw_rect(
 					{scrollbar_xmin, scrollbar_ymax - 1, scrollbar_xmax, scrollbar_ymax},
 					white_uv,
 					bbox_color);
@@ -370,11 +370,11 @@ void text_prompt_wrapper::internal_draw_widgets()
 			float ymin = std::floor(box_ymin + thumb_offset);
 			float ymax = std::floor(box_ymin + thumb_offset + thumb_height);
 
-			painter->batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
-			painter->batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
-			painter->batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
-			painter->batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
-			painter->batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+			state.batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
+			state.batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+			state.batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+			state.batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+			state.batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 		}
 		if(has_horizontal)
 		{
@@ -392,11 +392,11 @@ void text_prompt_wrapper::internal_draw_widgets()
 			float ymin = box_ymax - scrollbar_thickness;
 			float ymax = box_ymax;
 
-			painter->batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
-			painter->batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
-			painter->batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
-			painter->batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
-			painter->batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+			state.batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
+			state.batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+			state.batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+			state.batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+			state.batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 		}
 	}
 }
@@ -404,7 +404,7 @@ void text_prompt_wrapper::internal_draw_widgets()
 bool text_prompt_wrapper::internal_draw_pretext()
 {
 	// this is bad code, but I am surprised it works.
-	float lineskip = painter->font->get_lineskip(); // painter->GetLineSkip();
+	float lineskip = state.font->get_lineskip();
 
 	if(y_scrollable() || x_scrollable())
 	{
@@ -605,15 +605,16 @@ bool text_prompt_wrapper::internal_draw_pretext()
 bool text_prompt_wrapper::internal_draw_text(
 	size_t offset, bool* caret_visible, float* caret_x, float* caret_y)
 {
-	auto white_uv = painter->font_manager->white_uv;
+	auto white_uv = state.font->get_font_atlas()->white_uv;
 
 	// set the batcher position.
-	painter->set_xy(
-		box_xmin - (x_scrollable() ? scroll_x : 0.f), box_ymin - (y_scrollable() ? scroll_y : 0.f));
+	float anchor_x_pos = box_xmin - (x_scrollable() ? scroll_x : 0.f);
+	state.set_xy(anchor_x_pos, box_ymin - (y_scrollable() ? scroll_y : 0.f));
 
-	painter->set_color(text_color);
+	std::array<uint8_t, 4> active_text_color = text_color;
+	// painter->set_color(text_color);
 
-	float lineskip = painter->font->get_lineskip(); // painter->GetLineSkip();
+	float lineskip = state.font->get_lineskip();
 
 	size_t selection_start = std::min(stb_state.select_start, stb_state.select_end);
 	size_t selection_end = std::max(stb_state.select_start, stb_state.select_end);
@@ -638,7 +639,7 @@ bool text_prompt_wrapper::internal_draw_text(
 		i = i + r.num_chars;
 		ASSERT(i <= text_data.size());
 
-		if(y_scrollable() && cull_box() && painter->draw_y_pos() + lineskip <= box_ymin)
+		if(y_scrollable() && cull_box() && state.draw_y_pos + lineskip <= box_ymin)
 		{
 			if(STB_TEXT_HAS_SELECTION(&stb_state))
 			{
@@ -653,14 +654,15 @@ bool text_prompt_wrapper::internal_draw_text(
 				}
 			}
 			cur = i;
-			painter->newline();
+			// newline
+			state.draw_y_pos += lineskip;
 			continue;
 		}
 
 		if(draw_backdrop())
 		{
-			backdrop_minx = painter->draw_x_pos();
-			backdrop_vertex_buffer_index = painter->batcher->placeholder_rect();
+			backdrop_minx = state.draw_x_pos;
+			backdrop_vertex_buffer_index = state.batcher->placeholder_rect();
 			if(backdrop_vertex_buffer_index == -1)
 			{
 				return false;
@@ -669,13 +671,14 @@ bool text_prompt_wrapper::internal_draw_text(
 
 		if(currently_selected && selection_vertex_buffer_index == -1)
 		{
-			selection_minx = painter->draw_x_pos();
-			selection_vertex_buffer_index = painter->batcher->placeholder_rect();
+			selection_minx = state.draw_x_pos;
+			// NOTE: this will create a rect even if it's empty...
+			selection_vertex_buffer_index = state.batcher->placeholder_rect();
 			if(selection_vertex_buffer_index == -1)
 			{
 				return false;
 			}
-			painter->set_color(select_text_color);
+			active_text_color = select_text_color;
 		}
 
 		for(; cur != i; ++cur)
@@ -687,24 +690,24 @@ bool text_prompt_wrapper::internal_draw_text(
 					ASSERT(selection_vertex_buffer_index == -1);
 					// start selection
 					currently_selected = true;
-					selection_minx = painter->draw_x_pos();
-					selection_vertex_buffer_index = painter->batcher->placeholder_rect();
+					selection_minx = state.draw_x_pos;
+					selection_vertex_buffer_index = state.batcher->placeholder_rect();
 					if(selection_vertex_buffer_index == -1)
 					{
 						return false;
 					}
-					painter->set_color(select_text_color);
+					active_text_color = select_text_color;
 				}
 				else if(cur == selection_end)
 				{
 					// end selection
 					currently_selected = false;
 					float pos_x = cull_box() ? std::max(box_xmin, selection_minx) : selection_minx;
-					float pos_w = cull_box() ? std::min(box_xmax, painter->draw_x_pos())
-											 : painter->draw_x_pos();
-					float pos_y = painter->draw_y_pos();
-					float pos_h = painter->draw_y_pos() + lineskip;
-					if(!painter->batcher->draw_rect_at(
+					float pos_w =
+						cull_box() ? std::min(box_xmax, state.draw_x_pos) : state.draw_x_pos;
+					float pos_y = state.draw_y_pos;
+					float pos_h = state.draw_y_pos + lineskip;
+					if(!state.batcher->draw_rect_at(
 						   selection_vertex_buffer_index,
 						   {pos_x, pos_y, pos_w, pos_h},
 						   white_uv,
@@ -713,7 +716,7 @@ bool text_prompt_wrapper::internal_draw_text(
 						return false;
 					}
 					selection_vertex_buffer_index = -1;
-					painter->set_color(text_color);
+					active_text_color = text_color;
 				}
 			}
 
@@ -721,14 +724,15 @@ bool text_prompt_wrapper::internal_draw_text(
 
 			if(static_cast<int>(cur) == stb_state.cursor)
 			{
-				if(caret_x != NULL) *caret_x = painter->draw_x_pos();
-				if(caret_y != NULL) *caret_y = painter->draw_y_pos();
+				if(caret_x != NULL) *caret_x = state.draw_x_pos;
+				if(caret_y != NULL) *caret_y = state.draw_y_pos;
 				if(caret_visible != NULL) *caret_visible = true;
 			}
 
 			if(ret.codepoint == '\t')
 			{
-				painter->insert_padding(space_advance_cache * 4);
+				// state.insert_padding(space_advance_cache * 4);
+				state.draw_x_pos += space_advance_cache * 4;
 			}
 			else if(!single_line() && ret.codepoint == '\n')
 			{
@@ -738,14 +742,16 @@ bool text_prompt_wrapper::internal_draw_text(
 			}
 			else
 			{
-				if(cull_box() && (painter->draw_x_pos() + ret.advance < box_xmin ||
-								  painter->draw_x_pos() >= box_xmax))
+				if(cull_box() &&
+				   (state.draw_x_pos + ret.advance < box_xmin || state.draw_x_pos >= box_xmax))
 				{
-					painter->insert_padding(ret.advance);
+					// state.insert_padding(ret.advance);
+					state.draw_x_pos += ret.advance;
 				}
 				else
 				{
-					switch(painter->load_glyph_verts(ret.codepoint))
+					switch(
+						state.load_glyph_verts(ret.codepoint, active_text_color, FONT_STYLE_NORMAL))
 					{
 					case FONT_RESULT::NOT_FOUND:
 						serrf("%s glyph not found: U+%X\n", __func__, ret.codepoint);
@@ -761,11 +767,10 @@ bool text_prompt_wrapper::internal_draw_text(
 		{
 			ASSERT(backdrop_vertex_buffer_index != -1);
 			float pos_x = cull_box() ? std::max(box_xmin, backdrop_minx) : backdrop_minx;
-			float pos_w =
-				cull_box() ? std::min(box_xmax, painter->draw_x_pos()) : painter->draw_x_pos();
-			float pos_y = painter->draw_y_pos();
-			float pos_h = painter->draw_y_pos() + lineskip;
-			if(!painter->batcher->draw_rect_at(
+			float pos_w = cull_box() ? std::min(box_xmax, state.draw_x_pos) : state.draw_x_pos;
+			float pos_y = state.draw_y_pos;
+			float pos_h = state.draw_y_pos + lineskip;
+			if(!state.batcher->draw_rect_at(
 				   backdrop_vertex_buffer_index,
 				   {pos_x, pos_y, pos_w, pos_h},
 				   white_uv,
@@ -781,11 +786,10 @@ bool text_prompt_wrapper::internal_draw_text(
 			// end of row, finish the selection
 			ASSERT(selection_vertex_buffer_index != -1);
 			float pos_x = cull_box() ? std::max(box_xmin, selection_minx) : selection_minx;
-			float pos_w =
-				cull_box() ? std::min(box_xmax, painter->draw_x_pos()) : painter->draw_x_pos();
-			float pos_y = painter->draw_y_pos();
-			float pos_h = painter->draw_y_pos() + lineskip;
-			if(!painter->batcher->draw_rect_at(
+			float pos_w = cull_box() ? std::min(box_xmax, state.draw_x_pos) : state.draw_x_pos;
+			float pos_y = state.draw_y_pos;
+			float pos_h = state.draw_y_pos + lineskip;
+			if(!state.batcher->draw_rect_at(
 				   selection_vertex_buffer_index,
 				   {pos_x, pos_y, pos_w, pos_h},
 				   white_uv,
@@ -798,10 +802,11 @@ bool text_prompt_wrapper::internal_draw_text(
 
 		if(cur != end)
 		{
-			// move to the next line.
-			painter->newline();
+			// newline
+			state.draw_x_pos = anchor_x_pos;
+			state.draw_y_pos += lineskip;
 
-			if(cull_box() && painter->draw_y_pos() >= box_ymax)
+			if(cull_box() && state.draw_y_pos >= box_ymax)
 			{
 				break;
 			}
@@ -836,17 +841,19 @@ bool text_prompt_wrapper::internal_draw_text(
 		// because a empty layout would return num_chars = 0, leading to inf loop
 		if(!text_data.empty() && text_data.back().codepoint == '\n')
 		{
-			painter->newline();
+			// newline
+			state.draw_x_pos = anchor_x_pos;
+			state.draw_y_pos += lineskip;
 		}
 
-		if(cull_box() && painter->draw_y_pos() > box_ymax)
+		if(cull_box() && state.draw_y_pos > box_ymax)
 		{
 		}
 		else
 		{
 			// cursor at the end of the line
-			if(caret_x != NULL) *caret_x = painter->draw_x_pos();
-			if(caret_y != NULL) *caret_y = painter->draw_y_pos();
+			if(caret_x != NULL) *caret_x = state.draw_x_pos;
+			if(caret_y != NULL) *caret_y = state.draw_y_pos;
 			if(caret_visible != NULL) *caret_visible = true;
 		}
 	}
@@ -858,9 +865,9 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	ASSERT(text_focus);
 	ASSERT(!read_only());
 
-	auto white_uv = painter->font_manager->white_uv;
+	auto white_uv = state.font->get_font_atlas()->white_uv;
 
-	float lineskip = painter->font->get_lineskip(); // painter->GetLineSkip();
+	float lineskip = state.font->get_lineskip();
 
 	// reserve space to draw a backdrop,
 	// uses inverted color of the font, except for the alpha
@@ -869,14 +876,14 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	// size_t marked_vertex_buffer_index =
 	// batcher->batcher.get_vertex_count();//->font_vertex_buffer.size(); batcher->draw_rect(0, 0,
 	// 0, 0);
-	int marked_vertex_buffer_index = painter->batcher->placeholder_rect();
+	int marked_vertex_buffer_index = state.batcher->placeholder_rect();
 	if(marked_vertex_buffer_index == -1)
 	{
 		return false;
 	}
-	painter->set_color(text_color);
+	// state.set_color(text_color);
 
-	painter->set_xy(x, y);
+	state.set_xy(x, y);
 	// draw the text
 	auto str_cur = markedText.begin();
 	auto str_end = markedText.end();
@@ -885,16 +892,18 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 
 	// TODO(dootsie): I haven't implemented marked_cursor_end IME selection
 	// because I can't test it since I don't have wayland
-	marked_caret_x = painter->draw_x_pos();
-	marked_caret_y = painter->draw_y_pos();
+	marked_caret_x = state.draw_x_pos;
+	marked_caret_y = state.draw_y_pos;
+
+	size_t marked_text_buffer_index = state.batcher->get_current_vertex_count();
 
 	while(str_cur != str_end)
 	{
 #ifdef IME_TEXTEDIT_EXT
 		if(draw_caret && std::distance(markedText.begin(), str_cur) == marked_cursor_begin)
 		{
-			marked_caret_x = painter->draw_x_pos();
-			marked_caret_y = painter->draw_y_pos();
+			marked_caret_x = state.draw_x_pos;
+			marked_caret_y = state.draw_y_pos;
 		}
 #endif
 
@@ -907,7 +916,7 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 			return false;
 		}
 
-		switch(painter->load_glyph_verts(codepoint))
+		switch(state.load_glyph_verts(codepoint, text_color, FONT_STYLE_NORMAL))
 		{
 		case FONT_RESULT::NOT_FOUND:
 			serrf("%s glyph not found: U+%X\n", __func__, codepoint);
@@ -920,13 +929,13 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	if(std::distance(markedText.begin(), str_cur) == marked_cursor_begin)
 	{
 		// get the caret at the end
-		marked_caret_x = painter->draw_x_pos();
-		marked_caret_y = painter->draw_y_pos();
+		marked_caret_x = state.draw_x_pos;
+		marked_caret_y = state.draw_y_pos;
 	}
 #endif
 
 	float pos_x = x;
-	float pos_w = painter->draw_x_pos();
+	float pos_w = state.draw_x_pos;
 	float pos_y = y;
 	float pos_h = y + lineskip;
 
@@ -936,10 +945,10 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	if(pos_w > box_xmax)
 	{
 		float x_off = pos_w - box_xmax;
-		size_t size = painter->batcher->get_current_vertex_count();
-		for(; painter->newline_cursor < size; ++painter->newline_cursor)
+		size_t size = state.batcher->get_current_vertex_count();
+		for(; marked_text_buffer_index < size; ++marked_text_buffer_index)
 		{
-			painter->batcher->buffer[painter->newline_cursor].pos[0] -= x_off;
+			state.batcher->buffer[marked_text_buffer_index].pos[0] -= x_off;
 		}
 		pos_x -= x_off;
 		pos_w -= x_off;
@@ -947,7 +956,7 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	}
 
 	// finish the backdrop
-	if(!painter->batcher->draw_rect_at(
+	if(!state.batcher->draw_rect_at(
 		   marked_vertex_buffer_index, {pos_x, pos_y, pos_w, pos_h}, white_uv, backdrop_color))
 	{
 		return false;
@@ -956,7 +965,7 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	// draw the cursor
 	if(draw_caret)
 	{
-		painter->batcher->draw_rect(
+		state.batcher->draw_rect(
 			{marked_caret_x, marked_caret_y, marked_caret_x + 2, marked_caret_y + lineskip},
 			white_uv,
 			caret_color);
@@ -1074,8 +1083,6 @@ void text_prompt_wrapper::internal_scroll_x_to(float mouse_x)
 
 TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 {
-	ASSERT(painter != NULL);
-
 	switch(e.type)
 	{
 	// lazy scroll
@@ -1096,7 +1103,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				// and scroll up, the selection will move up, same for the bottom.
 				// This could be fixed by finding the cursor during drawing instead.
 				scroll_y -= static_cast<float>(e.wheel.y * cv_prompt_scroll_rate.data) *
-							painter->font->get_lineskip(); // painter->GetLineSkip();
+							state.font->get_lineskip();
 				// the draw function will clamp it to keep the scroll area inside of the text.
 				update_buffer = true;
 			}
@@ -1712,14 +1719,14 @@ void text_prompt_wrapper::stb_layout_func(StbTexteditRow* row, int i)
 	row->x0 = box_xmin - scroll_x;
 	row->x1 = total_advance - scroll_x;
 	row->ymin = box_ymin - scroll_y;
-	row->ymax = box_ymin + painter->font->get_lineskip() - scroll_y;
-	row->baseline_y_delta = painter->font->get_lineskip();
+	row->ymax = box_ymin + state.font->get_lineskip() - scroll_y;
+	row->baseline_y_delta = state.font->get_lineskip();
 }
 
 int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE* text, int n)
 {
 	ASSERT(!read_only());
-	ASSERT(painter != NULL);
+	ASSERT(state.font != NULL);
 
 	if(static_cast<size_t>(index) > text_data.size())
 	{
@@ -1750,7 +1757,7 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 		else
 		{
 			// it->advance = painter->GetAdvance(it->codepoint);
-			if(painter->font->get_advance(it->codepoint, &it->advance) != FONT_RESULT::SUCCESS)
+			if(state.font->get_advance(it->codepoint, &it->advance) != FONT_RESULT::SUCCESS)
 			{
 				return 0;
 			}

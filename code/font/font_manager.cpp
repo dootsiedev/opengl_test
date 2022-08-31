@@ -168,10 +168,10 @@ bool font_manager_state::create()
 	}
 
 	float atlas_size = static_cast<float>(atlas.atlas_size);
-	white_uv[0] = static_cast<float>(x_out) / atlas_size;
-	white_uv[2] = static_cast<float>(x_out + 1) / atlas_size;
-	white_uv[1] = static_cast<float>(y_out) / atlas_size;
-	white_uv[3] = static_cast<float>(y_out + 1) / atlas_size;
+	atlas.white_uv[0] = static_cast<float>(x_out) / atlas_size;
+	atlas.white_uv[2] = static_cast<float>(x_out + 1) / atlas_size;
+	atlas.white_uv[1] = static_cast<float>(y_out) / atlas_size;
+	atlas.white_uv[3] = static_cast<float>(y_out + 1) / atlas_size;
 
 	// upload 1 pixel
 	uint8_t pixel = 255;
@@ -285,6 +285,15 @@ bool font_ttf_rasterizer::destroy()
 			success = false;
 		}
 		face = NULL;
+	}
+
+	if(font_file)
+	{
+		if(!font_file->close())
+		{
+			success = false;
+		}
+		font_file.reset();
 	}
 
 	/*
@@ -674,18 +683,20 @@ bool hex_font_data::init(Unique_RWops file, font_atlas* atlas_)
 }
 bool hex_font_data::destroy()
 {
+	bool success = true;
 	if(hex_font_file)
 	{
-		// TODO: would this cause 2 errors to be printed?
-		bool ret = hex_font_file->close();
-		hex_font_file.reset(nullptr);
-		return ret;
+		if(!hex_font_file->close())
+		{
+			success = false;
+		}
+		hex_font_file.reset();
 	}
-	return true;
+	return success;
 }
 
 FONT_RESULT
-	hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph)
+hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph)
 {
 	ASSERT(atlas != NULL);
 	ASSERT(glyph != NULL);
@@ -1545,10 +1556,81 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 	return FONT_RESULT::SUCCESS;
 }
 
+FONT_RESULT
+internal_font_painter_state::load_glyph_verts(
+	char32_t codepoint, std::array<uint8_t, 4> color, font_style_type style)
+{
+	ASSERT(font != NULL);
+	ASSERT(batcher != NULL);
+
+	font_glyph_entry glyph;
+	float atlas_size = font->get_font_atlas()->atlas_size;
+
+	FONT_RESULT ret = font->get_glyph(codepoint, style, &glyph);
+	if(ret != FONT_RESULT::SUCCESS)
+	{
+		return ret;
+	}
+
+	ASSERT(glyph.type != FONT_ENTRY::UNDEFINED);
+
+	std::array<float, 4> uv;
+	uv[0] = static_cast<float>(glyph.rect_x) / atlas_size;
+	uv[1] = static_cast<float>(glyph.rect_y) / atlas_size;
+	uv[2] = static_cast<float>(glyph.rect_x + glyph.rect_w) / atlas_size;
+	uv[3] = static_cast<float>(glyph.rect_y + glyph.rect_h) / atlas_size;
+
+	std::array<float, 4> pos;
+
+	switch(glyph.type)
+	{
+	default: CHECK(false && "unreachable"); return FONT_RESULT::ERROR;
+	case FONT_ENTRY::NORMAL:
+		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin);
+		pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin);
+		pos[2] = pos[0] + static_cast<float>(glyph.rect_w);
+		pos[3] = pos[1] + static_cast<float>(glyph.rect_h);
+		draw_x_pos += static_cast<float>(glyph.advance);
+		break;
+
+	case FONT_ENTRY::BITMAP: {
+		float bitmap_scale = font->get_point_size() / font->get_bitmap_size();
+		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * bitmap_scale;
+		pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * bitmap_scale;
+		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * bitmap_scale;
+		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * bitmap_scale;
+		draw_x_pos += static_cast<float>(glyph.advance) * bitmap_scale;
+	}
+	break;
+
+	case FONT_ENTRY::HEXFONT: {
+		float hex_scale = font->get_point_size() / static_cast<float>(HEX_HEIGHT);
+		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * hex_scale;
+		pos[1] = draw_y_pos;
+		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * hex_scale;
+		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * hex_scale;
+		draw_x_pos += static_cast<float>(glyph.advance) * hex_scale;
+	}
+	break;
+
+	case FONT_ENTRY::SPACE:
+		draw_x_pos += static_cast<float>(glyph.advance);
+		return FONT_RESULT::SUCCESS;
+	}
+
+	if(!batcher->draw_rect(pos, uv, color))
+	{
+		// TODO: shouldn't be an error?
+		return FONT_RESULT::SUCCESS;
+	}
+
+	return FONT_RESULT::SUCCESS;
+}
+
 void font_sprite_painter::begin()
 {
-	newline_cursor = batcher->get_current_vertex_count();
-	flush_cursor = batcher->get_current_vertex_count();
+	newline_cursor = state.batcher->get_current_vertex_count();
+	flush_cursor = state.batcher->get_current_vertex_count();
 }
 
 void font_sprite_painter::end()
@@ -1628,7 +1710,7 @@ bool font_sprite_painter::draw_format(const char* fmt, ...)
 
 bool font_sprite_painter::draw_text(const char* text, size_t size)
 {
-	ASSERT(font != NULL);
+	ASSERT(state.font != NULL);
 	size = (size == 0) ? strlen(text) : size;
 
 	const char* str_cur = text;
@@ -1656,7 +1738,7 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 		}
 		else
 		{
-			switch(load_glyph_verts(codepoint))
+			switch(state.load_glyph_verts(codepoint, cur_color, current_style))
 			{
 			case FONT_RESULT::NOT_FOUND:
 				serrf("%s glyph not found: U+%X\n", __func__, codepoint);
@@ -1670,81 +1752,12 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 	return true;
 }
 
-FONT_RESULT font_sprite_painter::load_glyph_verts(char32_t codepoint)
-{
-	ASSERT(font != NULL);
-	ASSERT(font_manager != NULL);
-
-	font_glyph_entry glyph;
-	float atlas_size = font_manager->atlas.atlas_size;
-
-	FONT_RESULT ret = font->get_glyph(codepoint, current_style, &glyph);
-	if(ret != FONT_RESULT::SUCCESS)
-	{
-		return ret;
-	}
-
-	ASSERT(glyph.type != FONT_ENTRY::UNDEFINED);
-
-	std::array<float, 4> uv;
-	uv[0] = static_cast<float>(glyph.rect_x) / atlas_size;
-	uv[1] = static_cast<float>(glyph.rect_y) / atlas_size;
-	uv[2] = static_cast<float>(glyph.rect_x + glyph.rect_w) / atlas_size;
-	uv[3] = static_cast<float>(glyph.rect_y + glyph.rect_h) / atlas_size;
-
-	std::array<float, 4> pos;
-
-	switch(glyph.type)
-	{
-	default: CHECK(false && "unreachable"); return FONT_RESULT::ERROR;
-	case FONT_ENTRY::NORMAL:
-		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin);
-		pos[1] = draw_cur_y + font->get_ascent() - static_cast<float>(glyph.ymin);
-		pos[2] = pos[0] + static_cast<float>(glyph.rect_w);
-		pos[3] = pos[1] + static_cast<float>(glyph.rect_h);
-		draw_cur_x += static_cast<float>(glyph.advance);
-		break;
-
-	case FONT_ENTRY::BITMAP: {
-		float bitmap_scale = font->get_point_size() / font->get_bitmap_size();
-		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin) * bitmap_scale;
-		pos[1] = draw_cur_y + font->get_ascent() - static_cast<float>(glyph.ymin) * bitmap_scale;
-		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * bitmap_scale;
-		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * bitmap_scale;
-		draw_cur_x += static_cast<float>(glyph.advance) * bitmap_scale;
-	}
-	break;
-
-	case FONT_ENTRY::HEXFONT: {
-		float hex_scale = font->get_point_size() / static_cast<float>(HEX_HEIGHT);
-		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin) * hex_scale;
-		pos[1] = draw_cur_y;
-		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * hex_scale;
-		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * hex_scale;
-		draw_cur_x += static_cast<float>(glyph.advance) * hex_scale;
-	}
-	break;
-
-	case FONT_ENTRY::SPACE:
-		draw_cur_x += static_cast<float>(glyph.advance);
-		return FONT_RESULT::SUCCESS;
-	}
-
-	if(!batcher->draw_rect(pos, uv, cur_color))
-	{
-		// TODO: shouldn't be an error?
-		return FONT_RESULT::SUCCESS;
-	}
-
-	return FONT_RESULT::SUCCESS;
-}
-
 void font_sprite_painter::internal_flush()
 {
 	// finish the x axis alignment of any leftover newline
 	newline();
 
-	size_t size = batcher->get_current_vertex_count();
+	size_t size = state.batcher->get_current_vertex_count();
 
 	switch(current_anchor)
 	{
@@ -1752,51 +1765,51 @@ void font_sprite_painter::internal_flush()
 	case TEXT_ANCHOR::TOP_LEFT:
 	case TEXT_ANCHOR::TOP_RIGHT: break;
 	case TEXT_ANCHOR::BOTTOM_LEFT: {
-		float off_h = draw_cur_y - anchor_y;
+		float off_h = state.draw_y_pos - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher->buffer[flush_cursor].pos[1] -= off_h;
+			state.batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::BOTTOM_RIGHT: {
-		float off_h = draw_cur_y - anchor_y;
+		float off_h = state.draw_y_pos - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher->buffer[flush_cursor].pos[1] -= off_h;
+			state.batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::CENTER_PERFECT: {
-		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
+		float off_h = std::floor((state.draw_y_pos - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher->buffer[flush_cursor].pos[1] -= off_h;
+			state.batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::CENTER_TOP: break;
 	case TEXT_ANCHOR::CENTER_BOTTOM: {
-		float off_h = draw_cur_y - anchor_y;
+		float off_h = state.draw_y_pos - anchor_y;
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher->buffer[flush_cursor].pos[1] -= off_h;
+			state.batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::CENTER_LEFT: {
-		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
+		float off_h = std::floor((state.draw_y_pos - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher->buffer[flush_cursor].pos[1] -= off_h;
+			state.batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::CENTER_RIGHT: {
-		float off_h = std::floor((draw_cur_y - anchor_y) / 2);
+		float off_h = std::floor((state.draw_y_pos - anchor_y) / 2);
 		for(; flush_cursor < size; ++flush_cursor)
 		{
-			batcher->buffer[flush_cursor].pos[1] -= off_h;
+			state.batcher->buffer[flush_cursor].pos[1] -= off_h;
 		}
 	}
 	break;
@@ -1807,59 +1820,59 @@ void font_sprite_painter::internal_flush()
 
 void font_sprite_painter::newline()
 {
-	size_t size = batcher->get_current_vertex_count();
+	size_t size = state.batcher->get_current_vertex_count();
 
 	switch(current_anchor)
 	{
 	// topleft how the text is formatted from load_glyph_verts
 	case TEXT_ANCHOR::TOP_LEFT: break;
 	case TEXT_ANCHOR::TOP_RIGHT: {
-		float off_w = draw_cur_x - anchor_x;
+		float off_w = state.draw_x_pos - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher->buffer[newline_cursor].pos[0] -= off_w;
+			state.batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::BOTTOM_LEFT: break;
 	case TEXT_ANCHOR::BOTTOM_RIGHT: {
-		float off_w = draw_cur_x - anchor_x;
+		float off_w = state.draw_x_pos - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher->buffer[newline_cursor].pos[0] -= off_w;
+			state.batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::CENTER_PERFECT: {
-		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
+		float off_w = std::floor((state.draw_x_pos - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher->buffer[newline_cursor].pos[0] -= off_w;
+			state.batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::CENTER_TOP: {
-		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
+		float off_w = std::floor((state.draw_x_pos - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher->buffer[newline_cursor].pos[0] -= off_w;
+			state.batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::CENTER_BOTTOM: {
-		float off_w = std::floor((draw_cur_x - anchor_x) / 2);
+		float off_w = std::floor((state.draw_x_pos - anchor_x) / 2);
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher->buffer[newline_cursor].pos[0] -= off_w;
+			state.batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
 	case TEXT_ANCHOR::CENTER_LEFT: break;
 	case TEXT_ANCHOR::CENTER_RIGHT: {
-		float off_w = draw_cur_x - anchor_x;
+		float off_w = state.draw_x_pos - anchor_x;
 		for(; newline_cursor < size; ++newline_cursor)
 		{
-			batcher->buffer[newline_cursor].pos[0] -= off_w;
+			state.batcher->buffer[newline_cursor].pos[0] -= off_w;
 		}
 	}
 	break;
@@ -1867,6 +1880,6 @@ void font_sprite_painter::newline()
 	// for any cases that didn't move the newline_cursor
 	newline_cursor = size;
 
-	draw_cur_x = anchor_x;
-	draw_cur_y += font->get_lineskip();
+	state.draw_x_pos = anchor_x;
+	state.draw_y_pos += state.font->get_lineskip();
 }

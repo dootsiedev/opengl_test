@@ -417,7 +417,7 @@ bool demo_state::init_gl_font()
 		start = timer_now();
 #endif
 		Unique_RWops hex_file = Unique_RWops_OpenFS("unifont-full.hex", "rb");
-		//Unique_RWops hex_file = Unique_RWops_OpenFS("unifont_upper-14.0.02.hex", "rb");
+		// Unique_RWops hex_file = Unique_RWops_OpenFS("unifont_upper-14.0.02.hex", "rb");
 		if(!hex_file)
 		{
 			return false;
@@ -451,7 +451,8 @@ bool demo_state::init_gl_font()
 	start = timer_now();
 #endif
 
-	//Unique_RWops test_font = Unique_RWops_OpenFS("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "rb");
+	// Unique_RWops test_font =
+	// Unique_RWops_OpenFS("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "rb");
 	Unique_RWops test_font = Unique_RWops_OpenFS(cv_string_font.data, "rb");
 	if(!test_font)
 	{
@@ -465,38 +466,36 @@ bool demo_state::init_gl_font()
 
 	font_settings.point_size = static_cast<float>(cv_string_pt.data);
 
-    if(cv_string_mono.data == 1)
-    {
-	    font_settings.render_mode = FT_RENDER_MODE_MONO;
-	    font_settings.load_flags = FT_LOAD_TARGET_MONO;
-    }
+	if(cv_string_mono.data == 1)
+	{
+		font_settings.render_mode = FT_RENDER_MODE_MONO;
+		font_settings.load_flags = FT_LOAD_TARGET_MONO;
+	}
 
 	// FT_LOAD_RENDER can give the same bitmap outline as force_bitmap
-    // but force_bitmap will choose the closest raster bitmap possible,
-    // so if a font supports both vector and raster data, and you want 
-    // the text to be vectorized with a bitmap outline, use FT_LOAD_RENDER.
-    // but this also breaks bold and italics style.
-	//font_settings.load_flags = FT_LOAD_RENDER;
-	//font_settings.load_flags = FT_LOAD_TARGET_MONO | FT_LOAD_RENDER;
+	// but force_bitmap will choose the closest raster bitmap possible,
+	// so if a font supports both vector and raster data, and you want
+	// the text to be vectorized with a bitmap outline, use FT_LOAD_RENDER.
+	// but this also breaks bold and italics style.
+	// font_settings.load_flags = FT_LOAD_RENDER;
+	// font_settings.load_flags = FT_LOAD_TARGET_MONO | FT_LOAD_RENDER;
 
 	font_settings.bold_x = 1;
 	font_settings.bold_y = 1;
 	font_settings.italics_skew = 0.5;
 	font_settings.outline_size = static_cast<float>(cv_string_outline.data);
 
-    if(cv_string_force_bitmap.data == 1)
-    {
-        font_settings.force_bitmap = true;
-    }
+	if(cv_string_force_bitmap.data == 1)
+	{
+		font_settings.force_bitmap = true;
+	}
 
-
-    if(!font_rasterizer.set_face_settings(&font_settings))
-    {
-        return false;
-    }
+	if(!font_rasterizer.set_face_settings(&font_settings))
+	{
+		return false;
+	}
 
 	font_style.init(&font_manager, &font_rasterizer);
-    
 
 #if 0
 	// it's pretty slow
@@ -527,26 +526,20 @@ bool demo_state::init_gl_font()
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_font_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
+	size_t max_quads = 1000;
+	font_batcher_buffer =
+		std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
+	font_batcher.init(font_batcher_buffer.get(), max_quads);
 
+	font_painter.init(&font_batcher, &font_style);
 
-    // load the atlas texture.
-    ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
-    bool ret = g_console.init(&font_manager, &font_style, mono_shader);
+	// load the atlas texture.
+	bool ret = g_console.init(&font_style, &font_batcher, mono_shader);
 	// restore to the default 4 alignment.
-	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    if(!ret)
-    {
-        return false;
-    }
-
-    size_t max_quads = 1000;
-    batcher_buffer = std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
-	batcher.buffer = batcher_buffer.get();
-	batcher.size = max_quads;
-	batcher.set_cursor(0);
-    font_painter.batcher = &batcher;
-    font_painter.font_manager = &font_manager;
+	if(!ret)
+	{
+		return false;
+	}
 
 	// set uniform globals that aren't set every frame
 	ctx.glUseProgram(mono_shader.gl_program_id);
@@ -569,7 +562,7 @@ bool demo_state::destroy_gl_font()
 {
 	bool success = true;
 
-    success = font_style.destroy() && success;
+	success = font_style.destroy() && success;
 	success = font_rasterizer.destroy() && success;
 	success = font_manager.destroy() && success;
 	success = g_console.destroy() && success;
@@ -595,14 +588,14 @@ bool demo_state::destroy()
 
 void demo_state::unfocus()
 {
-    for(auto &val : keys_down)
-    {
-        val = false;
-    }
-    if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
-    {
-        slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
-    }
+	for(auto& val : keys_down)
+	{
+		val = false;
+	}
+	if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
+	{
+		slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+	}
 }
 
 // return 0 for continue, 1 for exit.
@@ -611,41 +604,37 @@ DEMO_RESULT demo_state::input()
 	SDL_Event e;
 	while(SDL_PollEvent(&e) != 0)
 	{
-        //TIMER_U t1 = timer_now();
+		// TIMER_U t1 = timer_now();
 
-        bool input_eaten = false;
+		bool input_eaten = false;
 
 		if(show_console)
 		{
-            ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-            ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
-            CONSOLE_RESULT ret = g_console.input(e);
-            // restore to the default 4 alignment.
-            ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-            switch(ret)
-            {
-            case CONSOLE_RESULT::CONTINUE: break;
-            case CONSOLE_RESULT::EAT: input_eaten = true; break;
-            case CONSOLE_RESULT::ERROR: return DEMO_RESULT::ERROR;
-            }
+			CONSOLE_RESULT ret = g_console.input(e);
+			switch(ret)
+			{
+			case CONSOLE_RESULT::CONTINUE: break;
+			case CONSOLE_RESULT::EAT: input_eaten = true; break;
+			case CONSOLE_RESULT::ERROR: return DEMO_RESULT::ERROR;
+			}
 		}
 
-        if(input_eaten)
-        {
-            unfocus(); 
-            return DEMO_RESULT::CONTINUE;
-        }
+		if(input_eaten)
+		{
+			unfocus();
+			return DEMO_RESULT::CONTINUE;
+		}
 
 		switch(e.type)
 		{
-        case SDL_QUIT: return DEMO_RESULT::EXIT;
+		case SDL_QUIT: return DEMO_RESULT::EXIT;
 		case SDL_WINDOWEVENT:
 			switch(e.window.event)
 			{
 			case SDL_WINDOWEVENT_SIZE_CHANGED:
 				cv_screen_width.data = e.window.data1;
 				cv_screen_height.data = e.window.data2;
-                g_console.resize_text_area();
+				g_console.resize_text_area();
 				update_projection = true;
 				break;
 			}
@@ -657,61 +646,60 @@ DEMO_RESULT demo_state::input()
 				if((e.key.keysym.mod & KMOD_ALT) != 0)
 				{
 					cv_fullscreen.data = cv_fullscreen.data == 1 ? 0 : 1;
-                    if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
-                    {
-                        return DEMO_RESULT::ERROR;
-                    }
+					if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
+					{
+						return DEMO_RESULT::ERROR;
+					}
 				}
 				break;
 			}
 			break;
 		case SDL_KEYUP:
 			// NOTE: probably should check this if I added in other keys
-            // I wouldn't want to trigger if I was using a text prompt,
-            // because key events will still be triggered even if textinput is active.
-            //if(SDL_IsTextInputActive() == SDL_TRUE)
-            
-            switch(e.key.keysym.sym)
+			// I wouldn't want to trigger if I was using a text prompt,
+			// because key events will still be triggered even if textinput is active.
+			// if(SDL_IsTextInputActive() == SDL_TRUE)
+
+			switch(e.key.keysym.sym)
 			{
 			case SDLK_ESCAPE:
 				unfocus();
-                if(show_console)
-				{
-					g_console.unfocus();
-				}
-				break;
-            case SDLK_F1:
 				if(show_console)
 				{
 					g_console.unfocus();
-				    show_console = false;
+				}
+				break;
+			case SDLK_F1:
+				if(show_console)
+				{
+					g_console.unfocus();
+					show_console = false;
 				}
 				else
 				{
-                    unfocus();
+					unfocus();
 					g_console.focus();
-				    show_console = true;
+					show_console = true;
 				}
 				break;
-			case SDLK_F10:
-                {
-                    std::string msg;
-                    msg += "StackTrace (f10):\n";
-                    debug_str_stacktrace(&msg, 0);
-                    msg += '\n';
-                    slog_raw(msg.data(), msg.length());
-                }
-                break;
+			case SDLK_F10: {
+				std::string msg;
+				msg += "StackTrace (f10):\n";
+				debug_str_stacktrace(&msg, 0);
+				msg += '\n';
+				slog_raw(msg.data(), msg.length());
+			}
+			break;
 			}
 			break;
 		case SDL_MOUSEBUTTONUP:
-		    if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 			{
-                if(SDL_SetRelativeMouseMode(SDL_TRUE) < 0)
-                {
-                    slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
-                }
-            }
+				if(SDL_SetRelativeMouseMode(SDL_TRUE) < 0)
+				{
+					slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+				}
+			}
 			break;
 		case SDL_MOUSEMOTION:
 			if(SDL_GetRelativeMouseMode() == SDL_TRUE)
@@ -732,17 +720,17 @@ DEMO_RESULT demo_state::input()
 			}
 			break;
 		}
-        //another switch statement because I combine KEYDOWN and KEYUP
-        switch(e.type)
+		// another switch statement because I combine KEYDOWN and KEYUP
+		switch(e.type)
 		{
 		case SDL_KEYDOWN:
 		case SDL_KEYUP:
-            // key events will still be triggered even if textinput is active.
-            // which means that prompts can't "EAT" the event because they don't use it.
-            if(SDL_IsTextInputActive() == SDL_TRUE)
-            {
-                break;
-            }
+			// key events will still be triggered even if textinput is active.
+			// which means that prompts can't "EAT" the event because they don't use it.
+			if(SDL_IsTextInputActive() == SDL_TRUE)
+			{
+				break;
+			}
 			switch(e.key.keysym.sym)
 			{
 			case SDLK_w: keys_down[MOVE_FORWARD] = (e.key.state == SDL_PRESSED); break;
@@ -762,20 +750,20 @@ bool demo_state::render()
 	float float_delta = static_cast<float>(color_delta);
 	timer_last = current_time;
 
-    // this will not actually draw, this will just modify the atlas and buffer data.
+	// this will not actually draw, this will just modify the atlas and buffer data.
 	if(show_console)
-    {
+	{
 		// load the atlas texture.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
-        bool ret = g_console.draw();
+		bool ret = g_console.draw();
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-        if(!ret)
-        {
-            return false;
-        }
-    }
+		if(!ret)
+		{
+			return false;
+		}
+	}
 
 	colors[0] = colors[0] + (0.5 * color_delta);
 	colors[1] = colors[1] + (0.7 * color_delta);
@@ -811,7 +799,7 @@ bool demo_state::render()
 		1.f);
 	ctx.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    #if 1
+#if 1
 
 	// identity atm;
 	// glm::mat4x4 proj = glm::ortho<float>(0,50,0, 50, -1000, 1000);
@@ -875,17 +863,16 @@ bool demo_state::render()
 	// ctx.glActiveTexture(GL_TEXTURE0);
 	ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
 
-	if(batcher.get_quad_count() != 0)
-    {
-        ctx.glBindVertexArray(gl_font_vao_id);
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        ctx.glDrawArrays(GL_TRIANGLES, 0, batcher.get_current_vertex_count());
-        ctx.glBindVertexArray(0);
-    }
-    
+	if(gl_font_vertex_count != 0)
+	{
+		ctx.glBindVertexArray(gl_font_vao_id);
+		ctx.glDrawArrays(GL_TRIANGLES, 0, gl_font_vertex_count);
+		ctx.glBindVertexArray(0);
+	}
+
 	if(show_console)
 	{
-        if(g_console.log_vertex_count != 0)
+		if(g_console.log_vertex_count != 0)
 		{
 			float x;
 			float y;
@@ -938,20 +925,20 @@ bool demo_state::render()
 				ctx.glDisable(GL_SCISSOR_TEST);
 			}
 		}
-		
-        if(g_console.error_vertex_count != 0)
+
+		if(g_console.error_vertex_count != 0)
 		{
-            ctx.glBindVertexArray(g_console.gl_error_vao_id);
-            ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.error_vertex_count);
-            ctx.glBindVertexArray(0);
+			ctx.glBindVertexArray(g_console.gl_error_vao_id);
+			ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.error_vertex_count);
+			ctx.glBindVertexArray(0);
 		}
 	}
-    
+
 	ctx.glUseProgram(0);
 
 	if(cv_vsync.data == 0)
 	{
-        // this isn't ideal, but it saves the CPU and GPU.
+		// this isn't ideal, but it saves the CPU and GPU.
 		SDL_Delay(1);
 	}
 
@@ -959,14 +946,14 @@ bool demo_state::render()
 	TIMER_U tick2;
 	tick1 = timer_now();
 	SDL_GL_SwapWindow(g_app.window);
-    
-    // this could help with vsync causing bad latency, in exchange for less gpu utilization.
-    // but you could also use use CPU time on non-opengl stuff, and then sleep the remainder.
-    //ctx.glFinish();
+
+	// this could help with vsync causing bad latency, in exchange for less gpu utilization.
+	// but you could also use use CPU time on non-opengl stuff, and then sleep the remainder.
+	// ctx.glFinish();
 	tick2 = timer_now();
 	perf_swap.test(timer_delta_ms(tick1, tick2));
 
-    return GL_RUNTIME(__func__) == GL_NO_ERROR;
+	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 DEMO_RESULT demo_state::process()
 {
@@ -975,15 +962,15 @@ DEMO_RESULT demo_state::process()
 
 	tick1 = timer_now();
 	DEMO_RESULT ret = input();
-    if(ret != DEMO_RESULT::CONTINUE) return ret;
+	if(ret != DEMO_RESULT::CONTINUE) return ret;
 	tick2 = timer_now();
 	perf_input.test(timer_delta_ms(tick1, tick2));
 
 	tick1 = tick2;
 	if(!render())
-    {
-        return DEMO_RESULT::ERROR;
-    }
+	{
+		return DEMO_RESULT::ERROR;
+	}
 	tick2 = timer_now();
 	perf_render.test(timer_delta_ms(tick1, tick2));
 
@@ -1008,51 +995,49 @@ bool demo_state::perf_time()
 		bool success = true;
 		display_timer = tick_now;
 
-
 		// load the atlas texture.
 		ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
 		// since the text is stored in a GL_RED texture,
 		// I would need to pad each row to align to 4, but I don't.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-        batcher.set_cursor(0);
+		font_batcher.set_cursor(0);
 
-        font_painter.begin();
+		font_painter.begin();
 
+#if 1
 
-        font_painter.font = &font_style;
-
-        #if 1
-
-        //font_settings.render_mode = FT_RENDER_MODE_NORMAL;
+		// font_settings.render_mode = FT_RENDER_MODE_NORMAL;
 
 		font_painter.set_style(FONT_STYLE_OUTLINE);
 		font_painter.set_color(0, 0, 0, 255);
 		success = success && display_perf_text();
 
-        #endif
+#endif
 
-        //font_settings.render_mode = FT_RENDER_MODE_MONO;
+		// font_settings.render_mode = FT_RENDER_MODE_MONO;
 
 		font_painter.set_style(FONT_STYLE_NORMAL);
 		font_painter.set_color(255, 255, 255, 255);
 		success = success && display_perf_text();
 
-
 		font_painter.end();
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 
-	    if(batcher.get_quad_count() != 0)
+		gl_font_vertex_count = font_batcher.get_current_vertex_count();
+
+		if(font_batcher.get_quad_count() != 0)
 		{
-            ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_font_interleave_vbo);
-            // orphaning
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glBufferData(GL_ARRAY_BUFFER, batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, batcher.get_current_vertex_size(), batcher.buffer);
-            ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
-        }
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_font_interleave_vbo);
+			// orphaning
+			ctx.glBufferData(
+				GL_ARRAY_BUFFER, font_batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
+
+			ctx.glBufferSubData(
+				GL_ARRAY_BUFFER, 0, font_batcher.get_current_vertex_size(), font_batcher.buffer);
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
 
 		success = success && GL_RUNTIME(__func__) == GL_NO_ERROR;
 
@@ -1066,7 +1051,7 @@ bool demo_state::perf_time()
 		perf_render.reset();
 		perf_swap.reset();
 
-        #if 0
+#if 0
         static bool first_sample = false;
         if(first_sample == false)
         {
@@ -1074,7 +1059,7 @@ bool demo_state::perf_time()
             TIMER_U first_sample_time = timer_now();
             slogf("first_text_pass: %f\n", timer_delta_ms(tick_now, first_sample_time));
         }
-        #endif
+#endif
 	}
 	return true;
 }
@@ -1087,35 +1072,29 @@ bool demo_state::display_perf_text()
 
 	float x = 2;
 	float y = 2;
-#if 0
-    font_batcher.SetXY(x, y);
+#if 1
+	font_painter.set_xy(x, y);
 
-	font_batcher.SetAnchor(TEXT_ANCHOR::TOP_LEFT);
+	font_painter.set_anchor(TEXT_ANCHOR::TOP_LEFT);
 
-	//font_batcher.Limit(100);
-	success = success && font_batcher.draw_text(cv_string.data.c_str(), cv_string.data.size());
-	// font_batcher.Newline();
+	success = success && font_painter.draw_text(cv_string.data.c_str(), cv_string.data.size());
+	// font_batcher.newline();
 #endif
 	x = static_cast<float>(cv_screen_width.data) - 2;
 	y = 2;
 	font_painter.set_xy(x, y);
 	font_painter.set_anchor(TEXT_ANCHOR::TOP_RIGHT);
 
-	//font_batcher.Limit(50);
 	success = success && font_painter.draw_text("average / low / high\n");
-	//font_batcher.Limit(50);
 	success = success && perf_total.display("total", &font_painter);
-	//font_batcher.Limit(50);
 	success = success && perf_input.display("input", &font_painter);
-	//font_batcher.Limit(50);
 	success = success && perf_render.display("render", &font_painter);
-	//font_batcher.Limit(50);
-    success = success && perf_swap.display("swap", &font_painter);
+	success = success && perf_swap.display("swap", &font_painter);
 	return success;
 }
 
-bool bench_data::display(
-	const char* msg, font_sprite_painter* font_batcher)
+bool bench_data::display(const char* msg, font_sprite_painter* font_painter)
 {
-	return font_batcher->draw_format("%s: %.2f / %.2f / %.2f\n", msg, accum_ms(), low_ms(), high_ms());
+	return font_painter->draw_format(
+		"%s: %.2f / %.2f / %.2f\n", msg, accum_ms(), low_ms(), high_ms());
 }

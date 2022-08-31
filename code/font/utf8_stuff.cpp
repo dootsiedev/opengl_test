@@ -1,6 +1,5 @@
 #include "utf8_stuff.h"
 
-
 const char* cpputf_get_error(utf8::internal::utf_error err_code)
 {
 #define UTF8_ERROR(x) \
