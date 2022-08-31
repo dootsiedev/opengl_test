@@ -29,9 +29,6 @@ enum class CONSOLE_MESSAGE_TYPE
 
 struct console_state
 {
-    
-	font_manager_state* font_manager = NULL;
-
 	struct log_message
 	{
 		// the reason I use a unique_ptr is because
@@ -96,7 +93,7 @@ struct console_state
     int history_index = -1;
 
 	// this requires the atlas texture to be bound with 1 byte packing
-    NDSERR bool init(font_bitmap_cache* font_style, shader_mono_state& mono_shader);
+    NDSERR bool init(font_manager_state* font_manager, font_bitmap_cache* font_style, shader_mono_state& mono_shader);
     NDSERR bool destroy();
 
     // this requires the atlas texture to be bound with 1 byte packing
@@ -115,6 +112,8 @@ struct console_state
     // call this when you need to unfocus, like for example if you press escape or something.
     void unfocus();
     void focus();
+
+    NDSERR bool post_error(std::string_view msg);
 
     void serialize_history(BS_Archive& ar);
 };

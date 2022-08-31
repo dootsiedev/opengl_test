@@ -4,7 +4,7 @@
 #include "font_manager.h"
 #include "utf8_stuff.h"
 
-//for reading files, since I like the stream API.
+// for reading files, since I like the stream API.
 #include "../BS_Archive/BS_stream.h"
 
 #include <cmath>
@@ -354,35 +354,6 @@ bool font_ttf_rasterizer::set_face_settings(const font_ttf_face_settings* settin
 	return true;
 }
 
-void font_ttf_rasterizer::get_face_metrics_px(int* ascent, int* height)
-{
-	ASSERT(face != NULL);
-	ASSERT(face_settings != NULL);
-	// force_bitmap might make things worse
-	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
-	{
-		// NOTE: pretty sure there is a more accurate way of doing this, but I just want this to
-		// work.
-		int bitmap_height = FT_CEIL(face->size->metrics.height);
-		int bitmap_ascent = FT_CEIL(face->size->metrics.ascender);
-		float bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
-		// Get the font metrics for this font, for the selected size
-		if(ascent != NULL) *ascent = std::ceil(static_cast<float>(bitmap_ascent) * bitmap_scale);
-		// font->descent  = FT_CEIL(face->size->metrics.descender);
-		if(height != NULL) *height = std::ceil(face_settings->point_size);
-	}
-	else
-	{
-		// Get the scalable font metrics for this font
-		FT_Fixed scale = face->size->metrics.y_scale;
-		if(ascent != NULL) *ascent = FT_CEIL(FT_MulFix(face->ascender, scale));
-		// font->descent  = FT_CEIL(FT_MulFix(face->descender, scale));
-		if(height != NULL) *height = FT_CEIL(FT_MulFix(face->height, scale));
-		// height = FT_CEIL(FT_MulFix(face->height, scale)); //I don't like this, I use height for
-		// lineskip anyways...
-	}
-}
-
 bool font_ttf_rasterizer::render_glyph(FT_Glyph* glyph_out, unsigned style_flags)
 {
 	ASSERT(face != NULL);
@@ -596,13 +567,16 @@ bool font_atlas::find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, 
 	return false;
 }
 
-bool hex_font_data::init(Unique_RWops file)
+bool hex_font_data::init(Unique_RWops file, font_atlas* atlas_)
 {
 	ASSERT(file);
+	ASSERT(atlas_);
+	atlas = atlas_;
 	hex_font_file = std::move(file);
 	char internal_buffer[2048];
 	BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
 
+	// scan the hex file to find the file position of all the blocks.
 	while(true)
 	{
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
@@ -702,6 +676,7 @@ bool hex_font_data::destroy()
 {
 	if(hex_font_file)
 	{
+		// TODO: would this cause 2 errors to be printed?
 		bool ret = hex_font_file->close();
 		hex_font_file.reset(nullptr);
 		return ret;
@@ -709,11 +684,13 @@ bool hex_font_data::destroy()
 	return true;
 }
 
-FONT_RESULT hex_font_data::load_hex_glyph(
-	font_atlas* atlas, char32_t codepoint, bool outline, font_glyph_entry* glyph)
+FONT_RESULT
+	hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph)
 {
-	ASSERT(atlas);
-	ASSERT(glyph);
+	ASSERT(atlas != NULL);
+	ASSERT(glyph != NULL);
+	// TODO (dootsie): should print a warning if you use bold or italics? but spam...
+	bool outline = (style & FONT_STYLE_OUTLINE) != 0;
 
 	if(!hex_font_file)
 	{
@@ -895,6 +872,70 @@ FONT_RESULT hex_font_data::load_hex_glyph(
 
 	return FONT_RESULT::SUCCESS;
 }
+FONT_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance)
+{
+	// this is 100% copy pasted from get_glyph
+	ASSERT(atlas);
+	ASSERT(advance != NULL);
+
+	if(!hex_font_file)
+	{
+		return FONT_RESULT::NOT_FOUND;
+	}
+
+	if(hex_block_chunks.empty())
+	{
+		return FONT_RESULT::NOT_FOUND;
+	}
+
+	// I probably should set the rect to 0,0,0,0 to avoid rendering, but I am too lazy.
+	// if(codepoint == ' ')
+
+	size_t block_index = codepoint / HEX_CHUNK_GLYPHS;
+	if(block_index >= hex_block_chunks.size())
+	{
+		// serrf("%s codepoint out of bounds: U+%X\n", __func__, codepoint);
+		return FONT_RESULT::NOT_FOUND;
+	}
+	hex_block_chunk* current_chunk = &hex_block_chunks[block_index];
+
+	if(current_chunk->glyphs == NULL)
+	{
+		current_chunk->glyphs =
+			std::make_unique<decltype(current_chunk->glyphs)::element_type[]>(HEX_CHUNK_GLYPHS);
+		memset(
+			current_chunk->glyphs.get(),
+			0,
+			sizeof(decltype(current_chunk->glyphs)::element_type) * HEX_CHUNK_GLYPHS);
+		if(!load_hex_block(current_chunk))
+		{
+			return FONT_RESULT::ERROR;
+		}
+	}
+
+	hex_glyph_entry& current = current_chunk->glyphs[codepoint % HEX_CHUNK_GLYPHS];
+
+	if(current.hex_init)
+	{
+		*advance = current.u.hex_glyph.normal.advance;
+		return FONT_RESULT::SUCCESS;
+	}
+
+	if(!current.hex_found)
+	{
+		return FONT_RESULT::NOT_FOUND;
+	}
+
+	if(current.hex_full)
+	{
+		*advance = HEX_FULL_WIDTH;
+	}
+	else
+	{
+		*advance = HEX_HALF_WIDTH;
+	}
+	return FONT_RESULT::SUCCESS;
+}
 
 bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 {
@@ -1043,13 +1084,14 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 	// return true;
 }
 
-void font_bitmap_cache::init(font_manager_state* font_manager_, font_ttf_rasterizer* rasterizer)
+void font_bitmap_cache::init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer)
 {
-	ASSERT(font_manager_ != NULL);
+	ASSERT(font_manager != NULL);
 	ASSERT(rasterizer != NULL);
 
-	font_manager = font_manager_;
+	atlas = &font_manager->atlas;
 	current_rasterizer = rasterizer;
+	fallback = &font_manager->hex_font;
 
 	FT_Bitmap_Init(&convert_bitmap);
 }
@@ -1083,201 +1125,8 @@ font_bitmap_cache::~font_bitmap_cache()
 	}
 }
 
-FONT_RESULT font_bitmap_cache::get_glyph(char32_t codepoint, font_glyph_entry* glyph_out)
-{
-	ASSERT(font_manager != NULL);
-	ASSERT(current_rasterizer != NULL);
-	ASSERT(glyph_out != NULL);
-
-	// 10FFFF is the last unicode character I think
-	// so a glyph past this is probably garbage.
-	const char32_t unicode_end = 0x10FFFF;
-	if(codepoint > unicode_end)
-	{
-#if 0
-		serrf(
-			"%s unicode out of bounds: U+%X, maximum: U+%X\n",
-			current_rasterizer->font_file->name(),
-			codepoint,
-			unicode_end);
-#endif
-		return FONT_RESULT::NOT_FOUND;
-	}
-
-	size_t block_chunk = codepoint / FONT_CACHE_CHUNK_GLYPHS;
-	size_t block_index = codepoint % FONT_CACHE_CHUNK_GLYPHS;
-
-	// load the blocks if it's not already loaded
-	if(block_chunk >= font_cache_blocks.size())
-	{
-		font_cache_blocks.resize(block_chunk + 1);
-	}
-
-	font_cache_block& block = font_cache_blocks[block_chunk];
-
-	// fast path for cached glyphs.
-	if(block.glyphs[current_style])
-	{
-		font_glyph_entry& glyph = block.glyphs[current_style][block_index];
-		if(glyph.type != FONT_ENTRY::UNDEFINED)
-		{
-			*glyph_out = glyph;
-			return FONT_RESULT::SUCCESS;
-		}
-	}
-
-	FT_UInt glyph_index = 0;
-	if(!block.bad_indexes.test(block_index))
-	{
-		glyph_index = FT_Get_Char_Index(current_rasterizer->face, codepoint);
-		if(glyph_index == 0)
-		{
-			if(cv_font_warnings.data != 0)
-			{
-				slogf(
-					"info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
-			}
-			block.bad_indexes.set(block_index);
-		}
-	}
-
-	if(glyph_index == 0)
-	{
-		return font_manager->hex_font.load_hex_glyph(
-			&font_manager->atlas, codepoint, (current_style & FONT_STYLE_OUTLINE) != 0, glyph_out);
-	}
-
-	// this owns the FT_Bitmap memory (but sometimes it's convert_bitmap)
-	unique_ft_glyph ftglyph;
-
-	// TODO (dootsie): Maybe load normal and outline together
-	// because I can avoid rasterizing twice if I use a bitmap embolden.
-	// but it should only be a "hint" because I might not use the outline...
-	FT_Bitmap* bitmap = render_tf_glyph(glyph_index, ftglyph);
-
-	/// load the glyph
-	if(bitmap == NULL)
-	{
-		// render_tf_glyph won't print the codepoint, so might as well include it here.
-		serrf("%s error: U+%X\n", current_rasterizer->font_file->name(), codepoint);
-		// next time just load the fallback
-		block.bad_indexes.set(block_index);
-		return FONT_RESULT::ERROR;
-	}
-
-	bool use_bitmap = current_rasterizer->face->num_fixed_sizes != 0 &&
-					  (current_rasterizer->face_settings->force_bitmap ||
-					   !FT_IS_SCALABLE(current_rasterizer->face));
-
-	// this is a space character.
-	if(bitmap->width == 0)
-	{
-		// use this to signal this is a space
-		glyph_out->type = FONT_ENTRY::SPACE;
-		glyph_out->rect_w = 0;
-		glyph_out->rect_h = 0;
-		if(use_bitmap)
-		{
-			// bitmaps need to be scaled
-			int bitmap_height = FT_CEIL(current_rasterizer->face->size->metrics.height);
-			float bitmap_scale =
-				current_rasterizer->face_settings->point_size / static_cast<float>(bitmap_height);
-			glyph_out->advance = std::ceil(
-				static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) * bitmap_scale);
-		}
-		else
-		{
-			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			glyph_out->advance = (current_rasterizer->face->glyph->advance.x >> 6);
-		}
-	}
-	else
-	{
-		unsigned int x_out;
-		unsigned int y_out;
-		if(!font_manager->atlas.find_atlas_slot(bitmap->pitch, bitmap->rows, &x_out, &y_out))
-		{
-			// I could use the fallback, but I want to only use it to show the glyph
-			// isn't found.
-			serrf(
-				"%s atlas out of space: U+%X\n", current_rasterizer->font_file->name(), codepoint);
-			// it->second[raster_mask] = font_manager.error_glyph;
-			//*glyph = it->second[raster_mask];
-			// next time just load the fallback
-			block.bad_indexes.set(block_index);
-			return FONT_RESULT::ERROR;
-		}
-#if 0
-        if(cv_has_EXT_disjoint_timer_query.data == 1)
-        {
-            static GLuint query = 0;
-            if(query == 0)
-            {
-                ctx.glGenQueriesEXT(1, &query);
-            }
-            ctx.glBeginQueryEXT(GL_TIME_ELAPSED_EXT,query);
-            TIMER_U t1 = timer_now();
-        }
-#endif
-		ctx.glTexSubImage2D(
-			GL_TEXTURE_2D,
-			0,
-			x_out, // NOLINT(bugprone-narrowing-conversions)
-			y_out, // NOLINT(bugprone-narrowing-conversions)
-			bitmap->pitch,
-			bitmap->rows, // NOLINT(bugprone-narrowing-conversions)
-			GL_RED,
-			GL_UNSIGNED_BYTE,
-			bitmap->buffer);
-#if 0
-        if(cv_has_EXT_disjoint_timer_query.data == 1)
-        {
-            TIMER_U t2 = timer_now();
-            ctx.glEndQueryEXT(GL_TIME_ELAPSED_EXT);
-
-            GLuint64 elapsed_time;
-            ctx.glGetQueryObjectui64vEXT(query, GL_QUERY_RESULT, &elapsed_time);
-            slogf("glTexSubImage2D time: %f, wait: %f\n", elapsed_time / 1000000.0, timer_delta_ms(t1, t2));
-        }
-#endif
-		if(GL_RUNTIME(__func__) != GL_NO_ERROR)
-		{
-			return FONT_RESULT::ERROR;
-		}
-
-		glyph_out->rect_x = x_out;
-		glyph_out->rect_y = y_out;
-		glyph_out->rect_w = bitmap->width;
-		glyph_out->rect_h = bitmap->rows;
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		glyph_out->advance = (current_rasterizer->face->glyph->advance.x >> 6);
-		FT_BitmapGlyph ftglyph_bitmap = reinterpret_cast<FT_BitmapGlyph>(ftglyph.get());
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		glyph_out->xmin = (ftglyph_bitmap->left);
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		glyph_out->ymin = (ftglyph_bitmap->top);
-		glyph_out->type = (use_bitmap ? FONT_ENTRY::BITMAP : FONT_ENTRY::NORMAL);
-	}
-
-	if(!block.glyphs[current_style])
-	{
-		// allocate the style array
-		block.glyphs[current_style] = std::make_unique<font_glyph_entry[]>(FONT_CACHE_CHUNK_GLYPHS);
-		// zero initialize.
-		memset(
-			block.glyphs[current_style].get(),
-			0,
-			sizeof(font_glyph_entry) * FONT_CACHE_CHUNK_GLYPHS);
-	}
-
-	// this slot should be undefined.
-	ASSERT(block.glyphs[current_style][block_index].type == FONT_ENTRY::UNDEFINED);
-
-	block.glyphs[current_style][block_index] = *glyph_out;
-	return FONT_RESULT::SUCCESS;
-}
-
-FT_Bitmap* font_bitmap_cache::render_tf_glyph(FT_UInt glyph_index, unique_ft_glyph& ftglyph)
+FT_Bitmap* font_bitmap_cache::render_tf_glyph(
+	FT_UInt glyph_index, font_style_type style, unique_ft_glyph& ftglyph)
 {
 	FT_Error error;
 
@@ -1301,15 +1150,15 @@ FT_Bitmap* font_bitmap_cache::render_tf_glyph(FT_UInt glyph_index, unique_ft_gly
 		ftglyph.reset(tmp_ftglyph);
 	}
 	bool was_bitmap = ftglyph->format == FT_GLYPH_FORMAT_BITMAP;
-	bool use_outline = (current_style & FONT_STYLE_OUTLINE) != 0;
+	bool use_outline = (style & FONT_STYLE_OUTLINE) != 0;
 	if(ftglyph->format == FT_GLYPH_FORMAT_OUTLINE)
 	{
-		int temp_style = current_style;
+		int temp_style = style;
 		if(current_rasterizer->face_settings->force_bitmap && use_outline)
 		{
 			// force the outline to not be rendered, so that I can make the outline use the bitmap
 			// routine.
-			temp_style = current_style & ~FONT_STYLE_OUTLINE;
+			temp_style = style & ~FONT_STYLE_OUTLINE;
 		}
 		FT_Glyph tmp_ftglyph;
 		// You must call FT_Done_Glyph on this.
@@ -1386,6 +1235,314 @@ FT_Bitmap* font_bitmap_cache::render_tf_glyph(FT_UInt glyph_index, unique_ft_gly
 	}
 
 	return bitmap;
+}
+
+float font_bitmap_cache::get_point_size()
+{
+	return current_rasterizer->face_settings->point_size;
+}
+float font_bitmap_cache::get_ascent()
+{
+	FT_Face face = current_rasterizer->face;
+	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
+	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
+	{
+		int bitmap_height = FT_CEIL(face->size->metrics.height);
+		int bitmap_ascent = FT_CEIL(face->size->metrics.ascender);
+		float bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
+		// Get the font metrics for this font, for the selected size
+		return std::ceil(static_cast<float>(bitmap_ascent) * bitmap_scale);
+	}
+	// Get the scalable font metrics for this font
+	FT_Fixed scale = face->size->metrics.y_scale;
+	return FT_CEIL(FT_MulFix(face->ascender, scale));
+	// font->descent  = FT_CEIL(FT_MulFix(face->descender, scale));
+}
+float font_bitmap_cache::get_lineskip()
+{
+	FT_Face face = current_rasterizer->face;
+	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
+	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
+	{
+		// font->descent  = FT_CEIL(face->size->metrics.descender);
+		return std::ceil(face_settings->point_size);
+	}
+	FT_Fixed scale = face->size->metrics.y_scale;
+
+	return FT_CEIL(FT_MulFix(face->height, scale));
+}
+float font_bitmap_cache::get_bitmap_size()
+{
+	return FT_CEIL(current_rasterizer->face->size->metrics.height);
+}
+
+FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
+{
+	ASSERT(atlas != NULL);
+	ASSERT(current_rasterizer != NULL);
+	ASSERT(advance != NULL);
+
+	// 10FFFF is the last unicode character I think
+	// so a glyph past this is probably garbage.
+	const char32_t unicode_end = 0x10FFFF;
+	if(codepoint > unicode_end)
+	{
+#if 0
+		serrf(
+			"%s unicode out of bounds: U+%X, maximum: U+%X\n",
+			current_rasterizer->font_file->name(),
+			codepoint,
+			unicode_end);
+#endif
+		return FONT_RESULT::NOT_FOUND;
+	}
+
+	size_t block_chunk = codepoint / FONT_CACHE_CHUNK_GLYPHS;
+	size_t block_index = codepoint % FONT_CACHE_CHUNK_GLYPHS;
+
+	// load the blocks if it's not already loaded
+	if(block_chunk >= font_cache_blocks.size())
+	{
+		font_cache_blocks.resize(block_chunk + 1);
+	}
+
+	font_cache_block& block = font_cache_blocks[block_chunk];
+
+	// fast path for cached glyphs.
+	if(block.glyphs[FONT_STYLE_NORMAL])
+	{
+		font_glyph_entry& glyph = block.glyphs[FONT_STYLE_NORMAL][block_index];
+		if(glyph.type != FONT_ENTRY::UNDEFINED)
+		{
+			*advance = glyph.advance;
+			return FONT_RESULT::SUCCESS;
+		}
+	}
+
+	FT_UInt glyph_index = 0;
+	if(!block.bad_indexes.test(block_index))
+	{
+		glyph_index = FT_Get_Char_Index(current_rasterizer->face, codepoint);
+		if(glyph_index == 0)
+		{
+			if(cv_font_warnings.data != 0)
+			{
+				slogf(
+					"info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+			}
+			block.bad_indexes.set(block_index);
+		}
+	}
+
+	if(glyph_index == 0)
+	{
+		return fallback->get_advance(codepoint, advance);
+	}
+
+	FT_Error error;
+
+	// load the advance only
+	// TODO: THIS IS SLOW BECAUSE OF NO CACHING! maybe make a new FONT_ENTRY type?
+	if((error = FT_Load_Glyph(current_rasterizer->face, glyph_index, FT_LOAD_ADVANCE_ONLY)) != 0)
+	{
+		TTF_SetFTError(current_rasterizer->font_file->name(), error);
+		return FONT_RESULT::ERROR;
+	}
+	*advance = (current_rasterizer->face->glyph->advance.x >> 6);
+	return FONT_RESULT::SUCCESS;
+}
+
+FONT_RESULT font_bitmap_cache::get_glyph(
+	char32_t codepoint, font_style_type style, font_glyph_entry* glyph_out)
+{
+	ASSERT(atlas != NULL);
+	ASSERT(current_rasterizer != NULL);
+	ASSERT(glyph_out != NULL);
+
+	// 10FFFF is the last unicode character I think
+	// so a glyph past this is probably garbage.
+	const char32_t unicode_end = 0x10FFFF;
+	if(codepoint > unicode_end)
+	{
+#if 0
+		serrf(
+			"%s unicode out of bounds: U+%X, maximum: U+%X\n",
+			current_rasterizer->font_file->name(),
+			codepoint,
+			unicode_end);
+#endif
+		return FONT_RESULT::NOT_FOUND;
+	}
+
+	size_t block_chunk = codepoint / FONT_CACHE_CHUNK_GLYPHS;
+	size_t block_index = codepoint % FONT_CACHE_CHUNK_GLYPHS;
+
+	// load the blocks if it's not already loaded
+	if(block_chunk >= font_cache_blocks.size())
+	{
+		font_cache_blocks.resize(block_chunk + 1);
+	}
+
+	font_cache_block& block = font_cache_blocks[block_chunk];
+
+	// fast path for cached glyphs.
+	if(block.glyphs[style])
+	{
+		font_glyph_entry& glyph = block.glyphs[style][block_index];
+		if(glyph.type != FONT_ENTRY::UNDEFINED)
+		{
+			*glyph_out = glyph;
+			return FONT_RESULT::SUCCESS;
+		}
+	}
+
+	FT_UInt glyph_index = 0;
+	if(!block.bad_indexes.test(block_index))
+	{
+		glyph_index = FT_Get_Char_Index(current_rasterizer->face, codepoint);
+		if(glyph_index == 0)
+		{
+			if(cv_font_warnings.data != 0)
+			{
+				slogf(
+					"info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+			}
+			block.bad_indexes.set(block_index);
+		}
+	}
+
+	if(glyph_index == 0)
+	{
+		return fallback->get_glyph(codepoint, style, glyph_out);
+		// font_manager->hex_font.load_hex_glyph(
+		//	&font_manager->atlas, codepoint, (style & FONT_STYLE_OUTLINE) != 0, glyph_out);
+	}
+
+	// this owns the FT_Bitmap memory (but sometimes it's convert_bitmap)
+	unique_ft_glyph ftglyph;
+
+	// TODO (dootsie): Maybe load normal and outline together
+	// because I can avoid rasterizing twice if I use a bitmap embolden.
+	// but it should only be a "hint" because I might not use the outline...
+	FT_Bitmap* bitmap = render_tf_glyph(glyph_index, style, ftglyph);
+
+	/// load the glyph
+	if(bitmap == NULL)
+	{
+		// render_tf_glyph won't print the codepoint, so might as well include it here.
+		serrf("%s error: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+		// next time just load the fallback
+		block.bad_indexes.set(block_index);
+		return FONT_RESULT::ERROR;
+	}
+
+	bool use_bitmap = current_rasterizer->face->num_fixed_sizes != 0 &&
+					  (current_rasterizer->face_settings->force_bitmap ||
+					   !FT_IS_SCALABLE(current_rasterizer->face));
+
+	// this is a space character.
+	if(bitmap->width == 0)
+	{
+		// use this to signal this is a space
+		glyph_out->type = FONT_ENTRY::SPACE;
+		glyph_out->rect_w = 0;
+		glyph_out->rect_h = 0;
+		if(use_bitmap)
+		{
+			// bitmaps need to be scaled
+			int bitmap_height = FT_CEIL(current_rasterizer->face->size->metrics.height);
+			float bitmap_scale =
+				current_rasterizer->face_settings->point_size / static_cast<float>(bitmap_height);
+			glyph_out->advance = std::ceil(
+				static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) * bitmap_scale);
+		}
+		else
+		{
+			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+			glyph_out->advance = (current_rasterizer->face->glyph->advance.x >> 6);
+		}
+	}
+	else
+	{
+		unsigned int x_out;
+		unsigned int y_out;
+		if(!atlas->find_atlas_slot(bitmap->pitch, bitmap->rows, &x_out, &y_out))
+		{
+			// I could use the fallback, but I want to only use it to show the glyph
+			// isn't found.
+			serrf(
+				"%s atlas out of space: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+			// it->second[raster_mask] = font_manager.error_glyph;
+			//*glyph = it->second[raster_mask];
+			// next time just load the fallback
+			block.bad_indexes.set(block_index);
+			return FONT_RESULT::ERROR;
+		}
+#if 0
+        if(cv_has_EXT_disjoint_timer_query.data == 1)
+        {
+            static GLuint query = 0;
+            if(query == 0)
+            {
+                ctx.glGenQueriesEXT(1, &query);
+            }
+            ctx.glBeginQueryEXT(GL_TIME_ELAPSED_EXT,query);
+            TIMER_U t1 = timer_now();
+        }
+#endif
+		ctx.glTexSubImage2D(
+			GL_TEXTURE_2D,
+			0,
+			x_out, // NOLINT(bugprone-narrowing-conversions)
+			y_out, // NOLINT(bugprone-narrowing-conversions)
+			bitmap->pitch,
+			bitmap->rows, // NOLINT(bugprone-narrowing-conversions)
+			GL_RED,
+			GL_UNSIGNED_BYTE,
+			bitmap->buffer);
+#if 0
+        if(cv_has_EXT_disjoint_timer_query.data == 1)
+        {
+            TIMER_U t2 = timer_now();
+            ctx.glEndQueryEXT(GL_TIME_ELAPSED_EXT);
+
+            GLuint64 elapsed_time;
+            ctx.glGetQueryObjectui64vEXT(query, GL_QUERY_RESULT, &elapsed_time);
+            slogf("glTexSubImage2D time: %f, wait: %f\n", elapsed_time / 1000000.0, timer_delta_ms(t1, t2));
+        }
+#endif
+		if(GL_RUNTIME(__func__) != GL_NO_ERROR)
+		{
+			return FONT_RESULT::ERROR;
+		}
+
+		glyph_out->rect_x = x_out;
+		glyph_out->rect_y = y_out;
+		glyph_out->rect_w = bitmap->width;
+		glyph_out->rect_h = bitmap->rows;
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		glyph_out->advance = (current_rasterizer->face->glyph->advance.x >> 6);
+		FT_BitmapGlyph ftglyph_bitmap = reinterpret_cast<FT_BitmapGlyph>(ftglyph.get());
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		glyph_out->xmin = (ftglyph_bitmap->left);
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		glyph_out->ymin = (ftglyph_bitmap->top);
+		glyph_out->type = (use_bitmap ? FONT_ENTRY::BITMAP : FONT_ENTRY::NORMAL);
+	}
+
+	if(!block.glyphs[style])
+	{
+		// allocate the style array
+		block.glyphs[style] = std::make_unique<font_glyph_entry[]>(FONT_CACHE_CHUNK_GLYPHS);
+		// zero initialize.
+		memset(block.glyphs[style].get(), 0, sizeof(font_glyph_entry) * FONT_CACHE_CHUNK_GLYPHS);
+	}
+
+	// this slot should be undefined.
+	ASSERT(block.glyphs[style][block_index].type == FONT_ENTRY::UNDEFINED);
+
+	block.glyphs[style][block_index] = *glyph_out;
+	return FONT_RESULT::SUCCESS;
 }
 
 void font_sprite_painter::begin()
@@ -1471,7 +1628,7 @@ bool font_sprite_painter::draw_format(const char* fmt, ...)
 
 bool font_sprite_painter::draw_text(const char* text, size_t size)
 {
-	ASSERT(font_type != FONT_TYPES::UNDEFINED);
+	ASSERT(font != NULL);
 	size = (size == 0) ? strlen(text) : size;
 
 	const char* str_cur = text;
@@ -1490,7 +1647,7 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 
 		if((current_flags & TEXT_FLAGS::NEWLINE) != 0 && codepoint == '\n')
 		{
-			Newline();
+			newline();
 		}
 		else if((current_flags & TEXT_FLAGS::NEWLINE) != 0 && codepoint == '\r')
 		{
@@ -1515,111 +1672,58 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 
 FONT_RESULT font_sprite_painter::load_glyph_verts(char32_t codepoint)
 {
-	ASSERT(font_type != FONT_TYPES::UNDEFINED);
+	ASSERT(font != NULL);
+	ASSERT(font_manager != NULL);
 
 	font_glyph_entry glyph;
-	float top;
-	float hex_scale;
-	float atlas_size;
+	float atlas_size = font_manager->atlas.atlas_size;
 
-	switch(font_type)
+	FONT_RESULT ret = font->get_glyph(codepoint, current_style, &glyph);
+	if(ret != FONT_RESULT::SUCCESS)
 	{
-		// I don't want to check for unreachable
-		// because it's the programmer's responsibility, and should be an ASSERT,
-		// but I get an uninitialized warning... (not wrong!)
-	default: CHECK(false && "unreachable"); return FONT_RESULT::ERROR;
-	case FONT_TYPES::TTF: {
-		font_bitmap_cache* font = font_u.ttf.font;
-		ASSERT(font != NULL);
-
-		FONT_RESULT ret = font_u.ttf.font->get_glyph(codepoint, &glyph);
-		if(ret != FONT_RESULT::SUCCESS)
-		{
-			return ret;
-		}
-
-		// set the rest of the variables for writing the vertexies.
-		const font_ttf_face_settings* face_settings = font->current_rasterizer->face_settings;
-		ASSERT(face_settings != NULL);
-		atlas_size = static_cast<float>(font->font_manager->atlas.atlas_size);
-		int ascent;
-		font->current_rasterizer->get_face_metrics_px(&ascent, NULL);
-		top = draw_cur_y + (glyph.type == FONT_ENTRY::HEXFONT ? face_settings->point_size
-															  : static_cast<float>(ascent));
-		hex_scale = face_settings->point_size / static_cast<float>(HEX_HEIGHT);
-	}
-	break;
-	case FONT_TYPES::HEX: {
-		font_manager_state* font_manager = font_u.hex.font_manager;
-		ASSERT(font_manager != NULL);
-
-		FONT_RESULT ret = font_manager->hex_font.load_hex_glyph(
-			&font_manager->atlas, codepoint, font_u.hex.outline, &glyph);
-		if(ret != FONT_RESULT::SUCCESS)
-		{
-			return ret;
-		}
-
-		atlas_size = static_cast<float>(font_u.hex.font_manager->atlas.atlas_size);
-		hex_scale = font_u.hex.height / static_cast<float>(HEX_HEIGHT);
-		top = draw_cur_y + font_u.hex.height;
-	}
-	break;
+		return ret;
 	}
 
 	ASSERT(glyph.type != FONT_ENTRY::UNDEFINED);
 
 	std::array<float, 4> uv;
-	// minx
 	uv[0] = static_cast<float>(glyph.rect_x) / atlas_size;
-	// miny
 	uv[1] = static_cast<float>(glyph.rect_y) / atlas_size;
-	// maxx
 	uv[2] = static_cast<float>(glyph.rect_x + glyph.rect_w) / atlas_size;
-	// maxy
 	uv[3] = static_cast<float>(glyph.rect_y + glyph.rect_h) / atlas_size;
 
 	std::array<float, 4> pos;
-
-
-	float bitmap_scale;
 
 	switch(glyph.type)
 	{
 	default: CHECK(false && "unreachable"); return FONT_RESULT::ERROR;
 	case FONT_ENTRY::NORMAL:
-		ASSERT(font_type == FONT_TYPES::TTF);
 		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin);
-		pos[1] = top - static_cast<float>(glyph.ymin);
+		pos[1] = draw_cur_y + font->get_ascent() - static_cast<float>(glyph.ymin);
 		pos[2] = pos[0] + static_cast<float>(glyph.rect_w);
 		pos[3] = pos[1] + static_cast<float>(glyph.rect_h);
 		draw_cur_x += static_cast<float>(glyph.advance);
 		break;
 
 	case FONT_ENTRY::BITMAP: {
-		ASSERT(font_type == FONT_TYPES::TTF);
-		font_bitmap_cache* font = font_u.ttf.font;
-		const font_ttf_face_settings* face_settings = font->current_rasterizer->face_settings;
-		ASSERT(face_settings != NULL);
-		// can't use get_face_metrics_px because it scales the height.
-		bitmap_scale = face_settings->point_size /
-					   static_cast<float>(static_cast<int>(
-						   FT_CEIL(font->current_rasterizer->face->size->metrics.height)));
+		float bitmap_scale = font->get_point_size() / font->get_bitmap_size();
 		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin) * bitmap_scale;
-		pos[1] = top - static_cast<float>(glyph.ymin) * bitmap_scale;
+		pos[1] = draw_cur_y + font->get_ascent() - static_cast<float>(glyph.ymin) * bitmap_scale;
 		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * bitmap_scale;
 		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * bitmap_scale;
 		draw_cur_x += static_cast<float>(glyph.advance) * bitmap_scale;
 	}
 	break;
 
-	case FONT_ENTRY::HEXFONT:
+	case FONT_ENTRY::HEXFONT: {
+		float hex_scale = font->get_point_size() / static_cast<float>(HEX_HEIGHT);
 		pos[0] = draw_cur_x + static_cast<float>(glyph.xmin) * hex_scale;
-		pos[1] = top - static_cast<float>(glyph.ymin) * hex_scale;
+		pos[1] = draw_cur_y;
 		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * hex_scale;
 		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * hex_scale;
 		draw_cur_x += static_cast<float>(glyph.advance) * hex_scale;
-		break;
+	}
+	break;
 
 	case FONT_ENTRY::SPACE:
 		draw_cur_x += static_cast<float>(glyph.advance);
@@ -1634,122 +1738,11 @@ FONT_RESULT font_sprite_painter::load_glyph_verts(char32_t codepoint)
 
 	return FONT_RESULT::SUCCESS;
 }
-std::array<float, 4> font_sprite_painter::get_white_uv() const
-{
-	font_manager_state* font_m;
-
-	switch(font_type)
-	{
-	default: ASSERT(false && "unreachable"); return {-1, -1, -1, -1};
-	case FONT_TYPES::TTF: {
-		font_bitmap_cache* font = font_u.ttf.font;
-		ASSERT(font != NULL);
-		font_m = font->font_manager;
-	}
-	break;
-	case FONT_TYPES::HEX: {
-		font_manager_state* font_manager = font_u.hex.font_manager;
-		ASSERT(font_manager != NULL);
-		font_m = font_manager;
-	}
-	break;
-	}
-	return font_m->white_uv;
-}
-
-float font_sprite_painter::GetLineSkip() const
-{
-	switch(font_type)
-	{
-	default:
-	case FONT_TYPES::TTF: {
-		ASSERT(font_u.ttf.font != NULL);
-		int face_height;
-		font_u.ttf.font->current_rasterizer->get_face_metrics_px(NULL, &face_height);
-		return static_cast<float>(face_height);
-	}
-		// return font_u.ttf.font->current_rasterizer->face_settings->point_size;
-	case FONT_TYPES::HEX: ASSERT(font_u.hex.font_manager != NULL); return font_u.hex.height;
-	}
-	ASSERT(false && "unreachable");
-	return NAN;
-}
-
-float font_sprite_painter::GetAdvance(char32_t codepoint) const
-{
-	switch(font_type)
-	{
-	default: ASSERT(false && "unreachable"); return NAN;
-	case FONT_TYPES::TTF: {
-		ASSERT(font_u.ttf.font != NULL);
-		font_glyph_entry glyph;
-		switch(font_u.ttf.font->get_glyph(codepoint, &glyph))
-		{
-		case FONT_RESULT::SUCCESS:
-			switch(glyph.type)
-			{
-			default: ASSERT(false && "unreachable"); return NAN;
-			case FONT_ENTRY::NORMAL:
-				ASSERT(font_type == FONT_TYPES::TTF);
-				return static_cast<float>(glyph.advance);
-
-			case FONT_ENTRY::BITMAP: {
-				ASSERT(font_type == FONT_TYPES::TTF);
-				font_bitmap_cache* font = font_u.ttf.font;
-				const font_ttf_face_settings* face_settings =
-					font->current_rasterizer->face_settings;
-				ASSERT(face_settings != NULL);
-				// can't use get_face_metrics_px because it scales the height.
-				float bitmap_scale = face_settings->point_size /
-									 static_cast<float>(static_cast<int>(FT_CEIL(
-										 font->current_rasterizer->face->size->metrics.height)));
-				return static_cast<float>(glyph.advance) * bitmap_scale;
-			}
-
-			case FONT_ENTRY::HEXFONT: {
-				ASSERT(font_type == FONT_TYPES::TTF);
-				font_bitmap_cache* font = font_u.ttf.font;
-				const font_ttf_face_settings* face_settings =
-					font->current_rasterizer->face_settings;
-				ASSERT(face_settings != NULL);
-				float hex_scale = face_settings->point_size / static_cast<float>(HEX_HEIGHT);
-				return static_cast<float>(glyph.advance) * hex_scale;
-			}
-			case FONT_ENTRY::SPACE: return static_cast<float>(glyph.advance);
-			}
-		case FONT_RESULT::ERROR: return NAN;
-		case FONT_RESULT::NOT_FOUND:
-			serrf("%s glyph not found: U+%X\n", __func__, codepoint);
-			return NAN;
-		}
-	}
-	break;
-		// return font_u.ttf.font->current_rasterizer->face_settings->point_size;
-	case FONT_TYPES::HEX: {
-		ASSERT(font_u.hex.font_manager != NULL);
-
-		float hex_scale = font_u.hex.height / static_cast<float>(HEX_HEIGHT);
-		font_glyph_entry glyph;
-		switch(font_u.hex.font_manager->hex_font.load_hex_glyph(
-			&font_u.hex.font_manager->atlas, codepoint, false, &glyph))
-		{
-		case FONT_RESULT::SUCCESS: return static_cast<float>(glyph.advance) * hex_scale;
-		case FONT_RESULT::ERROR: return NAN;
-		case FONT_RESULT::NOT_FOUND:
-			serrf("%s glyph not found: U+%X\n", __func__, codepoint);
-			return NAN;
-		}
-	}
-	break;
-	}
-	ASSERT(false && "unreachable");
-	return NAN;
-}
 
 void font_sprite_painter::internal_flush()
 {
 	// finish the x axis alignment of any leftover newline
-	Newline();
+	newline();
 
 	size_t size = batcher->get_current_vertex_count();
 
@@ -1812,7 +1805,7 @@ void font_sprite_painter::internal_flush()
 	flush_cursor = size;
 }
 
-void font_sprite_painter::Newline()
+void font_sprite_painter::newline()
 {
 	size_t size = batcher->get_current_vertex_count();
 
@@ -1875,5 +1868,5 @@ void font_sprite_painter::Newline()
 	newline_cursor = size;
 
 	draw_cur_x = anchor_x;
-	draw_cur_y += GetLineSkip();
+	draw_cur_y += font->get_lineskip();
 }

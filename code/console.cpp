@@ -13,26 +13,32 @@
 console_state g_console;
 
 static REGISTER_CVAR_INT(
-	cv_console_history_max, 100, "the maximum number of commands in the history (up arrow)", CVAR_T::RUNTIME);
+	cv_console_history_max,
+	100,
+	"the maximum number of commands in the history (up arrow)",
+	CVAR_T::RUNTIME);
 static REGISTER_CVAR_INT(
-	cv_console_log_max_row_count, 100, "the maximum number of rows shown in the log", CVAR_T::RUNTIME);
+	cv_console_log_max_row_count,
+	100,
+	"the maximum number of rows shown in the log",
+	CVAR_T::RUNTIME);
 
-
-bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_shader)
+bool console_state::init(
+	font_manager_state* font_manager, font_bitmap_cache* font_style, shader_mono_state& mono_shader)
 {
-	ASSERT(font_style);
-	font_manager = font_style->font_manager;
+	ASSERT(font_style != NULL);
+	ASSERT(font_manager != NULL);
 
+	console_painter.font_manager = font_manager;
+	console_painter.set_font(font_style);
 
-	console_painter.SetFont(font_style);
-
-
-    size_t max_quads = 1000;
-    console_batcher_buffer = std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
+	size_t max_quads = 1000;
+	console_batcher_buffer =
+		std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
 	console_batcher.buffer = console_batcher_buffer.get();
 	console_batcher.size = max_quads;
 	console_batcher.set_cursor(0);
-    console_painter.batcher = &console_batcher;
+	console_painter.batcher = &console_batcher;
 
 	//
 	// log
@@ -57,7 +63,6 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	ctx.glBindVertexArray(gl_log_vao_id);
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
-
 
 	// this requires the atlas texture to be bound with 1 byte packing
 	if(!log_box.init(
@@ -153,7 +158,7 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 		{
 			serrf("Failed to open: `%s`, reason: %s\n", history_path, strerror(errno));
 			// put the message into the console instead
-			if(!error_text.replace_string(serr_get_error()))
+			if(!post_error(serr_get_error()))
 			{
 				return false;
 			}
@@ -161,6 +166,8 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 	}
 	else
 	{
+		// in hindsight the one downside of using JSON is that it would be better
+		// to just append the file + flush than writing the whole json for every command.
 		RWops_Stdio history_file(fp, history_path);
 		char buffer[1000];
 		BS_ReadStream sb(&history_file, buffer, sizeof(buffer));
@@ -169,7 +176,7 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 		if(!ar.Finish(history_file.name()))
 		{
 			// put the message into the console instead
-			if(!error_text.replace_string(serr_get_error()))
+			if(!post_error(serr_get_error()))
 			{
 				return false;
 			}
@@ -180,8 +187,6 @@ bool console_state::init(font_bitmap_cache* font_style, shader_mono_state& mono_
 }
 bool console_state::destroy()
 {
-	font_manager = NULL;
-
 	SAFE_GL_DELETE_VBO(gl_log_interleave_vbo);
 	SAFE_GL_DELETE_VAO(gl_log_vao_id);
 	SAFE_GL_DELETE_VBO(gl_prompt_interleave_vbo);
@@ -256,7 +261,7 @@ void console_state::resize_text_area()
 		60,
 		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_painter.GetLineSkip());
+		console_painter.font->get_lineskip());
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
 	// but if it's too big it could potentially block UI elements in an annoying way
@@ -264,14 +269,12 @@ void console_state::resize_text_area()
 		60,
 		prompt_cmd.box_ymax + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_painter.GetLineSkip() * 10);
+		console_painter.font->get_lineskip() * 10);
 }
 
 CONSOLE_RESULT console_state::input(SDL_Event& e)
 {
-	ASSERT(font_manager != NULL);
-
-    if(prompt_cmd.text_focus)
+	if(prompt_cmd.text_focus)
 	{
 		switch(e.type)
 		{
@@ -285,6 +288,10 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				}
 				return CONSOLE_RESULT::EAT;
 			case SDLK_UP:
+				if((e.key.keysym.mod & KMOD_SHIFT) != 0)
+				{
+					break;
+				}
 				// show old commands like a terminal
 				if(history_index == -1 && !command_history.empty())
 				{
@@ -306,6 +313,10 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				return CONSOLE_RESULT::EAT;
 
 			case SDLK_DOWN:
+				if((e.key.keysym.mod & KMOD_SHIFT) != 0)
+				{
+					break;
+				}
 				// show newer commands like a terminal
 				if(history_index == -1)
 				{
@@ -334,7 +345,7 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 		}
 	}
 
-    // if we eat the input, unfocus the other elements
+	// if we eat the input, unfocus the other elements
 	bool input_eaten = false;
 
 	switch(log_box.input(e))
@@ -366,7 +377,7 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 	{
 		// Only parse input when there is actual content.
 		// possible because this is read only.
-		/*if(error_batcher.vertex_count() != 0)
+		if(!error_text.text_data.empty())
 		{
 			switch(error_text.input(e))
 			{
@@ -374,7 +385,7 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 			case TEXT_PROMPT_RESULT::EAT: input_eaten = true; break;
 			case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 			}
-		}*/
+		}
 	}
 
 	return input_eaten ? CONSOLE_RESULT::EAT : CONSOLE_RESULT::CONTINUE;
@@ -390,7 +401,7 @@ bool console_state::parse_input()
 	// show the command in the log
 	slogf("%s\n", line.c_str());
 
-    // put the message into the history.
+	// put the message into the history.
 	if(!line.empty())
 	{
 		command_history.push_front(line);
@@ -401,19 +412,18 @@ bool console_state::parse_input()
 		}
 	}
 	history_index = -1;
-	
-    // this will modify the string which means you can't use line after this.
-    if(!cvar_line(CVAR_T::RUNTIME, line.data()))
-    {
-        return error_text.replace_string(serr_get_error());
-    }
-    
-    return true;
+
+	// this will modify the string which means you can't use line after this.
+	if(!cvar_line(CVAR_T::RUNTIME, line.data()))
+	{
+		return post_error(serr_get_error());
+	}
+
+	return true;
 }
 
 bool console_state::draw()
 {
-	ASSERT(font_manager != NULL);
 	bool success = true;
 
 	log_message message_buffer[100];
@@ -453,10 +463,10 @@ bool console_state::draw()
 				// note this will break undo / redo! (doesn't matter because read-only)
 				text_data[char_count++] = codepoint;
 
-                if(codepoint == '\n')
-                {
-                    log_line_count++;
-                }
+				if(codepoint == '\n')
+				{
+					log_line_count++;
+				}
 			}
 		}
 
@@ -470,13 +480,13 @@ bool console_state::draw()
 		// I would like it to only do that when the scrollbar is already at the bottom!
 		log_box.scroll_to_bottom();
 
-        if(log_line_count > cv_console_log_max_row_count.data)
-        {
+		if(log_line_count > cv_console_log_max_row_count.data)
+		{
 			auto trim_cursor = log_box.text_data.begin();
 			auto trim_end = log_box.text_data.end();
 			for(; log_line_count > cv_console_log_max_row_count.data; log_line_count--)
 			{
-				for(; trim_cursor != trim_end && (trim_cursor++)->codepoint != '\n'; )
+				for(; trim_cursor != trim_end && (trim_cursor++)->codepoint != '\n';)
 				{
 				}
 			}
@@ -484,7 +494,7 @@ bool console_state::draw()
 			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 			log_box.stb_delete_chars(0, std::distance(log_box.text_data.begin(), trim_cursor));
 			log_box.set_readonly(true);
-        }
+		}
 	}
 	if(!success)
 	{
@@ -493,34 +503,40 @@ bool console_state::draw()
 
 	if(log_box.draw_requested())
 	{
-        console_batcher.set_cursor(0);
+		console_batcher.set_cursor(0);
 		console_painter.begin();
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!log_box.draw())
 		{
 			// put the message into the console instead
-			if(!error_text.replace_string(serr_get_error()))
+			if(!post_error(serr_get_error()))
 			{
 				return false;
 			}
 		}
 		console_painter.end();
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        log_vertex_count = console_batcher.get_current_vertex_count();
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		log_vertex_count = console_batcher.get_current_vertex_count();
 		if(console_batcher.get_quad_count() != 0)
 		{
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glBufferData(GL_ARRAY_BUFFER, console_batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, console_batcher.get_current_vertex_size(), console_batcher.buffer);
+			ctx.glBufferData(
+				GL_ARRAY_BUFFER,
+				console_batcher.get_total_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
+				NULL,
+				GL_STREAM_DRAW);
+			ctx.glBufferSubData(
+				GL_ARRAY_BUFFER,
+				0,
+				console_batcher.get_current_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
+				console_batcher.buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 	}
 
 	if(prompt_cmd.draw_requested())
 	{
-        console_batcher.set_cursor(0);
+		console_batcher.set_cursor(0);
 		console_painter.begin();
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!prompt_cmd.draw())
@@ -528,21 +544,28 @@ bool console_state::draw()
 			return false;
 		}
 		console_painter.end();
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        prompt_vertex_count = console_batcher.get_current_vertex_count();
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		prompt_vertex_count = console_batcher.get_current_vertex_count();
 		if(console_batcher.get_quad_count() != 0)
 		{
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glBufferData(GL_ARRAY_BUFFER, console_batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, console_batcher.get_current_vertex_size(), console_batcher.buffer);
+
+			ctx.glBufferData(
+				GL_ARRAY_BUFFER,
+				console_batcher.get_total_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
+				NULL,
+				GL_STREAM_DRAW);
+			ctx.glBufferSubData(
+				GL_ARRAY_BUFFER,
+				0,
+				console_batcher.get_current_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
+				console_batcher.buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 	}
 	if(error_text.draw_requested())
 	{
-        console_batcher.set_cursor(0);
+		console_batcher.set_cursor(0);
 		console_painter.begin();
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!error_text.draw())
@@ -550,15 +573,21 @@ bool console_state::draw()
 			return false;
 		}
 		console_painter.end();
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        error_vertex_count = console_batcher.get_current_vertex_count();
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		error_vertex_count = console_batcher.get_current_vertex_count();
 		if(console_batcher.get_quad_count() != 0)
 		{
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glBufferData(GL_ARRAY_BUFFER, console_batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-            ctx.glBufferSubData(GL_ARRAY_BUFFER, 0, console_batcher.get_current_vertex_size(), console_batcher.buffer);
+			ctx.glBufferData(
+				GL_ARRAY_BUFFER,
+				console_batcher.get_total_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
+				NULL,
+				GL_STREAM_DRAW);
+			ctx.glBufferSubData(
+				GL_ARRAY_BUFFER,
+				0,
+				console_batcher.get_current_vertex_size(), // NOLINT(bugprone-narrowing-conversions)
+				console_batcher.buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 	}
@@ -575,4 +604,9 @@ void console_state::unfocus()
 void console_state::focus()
 {
 	prompt_cmd.focus();
+}
+
+bool console_state::post_error(std::string_view msg)
+{
+	return error_text.replace_string(msg);
 }

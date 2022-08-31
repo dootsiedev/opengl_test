@@ -423,7 +423,7 @@ bool demo_state::init_gl_font()
 			return false;
 		}
 
-		if(!font_manager.hex_font.init(std::move(hex_file)))
+		if(!font_manager.hex_font.init(std::move(hex_file), &font_manager.atlas))
 		{
 			return false;
 		}
@@ -532,7 +532,7 @@ bool demo_state::init_gl_font()
     // load the atlas texture.
     ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
-    bool ret = g_console.init(&font_style, mono_shader);
+    bool ret = g_console.init(&font_manager, &font_style, mono_shader);
 	// restore to the default 4 alignment.
 	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     if(!ret)
@@ -546,6 +546,7 @@ bool demo_state::init_gl_font()
 	batcher.size = max_quads;
 	batcher.set_cursor(0);
     font_painter.batcher = &batcher;
+    font_painter.font_manager = &font_manager;
 
 	// set uniform globals that aren't set every frame
 	ctx.glUseProgram(mono_shader.gl_program_id);
@@ -1019,13 +1020,13 @@ bool demo_state::perf_time()
         font_painter.begin();
 
 
-        font_painter.SetFont(&font_style);
+        font_painter.font = &font_style;
 
         #if 1
 
         //font_settings.render_mode = FT_RENDER_MODE_NORMAL;
 
-		font_style.set_style(FONT_STYLE_OUTLINE);
+		font_painter.set_style(FONT_STYLE_OUTLINE);
 		font_painter.set_color(0, 0, 0, 255);
 		success = success && display_perf_text();
 
@@ -1033,7 +1034,7 @@ bool demo_state::perf_time()
 
         //font_settings.render_mode = FT_RENDER_MODE_MONO;
 
-		font_style.set_style(FONT_STYLE_NORMAL);
+		font_painter.set_style(FONT_STYLE_NORMAL);
 		font_painter.set_color(255, 255, 255, 255);
 		success = success && display_perf_text();
 
@@ -1082,7 +1083,7 @@ bool demo_state::display_perf_text()
 {
 	bool success = true;
 
-	font_painter.SetFlag(TEXT_FLAGS::NEWLINE);
+	font_painter.set_flags(TEXT_FLAGS::NEWLINE);
 
 	float x = 2;
 	float y = 2;
@@ -1097,8 +1098,8 @@ bool demo_state::display_perf_text()
 #endif
 	x = static_cast<float>(cv_screen_width.data) - 2;
 	y = 2;
-	font_painter.SetXY(x, y);
-	font_painter.SetAnchor(TEXT_ANCHOR::TOP_RIGHT);
+	font_painter.set_xy(x, y);
+	font_painter.set_anchor(TEXT_ANCHOR::TOP_RIGHT);
 
 	//font_batcher.Limit(50);
 	success = success && font_painter.draw_text("average / low / high\n");

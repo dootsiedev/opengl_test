@@ -4,6 +4,7 @@
 #include "utf8_stuff.h"
 
 // TODO(dootsie): add in double click selection?
+// TODO(dootsie): add in size limited prompt?
 
 #define STB_TEXTEDIT_KEYTYPE SDL_Keycode
 #define STB_TEXTEDIT_STRING text_prompt_wrapper
@@ -72,8 +73,8 @@ bool text_prompt_wrapper::init(
 		return false;
 	}
 
-	space_advance_cache = painter->GetAdvance(' ');
-	return CHECK(!isnan(space_advance_cache));
+	// space_advance_cache = painter->font->GetAdvance(' ');
+	return painter->font->get_advance(' ', &space_advance_cache) == FONT_RESULT::SUCCESS;
 }
 
 bool text_prompt_wrapper::replace_string(std::string_view contents)
@@ -169,7 +170,7 @@ bool text_prompt_wrapper::draw_requested()
 	ASSERT(!(word_wrap() && x_scrollable()) && "can't have both wordwrap and x scrolling");
 
 	// if you tab out of the window text input can deactivate without sending ""
-    // also if you suddenly set the text to be read only, clear it.
+	// also if you suddenly set the text to be read only, clear it.
 	if(!markedText.empty() && (SDL_IsTextInputActive() == SDL_FALSE || read_only()))
 	{
 		markedText.clear();
@@ -222,7 +223,7 @@ bool text_prompt_wrapper::draw()
 	ASSERT(painter != NULL);
 	ASSERT(painter->current_anchor == TEXT_ANCHOR::TOP_LEFT);
 
-	float lineskip = painter->GetLineSkip();
+	float lineskip = painter->font->get_lineskip(); // painter->GetLineSkip();
 
 	// we don't need to draw again.
 	update_buffer = false;
@@ -245,7 +246,6 @@ bool text_prompt_wrapper::draw()
 		return false;
 	}
 
-
 	if(markedText.empty())
 	{
 		// draw the cursor
@@ -257,7 +257,8 @@ bool text_prompt_wrapper::draw()
 				ASSERT(text_focus);
 				ASSERT(!read_only());
 				std::array<float, 4> caret_pos{caret_x, caret_y, caret_x + 2, caret_y + lineskip};
-				painter->batcher->draw_rect(caret_pos, painter->get_white_uv(), caret_color);
+				painter->batcher->draw_rect(
+					caret_pos, painter->font_manager->white_uv, caret_color);
 			}
 		}
 	}
@@ -274,7 +275,7 @@ bool text_prompt_wrapper::draw()
 
 void text_prompt_wrapper::internal_draw_widgets()
 {
-	auto white_uv = painter->get_white_uv();
+	auto white_uv = painter->font_manager->white_uv;
 	// draw the bbox
 	if(draw_bbox())
 	{
@@ -403,7 +404,7 @@ void text_prompt_wrapper::internal_draw_widgets()
 bool text_prompt_wrapper::internal_draw_pretext()
 {
 	// this is bad code, but I am surprised it works.
-	float lineskip = painter->GetLineSkip();
+	float lineskip = painter->font->get_lineskip(); // painter->GetLineSkip();
 
 	if(y_scrollable() || x_scrollable())
 	{
@@ -604,15 +605,15 @@ bool text_prompt_wrapper::internal_draw_pretext()
 bool text_prompt_wrapper::internal_draw_text(
 	size_t offset, bool* caret_visible, float* caret_x, float* caret_y)
 {
-	auto white_uv = painter->get_white_uv();
+	auto white_uv = painter->font_manager->white_uv;
 
 	// set the batcher position.
-	painter->SetXY(
+	painter->set_xy(
 		box_xmin - (x_scrollable() ? scroll_x : 0.f), box_ymin - (y_scrollable() ? scroll_y : 0.f));
 
 	painter->set_color(text_color);
 
-	float lineskip = painter->GetLineSkip();
+	float lineskip = painter->font->get_lineskip(); // painter->GetLineSkip();
 
 	size_t selection_start = std::min(stb_state.select_start, stb_state.select_end);
 	size_t selection_end = std::max(stb_state.select_start, stb_state.select_end);
@@ -652,7 +653,7 @@ bool text_prompt_wrapper::internal_draw_text(
 				}
 			}
 			cur = i;
-			painter->Newline();
+			painter->newline();
 			continue;
 		}
 
@@ -798,7 +799,7 @@ bool text_prompt_wrapper::internal_draw_text(
 		if(cur != end)
 		{
 			// move to the next line.
-			painter->Newline();
+			painter->newline();
 
 			if(cull_box() && painter->draw_y_pos() >= box_ymax)
 			{
@@ -835,7 +836,7 @@ bool text_prompt_wrapper::internal_draw_text(
 		// because a empty layout would return num_chars = 0, leading to inf loop
 		if(!text_data.empty() && text_data.back().codepoint == '\n')
 		{
-			painter->Newline();
+			painter->newline();
 		}
 
 		if(cull_box() && painter->draw_y_pos() > box_ymax)
@@ -857,9 +858,9 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	ASSERT(text_focus);
 	ASSERT(!read_only());
 
-	auto white_uv = painter->get_white_uv();
+	auto white_uv = painter->font_manager->white_uv;
 
-	float lineskip = painter->GetLineSkip();
+	float lineskip = painter->font->get_lineskip(); // painter->GetLineSkip();
 
 	// reserve space to draw a backdrop,
 	// uses inverted color of the font, except for the alpha
@@ -875,7 +876,7 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	}
 	painter->set_color(text_color);
 
-	painter->SetXY(x, y);
+	painter->set_xy(x, y);
 	// draw the text
 	auto str_cur = markedText.begin();
 	auto str_end = markedText.end();
@@ -931,11 +932,11 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 
 	// check if the area is within bounds
 	// Keep the camera in bounds
+	// this is a pretty nasty hack
 	if(pos_w > box_xmax)
 	{
 		float x_off = pos_w - box_xmax;
 		size_t size = painter->batcher->get_current_vertex_count();
-        // TODO: this is not good.
 		for(; painter->newline_cursor < size; ++painter->newline_cursor)
 		{
 			painter->batcher->buffer[painter->newline_cursor].pos[0] -= x_off;
@@ -1095,7 +1096,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				// and scroll up, the selection will move up, same for the bottom.
 				// This could be fixed by finding the cursor during drawing instead.
 				scroll_y -= static_cast<float>(e.wheel.y * cv_prompt_scroll_rate.data) *
-							painter->GetLineSkip();
+							painter->font->get_lineskip(); // painter->GetLineSkip();
 				// the draw function will clamp it to keep the scroll area inside of the text.
 				update_buffer = true;
 			}
@@ -1401,7 +1402,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		{
 		// Handle backspace and delete
 		case SDLK_BACKSPACE:
-        case SDLK_DELETE:
+		case SDLK_DELETE:
 			if(read_only())
 			{
 				break;
@@ -1581,8 +1582,13 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				break;
 			}
 			scroll_to_cursor = true;
-			// I need to push back to fix a bug when the cursor is at
-			// the end of the text, and it won't move up.
+			// I need to push back a newline to fix a bug when the cursor is at
+			// the end of the text, and it won't move up due to word wrap.
+			// how to reproduce: make a long line at the end of the prompt,
+			// once it word wraps put the cursor on the second bottom row in an area
+			// to the right where there is no text on the wrapped line
+			// (the 2nd bottom row must be longer than the wrapped bottom row)
+			// then press down then up and you won't move up (without this fix)
 			text_data.push_back({'\n', STB_TEXTEDIT_GETWIDTH_NEWLINE});
 			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_UP | key_shift_mod);
 			text_data.pop_back();
@@ -1699,15 +1705,15 @@ void text_prompt_wrapper::stb_layout_func(StbTexteditRow* row, int i)
 			}
 		}
 	}
-    // num_chars must be more than 0 or else infinate loop.
-    // this happens if the width of the box is 0 or very small
+	// num_chars must be more than 0 or else infinate loop.
+	// this happens if the width of the box is 0 or very small
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	row->num_chars = std::max<int>(1, std::distance(start, cur));
 	row->x0 = box_xmin - scroll_x;
 	row->x1 = total_advance - scroll_x;
 	row->ymin = box_ymin - scroll_y;
-	row->ymax = box_ymin + painter->GetLineSkip() - scroll_y;
-	row->baseline_y_delta = painter->GetLineSkip();
+	row->ymax = box_ymin + painter->font->get_lineskip() - scroll_y;
+	row->baseline_y_delta = painter->font->get_lineskip();
 }
 
 int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE* text, int n)
@@ -1743,8 +1749,8 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 		}
 		else
 		{
-			it->advance = painter->GetAdvance(it->codepoint);
-			if(!CHECK(!isnan(it->advance)))
+			// it->advance = painter->GetAdvance(it->codepoint);
+			if(painter->font->get_advance(it->codepoint, &it->advance) != FONT_RESULT::SUCCESS)
 			{
 				return 0;
 			}
@@ -1766,6 +1772,13 @@ void text_prompt_wrapper::stb_delete_chars(int index, int n)
 
 float text_prompt_wrapper::stb_get_width(int linestart, int index)
 {
+	if(static_cast<size_t>(linestart) + static_cast<size_t>(index) >= text_data.size())
+	{
+		// this is actually caused by a hack where I made layoutrow ALWAYS return 1 even if it was
+		// zero. happens when I move the cursor to the end of the prompt. I don't know if there are
+		// more bugs that are caused by this...
+		return STB_TEXTEDIT_GETWIDTH_NEWLINE;
+	}
 	return text_data.at(linestart + index).advance;
 }
 

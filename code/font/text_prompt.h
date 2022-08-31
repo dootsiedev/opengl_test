@@ -30,17 +30,20 @@ enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 	// don't mix with word_wrap
 	TEXTP_X_SCROLL = (1 << 3),
 	TEXTP_READ_ONLY = (1 << 4),
-	// don't mix with y_scrollable or word_wrap
-	// this will disable line wrapping.
+	// don't mix with TEXTP_Y_SCROLL or TEXTP_WORD_WRAP
+    // you probably should combine this with TEXTP_X_SCROLL
+    // or TEXTP_DISABLE_CULL because this will disable line wrapping
+    // any newlines that are pasted are converted to '#'
 	TEXTP_SINGLE_LINE = (1 << 5),
 	// draw a box around the text and scrollbar
 	// without it the scrollbar thumb will still draw (if you have one)
 	TEXTP_DRAW_BBOX = (1 << 6),
 	// this will make all the text render
-	// this will disable line wrapping.
-	// if the text is outside the box, the mouse wont work.
+	// this will disable line wrapping if TEXTP_WORD_WRAP is false
+	// if the text is outside the box, the mouse events wont work.
 	TEXTP_DISABLE_CULL = (1 << 7),
-    // fill the back of the text with a backdrop
+    // fill the back of each letter of text with a backdrop
+    // if you want a full backdrop, just draw it yourself.
 	TEXTP_DRAW_BACKDROP = (1 << 8)
 };
 
@@ -50,6 +53,10 @@ struct text_prompt_wrapper
 	// a std::vector<std::string> would be better.
 	// If I can't handle 100k character files,
 	// I will probably need to switch to that.
+
+
+	// this is a tad bit large
+	STB_TexteditState stb_state;
 
 	struct prompt_char
 	{
@@ -62,8 +69,6 @@ struct text_prompt_wrapper
 
 	std::deque<prompt_char> text_data;
 
-	// this is a tad bit large
-	STB_TexteditState stb_state;
 
 	font_sprite_painter* painter = NULL;
 
