@@ -135,6 +135,8 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 
 		internal_get_serr_buffer()->append(msg);
 		fwrite(msg.c_str(), 1, msg.size(), stdout);
+// TODO: would be better if I could combine this with the serr message
+// because the order could be scrambled by other threads.
 #ifndef DISABLE_CONSOLE
 		// lovely, another allocation. thank god this pales in comparison
 		// to the actual cost of resolving debug information of a stacktrace.

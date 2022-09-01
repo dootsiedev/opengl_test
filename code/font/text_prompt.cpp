@@ -611,7 +611,7 @@ bool text_prompt_wrapper::internal_draw_text(
 	float anchor_x_pos = box_xmin - (x_scrollable() ? scroll_x : 0.f);
 	state.set_xy(anchor_x_pos, box_ymin - (y_scrollable() ? scroll_y : 0.f));
 
-	//std::array<uint8_t, 4> active_text_color = text_color;
+	// std::array<uint8_t, 4> active_text_color = text_color;
 	// painter->set_color(text_color);
 
 	float lineskip = state.font->get_lineskip();
@@ -626,7 +626,7 @@ bool text_prompt_wrapper::internal_draw_text(
 
 	int backdrop_vertex_buffer_index = -1;
 	float backdrop_minx = -1;
-    int active_color_index = -1;
+	int active_color_index = -1;
 
 	size_t i = offset;
 	size_t cur = offset;
@@ -668,6 +668,8 @@ bool text_prompt_wrapper::internal_draw_text(
 			{
 				return false;
 			}
+			// this is a signal that you should set active_color_index to the current char.
+			active_color_index = -1;
 		}
 
 		if(currently_selected && selection_vertex_buffer_index == -1)
@@ -679,11 +681,47 @@ bool text_prompt_wrapper::internal_draw_text(
 			{
 				return false;
 			}
-			//active_text_color = select_text_color;
+			// active_text_color = select_text_color;
 		}
 
 		for(; cur != i; ++cur)
 		{
+			prompt_char ret = text_data.at(cur);
+			if(draw_backdrop())
+			{
+				if(active_color_index != -1 && active_color_index != ret.color_index)
+				{
+					std::array<uint8_t, 4> color =
+						(active_color_index == 0 ? backdrop_color
+												 : color_table[active_color_index - 1].back);
+
+					// end the backdrop
+					ASSERT(backdrop_vertex_buffer_index != -1);
+					float pos_x = cull_box() ? std::max(box_xmin, backdrop_minx) : backdrop_minx;
+					float pos_w =
+						cull_box() ? std::min(box_xmax, state.draw_x_pos) : state.draw_x_pos;
+					float pos_y = state.draw_y_pos;
+					float pos_h = state.draw_y_pos + lineskip;
+					if(!state.batcher->draw_rect_at(
+						   backdrop_vertex_buffer_index,
+						   {pos_x, pos_y, pos_w, pos_h},
+						   white_uv,
+						   color))
+					{
+						return false;
+					}
+					// backdrop_vertex_buffer_index = -1;
+					// start a new backdrop
+					backdrop_minx = state.draw_x_pos;
+					backdrop_vertex_buffer_index = state.batcher->placeholder_rect();
+					if(backdrop_vertex_buffer_index == -1)
+					{
+						return false;
+					}
+				}
+				active_color_index = ret.color_index;
+			}
+
 			if(STB_TEXT_HAS_SELECTION(&stb_state))
 			{
 				if(cur == selection_start)
@@ -697,7 +735,7 @@ bool text_prompt_wrapper::internal_draw_text(
 					{
 						return false;
 					}
-					//active_text_color = select_text_color;
+					// active_text_color = select_text_color;
 				}
 				else if(cur == selection_end)
 				{
@@ -717,51 +755,15 @@ bool text_prompt_wrapper::internal_draw_text(
 						return false;
 					}
 					selection_vertex_buffer_index = -1;
-					//active_text_color = text_color;
+					// active_text_color = text_color;
 				}
 			}
-
-			prompt_char ret = text_data.at(cur);
 
 			if(static_cast<int>(cur) == stb_state.cursor)
 			{
 				if(caret_x != NULL) *caret_x = state.draw_x_pos;
 				if(caret_y != NULL) *caret_y = state.draw_y_pos;
 				if(caret_visible != NULL) *caret_visible = true;
-			}
-
-            if(draw_backdrop())
-			{
-				if(active_color_index != -1 && active_color_index != ret.color_index)
-				{
-					std::array<uint8_t, 4> color =
-						(active_color_index == 0 ? backdrop_color
-											  : color_table[active_color_index - 1].back);
-
-					//end the backdrop
-                    ASSERT(backdrop_vertex_buffer_index != -1);
-                    float pos_x = cull_box() ? std::max(box_xmin, backdrop_minx) : backdrop_minx;
-                    float pos_w = cull_box() ? std::min(box_xmax, state.draw_x_pos) : state.draw_x_pos;
-                    float pos_y = state.draw_y_pos;
-					float pos_h = state.draw_y_pos + lineskip;
-					if(!state.batcher->draw_rect_at(
-						   backdrop_vertex_buffer_index,
-						   {pos_x, pos_y, pos_w, pos_h},
-						   white_uv,
-						   color))
-					{
-						return false;
-					}
-					//backdrop_vertex_buffer_index = -1;
-                    //start a new backdrop
-                    backdrop_minx = state.draw_x_pos;
-                    backdrop_vertex_buffer_index = state.batcher->placeholder_rect();
-                    if(backdrop_vertex_buffer_index == -1)
-                    {
-                        return false;
-                    }
-				}
-				active_color_index = ret.color_index;
 			}
 
 			if(ret.codepoint == '\t')
@@ -822,10 +824,7 @@ bool text_prompt_wrapper::internal_draw_text(
 			float pos_y = state.draw_y_pos;
 			float pos_h = state.draw_y_pos + lineskip;
 			if(!state.batcher->draw_rect_at(
-				   backdrop_vertex_buffer_index,
-				   {pos_x, pos_y, pos_w, pos_h},
-				   white_uv,
-				   color))
+				   backdrop_vertex_buffer_index, {pos_x, pos_y, pos_w, pos_h}, white_uv, color))
 			{
 				return false;
 			}
@@ -1647,7 +1646,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			// to the right where there is no text on the wrapped line
 			// (the 2nd bottom row must be longer than the wrapped bottom row)
 			// then press down then up and you won't move up (without this fix)
-			text_data.push_back({'\n', STB_TEXTEDIT_GETWIDTH_NEWLINE,0,FONT_STYLE_NORMAL});
+			text_data.push_back({'\n', STB_TEXTEDIT_GETWIDTH_NEWLINE, 0, FONT_STYLE_NORMAL});
 			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_UP | key_shift_mod);
 			text_data.pop_back();
 			blink_timer = timer_now();
@@ -1788,8 +1787,8 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 	auto it = text_data.insert(text_data.begin() + index, n, prompt_char{});
 	for(int i = 0; i < n; ++i, ++it)
 	{
-        it->color_index = current_color_index;
-        it->style = current_style;
+		it->color_index = current_color_index;
+		it->style = current_style;
 		if(single_line() && text[i] == STB_TEXTEDIT_NEWLINE)
 		{
 			it->codepoint = '#';
