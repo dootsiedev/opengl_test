@@ -209,7 +209,7 @@ struct bt_state_wrapper
 	}
 };
 
-bool debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int skip)
+__attribute__((noinline)) bool debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int skip)
 {
 	if(cv_bt_trap.data == 1)
 	{

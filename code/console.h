@@ -59,6 +59,9 @@ struct console_state
 	// to cut lines from the top when the limit is reached.
 	int log_line_count = 0;
 
+	std::array<text_prompt_wrapper::color_pair, 3> log_color_table = {
+		text_prompt_wrapper::color_pair{{255, 0, 0, 255}, RGBA8_PREMULT(0, 0, 0, 200)}};
+
 	// it's possible to use one VBO at the expense of
 	// re-drawing everything for any modification.
 	font_style_interface* console_font = NULL;

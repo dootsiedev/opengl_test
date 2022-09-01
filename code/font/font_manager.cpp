@@ -1266,8 +1266,8 @@ float font_bitmap_cache::get_ascent()
 	}
 	// Get the scalable font metrics for this font
 	FT_Fixed scale = face->size->metrics.y_scale;
+    // NOLINTNEXTLINE(bugprone-integer-division
 	return FT_CEIL(FT_MulFix(face->ascender, scale));
-	// font->descent  = FT_CEIL(FT_MulFix(face->descender, scale));
 }
 float font_bitmap_cache::get_lineskip()
 {
@@ -1275,15 +1275,16 @@ float font_bitmap_cache::get_lineskip()
 	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
 	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
 	{
-		// font->descent  = FT_CEIL(face->size->metrics.descender);
 		return std::ceil(face_settings->point_size);
 	}
 	FT_Fixed scale = face->size->metrics.y_scale;
 
+    // NOLINTNEXTLINE(bugprone-integer-division)
 	return FT_CEIL(FT_MulFix(face->height, scale));
 }
 float font_bitmap_cache::get_bitmap_size()
 {
+    // NOLINTNEXTLINE(bugprone-integer-division
 	return FT_CEIL(current_rasterizer->face->size->metrics.height);
 }
 
@@ -1350,15 +1351,24 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 		return fallback->get_advance(codepoint, advance);
 	}
 
+#if 0
+    //getting the advance is sort of slow, but not that slow.
+	TIMER_U tick1;
+	TIMER_U tick2;
+	tick1 = timer_now();
+#endif
 	FT_Error error;
 
 	// load the advance only
-	// TODO: THIS IS SLOW BECAUSE OF NO CACHING! maybe make a new FONT_ENTRY type?
 	if((error = FT_Load_Glyph(current_rasterizer->face, glyph_index, FT_LOAD_ADVANCE_ONLY)) != 0)
 	{
 		TTF_SetFTError(current_rasterizer->font_file->name(), error);
 		return FONT_RESULT::ERROR;
 	}
+#if 0
+	tick2 = timer_now();
+	slogf("advance time = %f\n", timer_delta_ms(tick1, tick2));
+#endif
 	*advance = (current_rasterizer->face->glyph->advance.x >> 6);
 	return FONT_RESULT::SUCCESS;
 }
@@ -1564,6 +1574,7 @@ internal_font_painter_state::load_glyph_verts(
 	ASSERT(batcher != NULL);
 
 	font_glyph_entry glyph;
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	float atlas_size = font->get_font_atlas()->atlas_size;
 
 	FONT_RESULT ret = font->get_glyph(codepoint, style, &glyph);

@@ -130,11 +130,23 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 		{
 			msg.assign(buffer.get(), length);
 		}
-
 		debug_str_stacktrace(&msg, skip + 1);
 		msg += '\n';
-		slog_raw(msg.data(), msg.length());
+
 		internal_get_serr_buffer()->append(msg);
+		fwrite(msg.c_str(), 1, msg.size(), stdout);
+#ifndef DISABLE_CONSOLE
+		// lovely, another allocation. thank god this pales in comparison
+		// to the actual cost of resolving debug information of a stacktrace.
+		buffer = std::make_unique<char[]>(msg.size() + 1);
+		memcpy(buffer.get(), msg.c_str(), msg.size());
+		buffer[msg.size()] = '\0';
+		{
+			std::lock_guard<std::mutex> lk(g_console.mut);
+			g_console.message_queue.emplace_back(
+				CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), msg.size());
+		}
+#endif
 	}
 }
 
@@ -167,8 +179,9 @@ void slog_raw(const char* msg, size_t len)
 	// replace stdout with OutputDebugString on the debug build.
 	fwrite(msg, 1, len, stdout);
 #ifndef DISABLE_CONSOLE
-	std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len);
+	std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len + 1);
 	memcpy(buffer.get(), msg, len);
+	buffer[len] = '\0';
 	{
 		std::lock_guard<std::mutex> lk(g_console.mut);
 		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), len);
@@ -185,8 +198,18 @@ void serr_raw(const char* msg, size_t len)
 		return;
 	}
 	serr_safe_stacktrace(1);
-	slog_raw(msg, len);
+
 	internal_get_serr_buffer()->append(msg, msg + len);
+	fwrite(msg, 1, len, stdout);
+#ifndef DISABLE_CONSOLE
+	std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len + 1);
+	memcpy(buffer.get(), msg, len);
+	buffer[len] = '\0';
+	{
+		std::lock_guard<std::mutex> lk(g_console.mut);
+		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
+	}
+#endif
 }
 
 void slog(const char* msg)
@@ -213,8 +236,19 @@ void serr(const char* msg)
 		return;
 	}
 	serr_safe_stacktrace(1);
-	slog(msg);
-	internal_get_serr_buffer()->append(msg);
+
+	size_t len = strlen(msg);
+	internal_get_serr_buffer()->append(msg, len);
+	fwrite(msg, 1, len, stdout);
+#ifndef DISABLE_CONSOLE
+	std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len + 1);
+	memcpy(buffer.get(), msg, len);
+	buffer[len] = '\0';
+	{
+		std::lock_guard<std::mutex> lk(g_console.mut);
+		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
+	}
+#endif
 }
 
 void slogf(const char* fmt, ...)
@@ -268,14 +302,12 @@ void serrf(const char* fmt, ...)
 
 	internal_get_serr_buffer()->append(buffer.get(), buffer.get() + length);
 
-#ifdef DISABLE_CONSOLE
-	// would it be much faster if I added vslogf and did a va_copy?
-	slog_raw(buffer.get(), length);
-#else
 	fwrite(buffer.get(), 1, length, stdout);
+#ifndef DISABLE_CONSOLE
 	{
 		std::lock_guard<std::mutex> lk(g_console.mut);
-		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), length);
+		g_console.message_queue.emplace_back(
+			CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), length);
 	}
 #endif
 }

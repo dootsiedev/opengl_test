@@ -52,6 +52,7 @@ struct gl_mono_vertex
 };
 
 
+
 struct mono_2d_batcher
 {
     enum

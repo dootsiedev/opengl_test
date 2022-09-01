@@ -64,6 +64,10 @@ struct text_prompt_wrapper
 		// it's harder to limit the prompt text to a utf8 length...
 		char32_t codepoint;
 		float advance;
+        // index 0 uses text_color
+        // index 1 uses index 0 of the optional color_table
+        uint8_t color_index;
+        font_style_type style;
 	};
 
 	std::deque<prompt_char> text_data;
@@ -119,6 +123,18 @@ struct text_prompt_wrapper
 	// this is padding to help show the cursor at the right side of the screen
 	float horizontal_padding = 30;
 
+    struct color_pair
+    {
+        // foreground color (the text)
+        std::array<uint8_t, 4> fore;
+        // background color (backdrop, if available)
+        std::array<uint8_t, 4> back;
+    };
+    // index 0 always uses text_color+backdrop_color
+    // index 1-255 uses this array (which means the max size is 256-1)
+    color_pair *color_table = NULL;
+    size_t color_table_size = 0;
+
 	std::array<uint8_t, 4> text_color{0, 0, 0, 255};
 	std::array<uint8_t, 4> select_text_color{255, 255, 255, 255};
 	std::array<uint8_t, 4> select_fill_color = RGBA8_PREMULT(80, 80, 255, 200);
@@ -128,6 +144,9 @@ struct text_prompt_wrapper
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 	// also used for the backdrop of the IME text.
 	std::array<uint8_t, 4> backdrop_color = RGBA8_PREMULT(255, 255, 255, 200);
+
+    uint8_t current_color_index = 0;
+    font_style_type current_style = FONT_STYLE_NORMAL;
 
 	// I could use the bitfield trick to compress the size of bools,
 	// but if I am only saving 4 bytes, it isn't worth it because it's ugly.
@@ -169,6 +188,7 @@ struct text_prompt_wrapper
 
 	// this draws into the batcher
 	// this requires the atlas texture to be bound with 1 byte packing
+    // you should check draw_requested() before binding 
 	NDSERR bool draw();
 
 	void scroll_to_top()

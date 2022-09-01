@@ -68,6 +68,9 @@ bool console_state::init(
 	{
 		return false;
 	}
+    // set the color table so we can print errors with a different color
+    log_box.color_table = log_color_table.data();
+    log_box.color_table_size = log_color_table.size();
 
 	//
 	// prompt
@@ -417,11 +420,18 @@ bool console_state::parse_input()
 	// put the message into the history.
 	if(!line.empty())
 	{
-		command_history.push_front(line);
-		if(command_history.size() > static_cast<size_t>(cv_console_history_max.data))
+		if(!command_history.empty() && line == command_history.front())
 		{
-			command_history.pop_back();
-			history_index = std::min(history_index, cv_console_history_max.data - 1);
+			// no duplicate history entries.
+		}
+		else
+		{
+			command_history.push_front(line);
+			if(command_history.size() > static_cast<size_t>(cv_console_history_max.data))
+			{
+				command_history.pop_back();
+				history_index = std::min(history_index, cv_console_history_max.data - 1);
+			}
 		}
 	}
 	history_index = -1;
@@ -463,10 +473,10 @@ bool console_state::draw()
 	if(message_count != 0)
 	{
 		// text_prompt_wrapper::prompt_char
-		STB_TEXTEDIT_CHARTYPE text_data[10000];
-		size_t char_count = 0;
+		STB_TEXTEDIT_CHARTYPE text_data[1000];
 		for(size_t i = 0; i < message_count; ++i)
 		{
+		    size_t char_count = 0;
 			const char* str_cur = message_buffer[i].message.get();
 			const char* str_end =
 				message_buffer[i].message.get() + message_buffer[i].message_length;
@@ -491,13 +501,20 @@ bool console_state::draw()
 					log_line_count++;
 				}
 			}
-		}
+			switch(message_buffer[i].type)
+			{
+			case CONSOLE_MESSAGE_TYPE::INFO: log_box.current_color_index = 0; break;
+			case CONSOLE_MESSAGE_TYPE::ERROR: log_box.current_color_index = 1; break;
+			}
+            text_data[char_count] = '\0';
 
-		log_box.set_readonly(false);
-		// this requires the atlas texture to be bound with 1 byte packing
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		log_box.stb_insert_chars(log_box.text_data.size(), text_data, char_count);
-		log_box.set_readonly(true);
+			log_box.set_readonly(false);
+			// this requires the atlas texture to be bound with 1 byte packing
+			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+			log_box.stb_insert_chars(log_box.text_data.size(), text_data, char_count);
+			log_box.set_readonly(true);
+		}
+        log_box.current_color_index = 0;
 
 		// TODO: I don't always want this to scroll to the bottom,
 		// I would like it to only do that when the scrollbar is already at the bottom!
