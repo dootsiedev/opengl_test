@@ -436,9 +436,11 @@ bool console_state::parse_input()
 	}
 	history_index = -1;
 
+    // TODO: save options?
 	if(line == "help")
 	{
-		// TODO: probably should have an option to only show runtime options
+		// TODO: probably should have an option to only show runtime options?
+        // and also showing the debug lines would be nice too.
 		cvar_list(false);
 	}
 	else
@@ -446,6 +448,7 @@ bool console_state::parse_input()
 		// this will modify the string which means you can't use line after this.
 		if(!cvar_line(CVAR_T::RUNTIME, line.data()))
 		{
+            slog("note, you can type \"help\" for a list of cvars.\n");
 			return post_error(serr_get_error());
 		}
 	}
@@ -455,19 +458,38 @@ bool console_state::parse_input()
 	return true;
 }
 
-bool console_state::draw()
+bool console_state::update()
 {
 	bool success = true;
 
 	log_message message_buffer[100];
 	size_t message_count = 0;
+	int queue_size = 0;
 	{
 		std::lock_guard<std::mutex> lk(mut);
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		queue_size = message_queue.size();
+		if(queue_size > cv_console_log_max_row_count.data)
+		{
+            // since culling is based on newlines, I can assume every message has one line.
+			message_queue.erase(
+				message_queue.begin(),
+				message_queue.begin() + (queue_size - cv_console_log_max_row_count.data));
+		}
 		while(!message_queue.empty() && message_count < std::size(message_buffer))
 		{
 			message_buffer[message_count++] = std::move(message_queue.front());
 			message_queue.pop_front();
 		}
+	}
+	// can't print inside mutex because it would cause a deadlock.
+	if(queue_size > cv_console_log_max_row_count.data)
+	{
+        // this is not an accurate representation of culling, 
+        // since there is a second culling pass that scans the newlines.
+		slogf(
+			"info: console culled messages: %d\n",
+			(queue_size - cv_console_log_max_row_count.data));
 	}
 
 	if(message_count != 0)
@@ -490,10 +512,6 @@ bool console_state::draw()
 					serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
 					return false;
 				}
-				// this would be faster if I had access to GetAdvance, & newline width
-				// but performance isn't a goal.
-				// TODO: I want to make errors be colored, but the text_prompt_wrapper can't ATM
-				// note this will break undo / redo! (doesn't matter because read-only)
 				text_data[char_count++] = codepoint;
 
 				if(codepoint == '\n')
@@ -516,10 +534,14 @@ bool console_state::draw()
 		}
         log_box.current_color_index = 0;
 
-		// TODO: I don't always want this to scroll to the bottom,
+		// TODO(dootsie): I don't always want this to scroll to the bottom,
 		// I would like it to only do that when the scrollbar is already at the bottom!
 		log_box.scroll_to_bottom();
 
+        // this probably isn't the fastest way of doing this.
+        // I probably could implement this inside of text_prompt_wrapper itself 
+        // using some sort of sliding window thingy in pretext
+        // and it would also fix the problem of this not being word-wrap aware.
 		if(log_line_count > cv_console_log_max_row_count.data)
 		{
 			auto trim_cursor = log_box.text_data.begin();
@@ -612,6 +634,66 @@ bool console_state::draw()
 				console_batcher->buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
+	}
+
+	return GL_RUNTIME(__func__) == GL_NO_ERROR;
+}
+
+bool console_state::render()
+{
+	if(log_vertex_count != 0)
+	{
+		float x;
+		float y;
+		float w;
+		float h;
+		log_box.get_bbox(&x, &y, &w, &h);
+		GLint scissor_x = static_cast<GLint>(x);
+		GLint scissor_y = static_cast<GLint>(y);
+		GLint scissor_w = static_cast<GLint>(w);
+		GLint scissor_h = static_cast<GLint>(h);
+		if(scissor_w > 0 && scissor_h > 0)
+		{
+			ctx.glEnable(GL_SCISSOR_TEST);
+			// don't forget that 0,0 is the bottom left corner...
+			ctx.glScissor(
+				scissor_x, cv_screen_height.data - (scissor_y + scissor_h), scissor_w, scissor_h);
+			ctx.glBindVertexArray(gl_log_vao_id);
+			ctx.glDrawArrays(GL_TRIANGLES, 0, log_vertex_count);
+			ctx.glBindVertexArray(0);
+			ctx.glDisable(GL_SCISSOR_TEST);
+		}
+	}
+
+	if(prompt_vertex_count != 0)
+	{
+		float x;
+		float y;
+		float w;
+		float h;
+		prompt_cmd.get_bbox(&x, &y, &w, &h);
+		GLint scissor_x = static_cast<GLint>(x);
+		GLint scissor_y = static_cast<GLint>(y);
+		GLint scissor_w = static_cast<GLint>(w);
+		GLint scissor_h = static_cast<GLint>(h);
+		if(scissor_w > 0 && scissor_h > 0)
+		{
+			ctx.glEnable(GL_SCISSOR_TEST);
+			// don't forget that 0,0 is the bottom left corner...
+			ctx.glScissor(
+				scissor_x, cv_screen_height.data - (scissor_y + scissor_h), scissor_w, scissor_h);
+			ctx.glBindVertexArray(gl_prompt_vao_id);
+			ctx.glDrawArrays(GL_TRIANGLES, 0, prompt_vertex_count);
+			ctx.glBindVertexArray(0);
+			ctx.glDisable(GL_SCISSOR_TEST);
+		}
+	}
+
+	if(error_vertex_count != 0)
+	{
+		ctx.glBindVertexArray(gl_error_vao_id);
+		ctx.glDrawArrays(GL_TRIANGLES, 0, error_vertex_count);
+		ctx.glBindVertexArray(0);
 	}
 
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;

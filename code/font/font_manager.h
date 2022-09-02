@@ -132,10 +132,21 @@ struct font_atlas
 			(but I currently I don't handle running out of atlas space...
 			and it would be difficult because all glyphs must be redrawn)
 			This would also help prevent the problem of "running out of spans"
+
+	to fix the "very inefficient" atlas a tiny bit,
+	maybe make the buckets into a 2D grid
+	because once all the buckets have been allocated
+	the spans start being cannabalized, and the canabalization 
+    can't be done in reverse (leading to a allocation error).
+	the problem is that using 2d grids could also cause the atlas to be slower
+	because very deep and commmon buckets are fast, but the buckets wont be deep anymore.
+    and rectpack2d could solve all problems
 	*/
+
+    // width and height of the atlas.
 	uint32_t atlas_size = 0;
 
-	// the grain size of pixels each span can hold.
+	// the number of pixels each span holds.
 	// needs to be a power of 2
 	uint32_t span_granularity = 8;
 
@@ -159,15 +170,11 @@ struct font_atlas
 		uint32_t bucket_depth;
 	};
 
-	// a span is the unit yslot within the atlas
-	// TODO: maybe make the buckets into a 2D grid
-	// bad fragmentation (and allocation errors) will occur
-	// once all the buckets have been allocated
-	// and you mix glyphs of different sizes.
-	// it does mean that the largest sized glyph must be smaller than the grid.
+	// a span is the unit slot within the atlas
 	std::deque<span_bucket> span_buckets;
 
 	// for drawing primitives, this is a single white pixel.
+    // this is very out of place, but this needs to be somewhere...
 	std::array<float, 4> white_uv;
 
 	NDSERR bool find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, uint32_t* y_out);

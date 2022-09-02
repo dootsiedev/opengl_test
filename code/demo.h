@@ -14,16 +14,15 @@
 #include <glm/vec3.hpp> // vec3
 #include <limits>
 
-// TODO: This is absolutely not the best way of doing this...
+// This is absolutely not the best way of doing this...
 struct bench_data
 {
-	// TODO: numeric_limits doesn't work if TIMER_U is a chrono time_point.
 	TIMER_RESULT accum = 0, high = 0, low = std::numeric_limits<TIMER_RESULT>::max();
 	size_t samples = 0;
 	void test(TIMER_RESULT dt)
 	{
-		if(dt < low) low = dt;
-		if(dt > high) high = dt;
+		low = std::min(low, dt);
+		high = std::max(high, dt);
 		accum += dt;
 		++samples;
 	}
@@ -37,7 +36,6 @@ struct bench_data
 	}
 	TIMER_RESULT low_ms()
 	{
-		// this triggers UBsan if you tried to check low_ms without a single sample
 		if(low == std::numeric_limits<TIMER_RESULT>::max())
 		{
 			return 0;
@@ -99,17 +97,15 @@ struct demo_state
 	// stores the location of glyphs in the atlas
 	font_bitmap_cache font_style;
 
-	// this puts the text on the screen and helps
+	// this puts the text on the screen using a style and batcher.
 	font_sprite_painter font_painter;
 
-	// writes verticies for opengl, can be used with all fonts that use the same buffer size.
-	std::unique_ptr<gl_mono_vertex[]> font_batcher_buffer;
+	// convenience wrapper for drawing quads vertices into a buffer.
+    // you only need one.
 	mono_2d_batcher font_batcher;
+	std::unique_ptr<gl_mono_vertex[]> font_batcher_buffer;
 
-	// prompt?
-	// font_sprite_batcher prompt_batcher;
-	// text_prompt_wrapper prompt;
-	// console_state console;
+	// show g_console
 	bool show_console = false;
 
 	bool update_projection = false;

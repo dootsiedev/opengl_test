@@ -50,11 +50,10 @@ enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 struct text_prompt_wrapper
 {
 	// this is a very poor structure for a text editor
-	// a std::vector<std::string> would be better.
-	// If I can't handle 100k character files,
-	// I will probably need to switch to that.
+	// 
 
-	// this is a tad bit large
+	// this is a tad bit large, really should modify the undo/redo system 
+    // to use dynamic allocation.
 	STB_TexteditState stb_state;
 
 	struct prompt_char
@@ -130,8 +129,11 @@ struct text_prompt_wrapper
         // background color (backdrop, if available)
         std::array<uint8_t, 4> back;
     };
+
     // index 0 always uses text_color+backdrop_color
     // index 1-255 uses this array (which means the max size is 256-1)
+    // this is more of a hack than anything actually usable.
+    // probably should use some sort of parser like how quake 3 does it.
     color_pair *color_table = NULL;
     size_t color_table_size = 0;
 
@@ -266,6 +268,7 @@ struct text_prompt_wrapper
 			text_focus = true;
 			update_buffer = true;
 		}
+		blink_timer = timer_now();
 	}
 
 	// this function is currently used to modify a read only prompt

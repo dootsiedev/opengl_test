@@ -526,7 +526,7 @@ bool demo_state::init_gl_font()
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_font_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
-	size_t max_quads = 1000;
+	size_t max_quads = 10000;
 	font_batcher_buffer =
 		std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
 	font_batcher.init(font_batcher_buffer.get(), max_quads);
@@ -756,7 +756,7 @@ bool demo_state::render()
 		// load the atlas texture.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
-		bool ret = g_console.draw();
+		bool ret = g_console.update();
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 		if(!ret)
@@ -872,66 +872,10 @@ bool demo_state::render()
 
 	if(show_console)
 	{
-		if(g_console.log_vertex_count != 0)
-		{
-			float x;
-			float y;
-			float w;
-			float h;
-			g_console.log_box.get_bbox(&x, &y, &w, &h);
-			GLint scissor_x = static_cast<GLint>(x);
-			GLint scissor_y = static_cast<GLint>(y);
-			GLint scissor_w = static_cast<GLint>(w);
-			GLint scissor_h = static_cast<GLint>(h);
-			if(scissor_w > 0 && scissor_h > 0)
-			{
-				ctx.glEnable(GL_SCISSOR_TEST);
-				// don't forget that 0,0 is the bottom left corner...
-				ctx.glScissor(
-					scissor_x,
-					cv_screen_height.data - (scissor_y + scissor_h),
-					scissor_w,
-					scissor_h);
-				ctx.glBindVertexArray(g_console.gl_log_vao_id);
-				ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.log_vertex_count);
-				ctx.glBindVertexArray(0);
-				ctx.glDisable(GL_SCISSOR_TEST);
-			}
-		}
-
-		if(g_console.prompt_vertex_count != 0)
-		{
-			float x;
-			float y;
-			float w;
-			float h;
-			g_console.prompt_cmd.get_bbox(&x, &y, &w, &h);
-			GLint scissor_x = static_cast<GLint>(x);
-			GLint scissor_y = static_cast<GLint>(y);
-			GLint scissor_w = static_cast<GLint>(w);
-			GLint scissor_h = static_cast<GLint>(h);
-			if(scissor_w > 0 && scissor_h > 0)
-			{
-				ctx.glEnable(GL_SCISSOR_TEST);
-				// don't forget that 0,0 is the bottom left corner...
-				ctx.glScissor(
-					scissor_x,
-					cv_screen_height.data - (scissor_y + scissor_h),
-					scissor_w,
-					scissor_h);
-				ctx.glBindVertexArray(g_console.gl_prompt_vao_id);
-				ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.prompt_vertex_count);
-				ctx.glBindVertexArray(0);
-				ctx.glDisable(GL_SCISSOR_TEST);
-			}
-		}
-
-		if(g_console.error_vertex_count != 0)
-		{
-			ctx.glBindVertexArray(g_console.gl_error_vao_id);
-			ctx.glDrawArrays(GL_TRIANGLES, 0, g_console.error_vertex_count);
-			ctx.glBindVertexArray(0);
-		}
+		if(!g_console.render())
+        {
+            return false;
+        }
 	}
 
 	ctx.glUseProgram(0);

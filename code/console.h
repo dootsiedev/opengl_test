@@ -60,7 +60,7 @@ struct console_state
 	int log_line_count = 0;
 
 	std::array<text_prompt_wrapper::color_pair, 3> log_color_table = {
-		text_prompt_wrapper::color_pair{{255, 0, 0, 255}, RGBA8_PREMULT(0, 0, 0, 200)}};
+		text_prompt_wrapper::color_pair{{255, 255, 255, 255}, RGBA8_PREMULT(255, 0, 0, 200)}};
 
 	// it's possible to use one VBO at the expense of
 	// re-drawing everything for any modification.
@@ -110,7 +110,9 @@ struct console_state
 	// this will just put the data into the batcher.
 	// you need to access log_batcher and prompt_batcher directly to render.
 	// this requires the atlas texture to be bound with 1 byte packing
-	NDSERR bool draw();
+	NDSERR bool update();
+
+    NDSERR bool render();
 
 	// call this when you need to unfocus, like for example if you press escape or something.
 	void unfocus();

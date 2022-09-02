@@ -1369,6 +1369,7 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 	tick2 = timer_now();
 	slogf("advance time = %f\n", timer_delta_ms(tick1, tick2));
 #endif
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	*advance = (current_rasterizer->face->glyph->advance.x >> 6);
 	return FONT_RESULT::SUCCESS;
 }
@@ -1574,7 +1575,7 @@ internal_font_painter_state::load_glyph_verts(
 	ASSERT(batcher != NULL);
 
 	font_glyph_entry glyph;
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	float atlas_size = font->get_font_atlas()->atlas_size;
 
 	FONT_RESULT ret = font->get_glyph(codepoint, style, &glyph);
@@ -1631,7 +1632,9 @@ internal_font_painter_state::load_glyph_verts(
 
 	if(!batcher->draw_rect(pos, uv, color))
 	{
-		// TODO: shouldn't be an error?
+		// I really don't know what the best approach for this is.
+		// TODO(dootsie): maybe make a cvar for debugging batcher running out of room, raise
+		// ASSERT(false)?
 		return FONT_RESULT::SUCCESS;
 	}
 

@@ -18,7 +18,6 @@
 
 #include <SDL2/SDL.h>
 
-
 // assert is bad, but sometimes an explosion is the only choice, eg: PTR IS NULL
 #define ASSERT assert
 
@@ -45,7 +44,6 @@ std::string WIN_GetFormattedGLE();
 std::string WIN_WideToUTF8(const wchar_t* buffer, int size);
 std::wstring WIN_UTF8ToWide(const char* buffer, int size);
 #endif
-
 
 // SDL fixed IME's but I still want old SDL2 support
 #ifndef IME_TEXTEDIT_EXT
@@ -119,8 +117,6 @@ TIMER_RESULT timer_delta(TIMER_U start, TIMER_U end)
 
 #else
 
-#include <SDL2/SDL_timer.h>
-
 typedef Uint64 TIMER_U;
 
 inline TIMER_U timer_now()
@@ -172,7 +168,6 @@ void slog(const char* msg);
 void serr(const char* msg);
 
 void slogf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
-
 void serrf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 
 // a possible improvement would be to use a std::vector as a parameter,
@@ -180,9 +175,9 @@ void serrf(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 std::unique_ptr<char[]> unique_vasprintf(int* length, const char* fmt, va_list args);
 inline std::unique_ptr<char[]> unique_asprintf(int* length, const char* fmt, ...)
 {
-    va_list args;
+	va_list args;
 	va_start(args, fmt);
 	std::unique_ptr<char[]> ret = unique_vasprintf(length, fmt, args);
 	va_end(args);
-    return ret;
+	return ret;
 }

@@ -246,7 +246,15 @@ bool text_prompt_wrapper::draw()
 		return false;
 	}
 
+    // SDL_IsTextInputShown is available on the same verison TEXTEDIT_EXT is supported.
+    #ifdef IME_TEXTEDIT_EXT
+    // SDL_IsTextInputShown doesn't work on linux mint SDL2 2.0.23 with Mozc IME 
+    // when the IME prompt is empty. I probably NEED to call SDL_StartTextInput 
+    // AFTER I set SDL_SetTextInputRect, which is tedious...
+	if(markedText.empty() && SDL_IsTextInputShown() == SDL_FALSE)
+    #else
 	if(markedText.empty())
+    #endif
 	{
 		// draw the cursor
 		if(draw_caret && caret_visible)
@@ -666,7 +674,8 @@ bool text_prompt_wrapper::internal_draw_text(
 			backdrop_vertex_buffer_index = state.batcher->placeholder_rect();
 			if(backdrop_vertex_buffer_index == -1)
 			{
-				return false;
+				// return false;
+				return true;
 			}
 			// this is a signal that you should set active_color_index to the current char.
 			active_color_index = -1;
@@ -679,7 +688,8 @@ bool text_prompt_wrapper::internal_draw_text(
 			selection_vertex_buffer_index = state.batcher->placeholder_rect();
 			if(selection_vertex_buffer_index == -1)
 			{
-				return false;
+				// return false;
+				return true;
 			}
 			// active_text_color = select_text_color;
 		}
@@ -708,7 +718,8 @@ bool text_prompt_wrapper::internal_draw_text(
 						   white_uv,
 						   color))
 					{
-						return false;
+						// return false;
+						return true;
 					}
 					// backdrop_vertex_buffer_index = -1;
 					// start a new backdrop
@@ -716,7 +727,8 @@ bool text_prompt_wrapper::internal_draw_text(
 					backdrop_vertex_buffer_index = state.batcher->placeholder_rect();
 					if(backdrop_vertex_buffer_index == -1)
 					{
-						return false;
+						// return false;
+						return true;
 					}
 				}
 				active_color_index = ret.color_index;
@@ -733,7 +745,8 @@ bool text_prompt_wrapper::internal_draw_text(
 					selection_vertex_buffer_index = state.batcher->placeholder_rect();
 					if(selection_vertex_buffer_index == -1)
 					{
-						return false;
+						// return false;
+						return true;
 					}
 					// active_text_color = select_text_color;
 				}
@@ -752,7 +765,8 @@ bool text_prompt_wrapper::internal_draw_text(
 						   white_uv,
 						   active_selection_color))
 					{
-						return false;
+						// return false;
+						return true;
 					}
 					selection_vertex_buffer_index = -1;
 					// active_text_color = text_color;
@@ -801,7 +815,22 @@ bool text_prompt_wrapper::internal_draw_text(
 							 ? select_text_color
 							 : (ret.color_index == 0 ? text_color
 													 : color_table[ret.color_index - 1].fore));
-					switch(state.load_glyph_verts(ret.codepoint, color, ret.style))
+#if 0
+                    // this is fine, but personally I love extra thick oulines (with force_bitmap),
+                    // and if I draw the outline between each letter instead of between the whole text,
+                    // the outline would make the text harder to read...
+                    float peek_x = state.draw_x_pos;
+					switch(state.load_glyph_verts(ret.codepoint, {0,0,0,255}, FONT_STYLE_OUTLINE))
+					{
+					case FONT_RESULT::NOT_FOUND:
+						serrf("%s glyph not found: U+%X\n", __func__, ret.codepoint);
+						return false;
+					case FONT_RESULT::ERROR: return false;
+					case FONT_RESULT::SUCCESS: break;
+					}
+                    state.draw_x_pos = peek_x;
+#endif
+                    switch(state.load_glyph_verts(ret.codepoint, color, ret.style))
 					{
 					case FONT_RESULT::NOT_FOUND:
 						serrf("%s glyph not found: U+%X\n", __func__, ret.codepoint);
@@ -826,7 +855,8 @@ bool text_prompt_wrapper::internal_draw_text(
 			if(!state.batcher->draw_rect_at(
 				   backdrop_vertex_buffer_index, {pos_x, pos_y, pos_w, pos_h}, white_uv, color))
 			{
-				return false;
+				// return false;
+				return true;
 			}
 			backdrop_vertex_buffer_index = -1;
 		}
@@ -845,7 +875,8 @@ bool text_prompt_wrapper::internal_draw_text(
 				   white_uv,
 				   active_selection_color))
 			{
-				return false;
+				// return false;
+				return true;
 			}
 			selection_vertex_buffer_index = -1;
 		}
@@ -920,19 +951,12 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	float lineskip = state.font->get_lineskip();
 
 	// reserve space to draw a backdrop,
-	// uses inverted color of the font, except for the alpha
-	// batcher->set_color(
-	//	255 - text_color[0], 255 - text_color[1], 255 - text_color[2], text_color[3]);
-	// size_t marked_vertex_buffer_index =
-	// batcher->batcher.get_vertex_count();//->font_vertex_buffer.size(); batcher->draw_rect(0, 0,
-	// 0, 0);
 	int marked_vertex_buffer_index = state.batcher->placeholder_rect();
 	if(marked_vertex_buffer_index == -1)
 	{
-		return false;
+		// return false;
+		return true;
 	}
-	// state.set_color(text_color);
-
 	state.set_xy(x, y);
 	// draw the text
 	auto str_cur = markedText.begin();
@@ -1009,7 +1033,8 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 	if(!state.batcher->draw_rect_at(
 		   marked_vertex_buffer_index, {pos_x, pos_y, pos_w, pos_h}, white_uv, backdrop_color))
 	{
-		return false;
+		// return false;
+		return true;
 	}
 
 	// draw the cursor
@@ -1225,6 +1250,13 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				return TEXT_PROMPT_RESULT::EAT;
 			}
+
+			// helps unfocus other elements.
+			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
+			   box_xmin <= mouse_x)
+			{
+				return TEXT_PROMPT_RESULT::EAT;
+			}
 		}
 		break;
 	case SDL_MOUSEBUTTONDOWN:
@@ -1237,14 +1269,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				y_scrollbar_held = true;
 				internal_scroll_y_to(mouse_y);
-				// if the text was unfocused
-				if(!read_only())
-				{
-					SDL_StartTextInput();
-				}
-				text_focus = true;
-				blink_timer = timer_now();
-				update_buffer = true;
+				focus();
 				return TEXT_PROMPT_RESULT::EAT;
 			}
 
@@ -1252,14 +1277,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				x_scrollbar_held = true;
 				internal_scroll_x_to(mouse_x);
-				// if the text was unfocused
-				if(!read_only())
-				{
-					SDL_StartTextInput();
-				}
-				text_focus = true;
-				blink_timer = timer_now();
-				update_buffer = true;
+				focus();
 				return TEXT_PROMPT_RESULT::EAT;
 			}
 
@@ -1268,11 +1286,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
 			   box_xmin <= mouse_x)
 			{
-				if(!read_only())
-				{
-					SDL_StartTextInput();
-				}
-				text_focus = true;
+				focus();
+
 				scroll_to_cursor = true;
 
 				// when you click while markedText is not empty,
@@ -1297,9 +1312,6 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				{
 					stb_textedit_click(this, &stb_state, mouse_x, mouse_y);
 				}
-
-				blink_timer = timer_now();
-				update_buffer = true;
 				return TEXT_PROMPT_RESULT::EAT;
 			}
 			unfocus();
