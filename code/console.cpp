@@ -241,8 +241,9 @@ void console_state::serialize_history(BS_Archive& ar)
 	ar.StartObject();
 
 	ar.Key("size");
-	size_t test_array_size = std::size(command_history);
-	if(!ar.Uint64(test_array_size))
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	uint32_t test_array_size = std::size(command_history);
+	if(!ar.Uint32(test_array_size))
 	{
 		// exit early
 		return;

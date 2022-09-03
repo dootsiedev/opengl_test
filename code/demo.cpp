@@ -606,26 +606,9 @@ DEMO_RESULT demo_state::input()
 	{
 		// TIMER_U t1 = timer_now();
 
-		bool input_eaten = false;
 
-		if(show_console)
-		{
-			CONSOLE_RESULT ret = g_console.input(e);
-			switch(ret)
-			{
-			case CONSOLE_RESULT::CONTINUE: break;
-			case CONSOLE_RESULT::EAT: input_eaten = true; break;
-			case CONSOLE_RESULT::ERROR: return DEMO_RESULT::ERROR;
-			}
-		}
-
-		if(input_eaten)
-		{
-			unfocus();
-			return DEMO_RESULT::CONTINUE;
-		}
-
-		switch(e.type)
+        // important events that should go first and shouldn't be eaten by any elements.
+        switch(e.type)
 		{
 		case SDL_QUIT: return DEMO_RESULT::EXIT;
 		case SDL_WINDOWEVENT:
@@ -650,10 +633,33 @@ DEMO_RESULT demo_state::input()
 					{
 						return DEMO_RESULT::ERROR;
 					}
+                    // eat this event, but don't unfocus anything.
+                    return DEMO_RESULT::CONTINUE;
 				}
-				break;
 			}
 			break;
+        }
+
+		bool input_eaten = false;
+		if(show_console)
+		{
+			CONSOLE_RESULT ret = g_console.input(e);
+			switch(ret)
+			{
+			case CONSOLE_RESULT::CONTINUE: break;
+			case CONSOLE_RESULT::EAT: input_eaten = true; break;
+			case CONSOLE_RESULT::ERROR: return DEMO_RESULT::ERROR;
+			}
+		}
+
+		if(input_eaten)
+		{
+			unfocus();
+			return DEMO_RESULT::CONTINUE;
+		}
+
+		switch(e.type)
+		{
 		case SDL_KEYUP:
 			// NOTE: probably should check this if I added in other keys
 			// I wouldn't want to trigger if I was using a text prompt,
@@ -749,6 +755,11 @@ bool demo_state::render()
 	double color_delta = timer_delta<1>(timer_last, current_time);
 	float float_delta = static_cast<float>(color_delta);
 	timer_last = current_time;
+
+
+	TIMER_U tick1;
+	TIMER_U tick2;
+    tick1 = timer_now();
 
 	// this will not actually draw, this will just modify the atlas and buffer data.
 	if(show_console)
@@ -872,6 +883,7 @@ bool demo_state::render()
 
 	if(show_console)
 	{
+        // requires gl_atlas_tex_id
 		if(!g_console.render())
         {
             return false;
@@ -885,10 +897,11 @@ bool demo_state::render()
 		// this isn't ideal, but it saves the CPU and GPU.
 		SDL_Delay(1);
 	}
+    
+	tick2 = timer_now();
+	perf_render.test(timer_delta_ms(tick1, tick2));
+	tick1 = tick2;
 
-	TIMER_U tick1;
-	TIMER_U tick2;
-	tick1 = timer_now();
 	SDL_GL_SwapWindow(g_app.window);
 
 	// this could help with vsync causing bad latency, in exchange for less gpu utilization.
@@ -910,13 +923,10 @@ DEMO_RESULT demo_state::process()
 	tick2 = timer_now();
 	perf_input.test(timer_delta_ms(tick1, tick2));
 
-	tick1 = tick2;
 	if(!render())
 	{
 		return DEMO_RESULT::ERROR;
 	}
-	tick2 = timer_now();
-	perf_render.test(timer_delta_ms(tick1, tick2));
 
 	return perf_time() ? DEMO_RESULT::CONTINUE : DEMO_RESULT::ERROR;
 }
@@ -977,7 +987,6 @@ bool demo_state::perf_time()
 			// orphaning
 			ctx.glBufferData(
 				GL_ARRAY_BUFFER, font_batcher.get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-
 			ctx.glBufferSubData(
 				GL_ARRAY_BUFFER, 0, font_batcher.get_current_vertex_size(), font_batcher.buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);

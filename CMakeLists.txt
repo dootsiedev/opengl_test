@@ -437,17 +437,30 @@ if(MSVC)
     endif()
 endif()
 
+
+#
+# EMSCRIPTEN
+#
+if(EMSCRIPTEN)
+    set(CMAKE_EXECUTABLE_SUFFIX ".html")
+    #preload just doesn't work unless I do it for CMAKE_EXE_LINKER_FLAGS ????
+    #set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "--preload-file data_folder")
+    if(USE_OLD_SDL2)
+    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sUSE_SDL=2")
+    endif()
+    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sFULL_ES3")
+else()
+endif()
+
 #
 # SDL2
 #
 option(USE_OLD_SDL2 "for SDL2 older than 2.0.6" OFF)
-
 find_package(SDL2 CONFIG REQUIRED)
-
 if(USE_OLD_SDL2)
     #the old way of linking.
     #note that there is no static linking because
-	#this is PURELY for package managers, which usually HATE static libraries.
+    #this is PURELY for package managers, which usually HATE static libraries.
     target_include_directories(${PROJECT_NAME} PRIVATE ${SDL2_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} ${SDL2_LIBRARIES})
 else()
@@ -461,6 +474,9 @@ else()
     target_link_libraries(${PROJECT_NAME} SDL2::SDL2main)
 endif()
 
+
+
+
 option(USE_LIBBACKTRACE "(linux, maybe mingw) to print stack traces instead of trapping" OFF)
 if(USE_LIBBACKTRACE)
     target_compile_definitions(${PROJECT_NAME} PRIVATE USE_LIBBACKTRACE)
@@ -472,12 +488,12 @@ if(USE_LIBBACKTRACE)
     target_link_libraries(${PROJECT_NAME} "-ldl")
 endif()
 
+find_package(Freetype REQUIRED)
+target_link_libraries(${PROJECT_NAME} Freetype::Freetype)
 
 find_package(glm CONFIG REQUIRED)
 target_link_libraries(${PROJECT_NAME} glm::glm)
 
-find_package(Freetype REQUIRED)
-target_link_libraries(${PROJECT_NAME} Freetype::Freetype)
 
 #I use a really new version of rapidjson,
 #and rapidjson has not bumped their version number past 1.1.0 since a decade,

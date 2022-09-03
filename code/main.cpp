@@ -3,6 +3,10 @@
 #include "demo.h"
 #include <SDL2/SDL.h>
 
+#ifdef __EMSCRIPTEN__
+#include "emscripten.h"
+#endif
+
 int main(int argc, char** argv)
 {
 	slog("test\n");
@@ -96,6 +100,25 @@ int main(int argc, char** argv)
 			}
 			else
 			{
+                #ifdef __EMSCRIPTEN__
+                struct shitty_payload{
+                    demo_state* p_demo;
+                    bool* p_success; 
+                } pay{&demo, &success};
+                auto loop = [](void* ud){
+                    shitty_payload *p_pay = static_cast<shitty_payload*>(ud);
+                    switch(p_pay->p_demo->process())
+					{
+					case DEMO_RESULT::CONTINUE: break;
+					case DEMO_RESULT::EXIT: emscripten_cancel_main_loop(); break;
+					case DEMO_RESULT::ERROR:
+                        emscripten_cancel_main_loop();
+						*p_pay->p_success = false;
+						break;
+					}
+};
+                  emscripten_set_main_loop_arg(loop, &pay, 0, 1);
+                #else
 				bool quit = false;
 				while(!quit)
 				{
@@ -109,6 +132,7 @@ int main(int argc, char** argv)
 						break;
 					}
 				}
+#endif
 			}
 			if(!demo.destroy())
 			{

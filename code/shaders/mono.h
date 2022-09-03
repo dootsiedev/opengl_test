@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include "../opengles2/opengl_stuff.h"
 
 struct shader_mono_state
