@@ -22,10 +22,94 @@
 #include <limits>
 #include <string>
 
-static REGISTER_CVAR_STRING(cv_string, "test", "the string to display", CVAR_T::STARTUP);
+
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/html5.h>
+
+#if 0
+static EM_BOOL on_pointerlockchange(int eventType, const EmscriptenPointerlockChangeEvent *e, void *userData)
+{
+    slogf("%s: isActive = %d, nodeName: %s\n", __func__, e->isActive, e->nodeName);
+    if(e->isActive)
+    {
+        //hide mouse
+    }
+    else
+    {
+        //show mouse
+    }
+    return 1;
+}
+#endif
+static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent *e, void *userData)
+{
+    //slogf("%s, screen: (%ld,%ld), client: (%ld,%ld),%s%s%s%s button: %hu, buttons: %hu, movement: (%ld,%ld), target: (%ld, %ld)\n",
+    //emscripten_event_type_to_string(eventType), e->screenX, e->screenY, e->clientX, e->clientY,
+    //e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "", 
+    //e->button, e->buttons, e->movementX, e->movementY, e->targetX, e->targetY);
+    //slogf("%s, canvas: (%ld,%ld)\n", emscripten_event_type_to_string(eventType), e->canvasX, e->canvasY);
+    //slogf("%s, target: (%ld,%ld)\n", emscripten_event_type_to_string(eventType), e->targetX, e->targetY);
+    if(eventType == EMSCRIPTEN_EVENT_MOUSEUP)
+    {
+        ASSERT(userData != NULL);
+        // if this gave an error, that would be unfortunate...
+        SDL_Event ev;
+        memset(&ev,0,sizeof(ev));
+        ev.type = SDL_MOUSEBUTTONUP;
+        ev.button.button = (e->button == 0 ? SDL_BUTTON_LEFT : (e->button == 2 ? SDL_BUTTON_RIGHT : 0) );
+        ev.button.state = SDL_RELEASED;
+        // this is based on SDL's code
+/*
+unfortunately this can't handle the sitatuation where I fullscreen with the inspector open in firefox.
+because the cavnas will maintain it's aspect ratio which means 0,0 points in the black bar...
+to fix it I would do something like this:
+function  getMousePos(canvas, evt) {
+  var rect = canvas.getBoundingClientRect(), // abs. size of element
+    scaleX = canvas.width / rect.width,    // relationship bitmap vs. element for x
+    scaleY = canvas.height / rect.height;  // relationship bitmap vs. element for y
+
+  return {
+    x: (evt.clientX - rect.left) * scaleX,   // scale mouse coordinates after they have
+    y: (evt.clientY - rect.top) * scaleY     // been adjusted to be relative to element
+  }
+
+I probably should handle ALL the mouse events anyways to prevent SDL2 from making a breaking change.
+}
+
+*/
+        double client_w, client_h, xscale, yscale;
+        int window_w, window_h;
+        EMSCRIPTEN_RESULT em_ret = emscripten_get_canvas_element_size("#canvas", &window_w, &window_h);
+        if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+        {
+            slogf("%s returned %s.\n", "emscripten_get_element_css_size", emscripten_result_to_string(em_ret));
+        }
+        em_ret = emscripten_get_element_css_size("#canvas", &client_w, &client_h);
+        if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+        {
+            slogf("%s returned %s.\n", "emscripten_get_element_css_size", emscripten_result_to_string(em_ret));
+        }
+        xscale = window_w / client_w;
+        yscale = window_h / client_h;
+        //slogf("cw: %f, ch: %f, w: %d, h: %d\n", client_w, client_h, window_w, window_h);
+        ev.button.x = e->targetX * xscale;
+        ev.button.y = e->targetY * yscale;
+        // I probably could make the timestamp work by getting the delta between SDL's timer and html5's
+        static_cast<demo_state*>(userData)->input(ev);
+        return 1;
+    }
+    slogf("%s: unhandled type\n", __func__);
+    return 0;
+}
+#endif
+
+static REGISTER_CVAR_STRING(cv_string, "test\n"
+"f1 - open console\n"
+"alt+enter - fullscreen", "the string to display", CVAR_T::STARTUP);
 static REGISTER_CVAR_DOUBLE(cv_string_pt, 16.0, "the point size of the string", CVAR_T::STARTUP);
 static REGISTER_CVAR_STRING(
-	cv_string_font, "seguiemj.ttf", "the font of the string", CVAR_T::STARTUP);
+	cv_string_font, "seguiemj.ttf", "the font of the string, \"unifont\" is a special font.", CVAR_T::STARTUP);
 static REGISTER_CVAR_DOUBLE(
 	cv_string_outline, 1, "outline thickness in pixels (if there is an outline)", CVAR_T::STARTUP);
 static REGISTER_CVAR_INT(cv_string_mono, 0, "0 = off, 1 = use mono rasterizer", CVAR_T::STARTUP);
@@ -210,6 +294,24 @@ bool demo_state::init()
 	{
 		return false;
 	}
+
+    
+#ifdef __EMSCRIPTEN__
+#if 0    
+EMSCRIPTEN_RESULT em_ret = emscripten_set_pointerlockchange_callback("#canvas", 0, 0, on_pointerlockchange);
+    if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+    {
+        slogf("%s returned %s.\n", "emscripten_set_pointerlockchange_callback", emscripten_result_to_string(em_ret));
+    }
+#endif
+
+    EMSCRIPTEN_RESULT em_ret = emscripten_set_mouseup_callback("#canvas", this, 1, on_mouse_callback);
+    if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+    {
+        slogf("%s returned %s.\n", "emscripten_set_mousedown_callback", emscripten_result_to_string(em_ret));
+    }
+    
+#endif
 
 	timer_last = timer_now();
 	return true;
@@ -453,49 +555,57 @@ bool demo_state::init_gl_font()
 
 	// Unique_RWops test_font =
 	// Unique_RWops_OpenFS("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "rb");
-	Unique_RWops test_font = Unique_RWops_OpenFS(cv_string_font.data, "rb");
-	if(!test_font)
-	{
-		return false;
-	}
+    if(cv_string_font.data == "unifont")
+    {
+        unifont_style.init(&font_manager.hex_font, cv_string_pt.data);
+    }
+    else
+    {
+	    Unique_RWops test_font = Unique_RWops_OpenFS(cv_string_font.data, "rb");
+	    if(!test_font)
+	    {
+		    return false;
+	    }
 
-	if(!font_rasterizer.create(font_manager.FTLibrary, std::move(test_font)))
-	{
-		return false;
-	}
+	    if(!font_rasterizer.create(font_manager.FTLibrary, std::move(test_font)))
+	    {
+		    return false;
+	    }
 
-	font_settings.point_size = static_cast<float>(cv_string_pt.data);
+	    font_settings.point_size = static_cast<float>(cv_string_pt.data);
 
-	if(cv_string_mono.data == 1)
-	{
-		font_settings.render_mode = FT_RENDER_MODE_MONO;
-		font_settings.load_flags = FT_LOAD_TARGET_MONO;
-	}
+	    if(cv_string_mono.data == 1)
+	    {
+		    font_settings.render_mode = FT_RENDER_MODE_MONO;
+		    font_settings.load_flags = FT_LOAD_TARGET_MONO;
+	    }
 
-	// FT_LOAD_RENDER can give the same bitmap outline as force_bitmap
-	// but force_bitmap will choose the closest raster bitmap possible,
-	// so if a font supports both vector and raster data, and you want
-	// the text to be vectorized with a bitmap outline, use FT_LOAD_RENDER.
-	// but this also breaks bold and italics style.
-	// font_settings.load_flags = FT_LOAD_RENDER;
-	// font_settings.load_flags = FT_LOAD_TARGET_MONO | FT_LOAD_RENDER;
+	    // FT_LOAD_RENDER can give the same bitmap outline as force_bitmap
+	    // but force_bitmap will choose the closest raster bitmap possible,
+	    // so if a font supports both vector and raster data, and you want
+	    // the text to be vectorized with a bitmap outline, use FT_LOAD_RENDER.
+	    // but this also breaks bold and italics style.
+	    // font_settings.load_flags = FT_LOAD_RENDER;
+	    // font_settings.load_flags = FT_LOAD_TARGET_MONO | FT_LOAD_RENDER;
 
-	font_settings.bold_x = 1;
-	font_settings.bold_y = 1;
-	font_settings.italics_skew = 0.5;
-	font_settings.outline_size = static_cast<float>(cv_string_outline.data);
+	    font_settings.bold_x = 1;
+	    font_settings.bold_y = 1;
+	    font_settings.italics_skew = 0.5;
+	    font_settings.outline_size = static_cast<float>(cv_string_outline.data);
 
-	if(cv_string_force_bitmap.data == 1)
-	{
-		font_settings.force_bitmap = true;
-	}
+	    if(cv_string_force_bitmap.data == 1)
+	    {
+		    font_settings.force_bitmap = true;
+	    }
 
-	if(!font_rasterizer.set_face_settings(&font_settings))
-	{
-		return false;
-	}
+	    if(!font_rasterizer.set_face_settings(&font_settings))
+	    {
+		    return false;
+	    }
 
-	font_style.init(&font_manager, &font_rasterizer);
+	    font_style.init(&font_manager, &font_rasterizer);
+    }
+
 
 #if 0
 	// it's pretty slow
@@ -531,10 +641,17 @@ bool demo_state::init_gl_font()
 		std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
 	font_batcher.init(font_batcher_buffer.get(), max_quads);
 
-	font_painter.init(&font_batcher, &font_style);
+    font_style_interface* current_font = NULL;
+    if(cv_string_font.data == "unifont")
+    {
+        current_font = &unifont_style;
+    } else {
+        current_font = &font_style;
+    }
+	font_painter.init(&font_batcher, current_font);
 
 	// load the atlas texture.
-	bool ret = g_console.init(&font_style, &font_batcher, mono_shader);
+	bool ret = g_console.init(current_font, &font_batcher, mono_shader);
 	// restore to the default 4 alignment.
 	if(!ret)
 	{
@@ -592,162 +709,156 @@ void demo_state::unfocus()
 	{
 		val = false;
 	}
+#ifdef __EMSCRIPTEN__
+    EMSCRIPTEN_RESULT em_ret = emscripten_exit_pointerlock();
+    if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+    {
+        slogf("%s returned %s.\n", "emscripten_exit_pointerlock", emscripten_result_to_string(em_ret));
+    }
+#else
 	if(SDL_SetRelativeMouseMode(SDL_FALSE) < 0)
 	{
 		slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
 	}
+#endif
 }
 
-// return 0 for continue, 1 for exit.
-DEMO_RESULT demo_state::input()
+
+bool demo_state::input(SDL_Event& e)
 {
-	SDL_Event e;
-	while(SDL_PollEvent(&e) != 0)
-	{
+	
 		// TIMER_U t1 = timer_now();
 
-
-        // important events that should go first and shouldn't be eaten by any elements.
-        switch(e.type)
+	bool input_eaten = false;
+	if(show_console)
+	{
+		CONSOLE_RESULT ret = g_console.input(e);
+		switch(ret)
 		{
-		case SDL_QUIT: return DEMO_RESULT::EXIT;
-		case SDL_WINDOWEVENT:
-			switch(e.window.event)
-			{
-			case SDL_WINDOWEVENT_SIZE_CHANGED:
-				cv_screen_width.data = e.window.data1;
-				cv_screen_height.data = e.window.data2;
-				g_console.resize_text_area();
-				update_projection = true;
-				break;
-			}
-			break;
-		case SDL_KEYDOWN:
-			switch(e.key.keysym.sym)
-			{
-			case SDLK_RETURN:
-				if((e.key.keysym.mod & KMOD_ALT) != 0)
-				{
-					cv_fullscreen.data = cv_fullscreen.data == 1 ? 0 : 1;
-					if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
-					{
-						return DEMO_RESULT::ERROR;
-					}
-                    // eat this event, but don't unfocus anything.
-                    return DEMO_RESULT::CONTINUE;
-				}
-			}
-			break;
-        }
-
-		bool input_eaten = false;
-		if(show_console)
-		{
-			CONSOLE_RESULT ret = g_console.input(e);
-			switch(ret)
-			{
-			case CONSOLE_RESULT::CONTINUE: break;
-			case CONSOLE_RESULT::EAT: input_eaten = true; break;
-			case CONSOLE_RESULT::ERROR: return DEMO_RESULT::ERROR;
-			}
-		}
-
-		if(input_eaten)
-		{
-			unfocus();
-			return DEMO_RESULT::CONTINUE;
-		}
-
-		switch(e.type)
-		{
-		case SDL_KEYUP:
-			// NOTE: probably should check this if I added in other keys
-			// I wouldn't want to trigger if I was using a text prompt,
-			// because key events will still be triggered even if textinput is active.
-			// if(SDL_IsTextInputActive() == SDL_TRUE)
-
-			switch(e.key.keysym.sym)
-			{
-			case SDLK_ESCAPE:
-				unfocus();
-				if(show_console)
-				{
-					g_console.unfocus();
-				}
-				break;
-			case SDLK_F1:
-				if(show_console)
-				{
-					g_console.unfocus();
-					show_console = false;
-				}
-				else
-				{
-					unfocus();
-					g_console.focus();
-					show_console = true;
-				}
-				break;
-			case SDLK_F10: {
-				std::string msg;
-				msg += "StackTrace (f10):\n";
-				debug_str_stacktrace(&msg, 0);
-				msg += '\n';
-				slog_raw(msg.data(), msg.length());
-			}
-			break;
-			}
-			break;
-		case SDL_MOUSEBUTTONUP:
-			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
-			{
-				if(SDL_SetRelativeMouseMode(SDL_TRUE) < 0)
-				{
-					slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
-				}
-			}
-			break;
-		case SDL_MOUSEMOTION:
-			if(SDL_GetRelativeMouseMode() == SDL_TRUE)
-			{
-				// int x;
-				// int y;
-				// SDL_GetRelativeMouseState(&x, &y);
-				camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data);
-				camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data);
-				camera_pitch = fmaxf(camera_pitch, -89.f);
-				camera_pitch = fminf(camera_pitch, 89.f);
-
-				glm::vec3 direction;
-				direction.x = cos(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
-				direction.y = sin(glm::radians(camera_pitch));
-				direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
-				camera_direction = glm::normalize(direction);
-			}
-			break;
-		}
-		// another switch statement because I combine KEYDOWN and KEYUP
-		switch(e.type)
-		{
-		case SDL_KEYDOWN:
-		case SDL_KEYUP:
-			// key events will still be triggered even if textinput is active.
-			// which means that prompts can't "EAT" the event because they don't use it.
-			if(SDL_IsTextInputActive() == SDL_TRUE)
-			{
-				break;
-			}
-			switch(e.key.keysym.sym)
-			{
-			case SDLK_w: keys_down[MOVE_FORWARD] = (e.key.state == SDL_PRESSED); break;
-			case SDLK_s: keys_down[MOVE_BACKWARD] = (e.key.state == SDL_PRESSED); break;
-			case SDLK_a: keys_down[MOVE_LEFT] = (e.key.state == SDL_PRESSED); break;
-			case SDLK_d: keys_down[MOVE_RIGHT] = (e.key.state == SDL_PRESSED); break;
-			}
-			break;
+		case CONSOLE_RESULT::CONTINUE: break;
+		case CONSOLE_RESULT::EAT: input_eaten = true; break;
+		case CONSOLE_RESULT::ERROR: return false;
 		}
 	}
-	return DEMO_RESULT::CONTINUE;
+
+	if(input_eaten)
+	{
+		unfocus();
+		return true;
+	}
+
+	switch(e.type)
+	{
+	case SDL_KEYUP:
+		// NOTE: probably should check this if I added in other keys
+		// I wouldn't want to trigger if I was using a text prompt,
+		// because key events will still be triggered even if textinput is active.
+		// if(SDL_IsTextInputActive() == SDL_TRUE)
+
+		switch(e.key.keysym.sym)
+		{
+		case SDLK_ESCAPE:
+			unfocus();
+			if(show_console)
+			{
+				g_console.unfocus();
+			}
+			break;
+		case SDLK_F1:
+			if(show_console)
+			{
+				g_console.unfocus();
+				show_console = false;
+			}
+			else
+			{
+				unfocus();
+				g_console.focus();
+				show_console = true;
+			}
+			break;
+		case SDLK_F10: {
+			std::string msg;
+			msg += "StackTrace (f10):\n";
+			debug_str_stacktrace(&msg, 0);
+			msg += '\n';
+			slog_raw(msg.data(), msg.length());
+		}
+		break;
+		}
+		break;
+	case SDL_MOUSEBUTTONUP:
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		{
+#ifdef __EMSCRIPTEN__
+            // this ONLY works when called inside of a mouse button event that is inside a html5 handler.
+            // the deferred option means if false (0), this will give an error 
+            // and nothing will happen if this was not called in the correct handler.
+            // if true(1), it will attempt the request when the next time the 
+            // handler is activated (the mouse button handler), which is janky.
+            EMSCRIPTEN_RESULT em_ret = emscripten_request_pointerlock("#canvas", 1);
+            if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+            {
+                slogf("%s returned %s.\n", "emscripten_request_pointerlock", emscripten_result_to_string(em_ret));
+            }
+#else
+			if(SDL_SetRelativeMouseMode(SDL_TRUE) < 0)
+			{
+				slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
+			}
+#endif
+		}
+		break;
+	case SDL_MOUSEMOTION:
+#ifdef __EMSCRIPTEN__
+        EmscriptenPointerlockChangeEvent plce;
+        EMSCRIPTEN_RESULT em_ret = emscripten_get_pointerlock_status(&plce);
+        if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+        {
+            slogf("%s returned %s.\n", "emscripten_get_pointerlock_status", emscripten_result_to_string(em_ret));
+        }
+        else if(plce.isActive)
+#else
+		if(SDL_GetRelativeMouseMode() == SDL_TRUE)
+#endif
+		{
+			// int x;
+			// int y;
+			// SDL_GetRelativeMouseState(&x, &y);
+			camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data);
+			camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data);
+			camera_pitch = fmaxf(camera_pitch, -89.f);
+			camera_pitch = fminf(camera_pitch, 89.f);
+
+			glm::vec3 direction;
+			direction.x = cos(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
+			direction.y = sin(glm::radians(camera_pitch));
+			direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
+			camera_direction = glm::normalize(direction);
+		}
+		break;
+	}
+	// another switch statement because I combine KEYDOWN and KEYUP
+	switch(e.type)
+	{
+	case SDL_KEYDOWN:
+	case SDL_KEYUP:
+		// key events will still be triggered even if textinput is active.
+		// which means that prompts can't "EAT" the event because they don't use it.
+		if(SDL_IsTextInputActive() == SDL_TRUE)
+		{
+			break;
+		}
+		switch(e.key.keysym.sym)
+		{
+		case SDLK_w: keys_down[MOVE_FORWARD] = (e.key.state == SDL_PRESSED); break;
+		case SDLK_s: keys_down[MOVE_BACKWARD] = (e.key.state == SDL_PRESSED); break;
+		case SDLK_a: keys_down[MOVE_LEFT] = (e.key.state == SDL_PRESSED); break;
+		case SDLK_d: keys_down[MOVE_RIGHT] = (e.key.state == SDL_PRESSED); break;
+		}
+		break;
+	}
+	return true;
 }
 bool demo_state::render()
 {
@@ -857,9 +968,9 @@ bool demo_state::render()
 	ctx.glDisable(GL_DEPTH_TEST);
 	ctx.glUseProgram(mono_shader.gl_program_id);
 
-	if(update_projection)
+	if(update_screen_resize)
 	{
-		update_projection = false;
+		update_screen_resize = false;
 		ctx.glViewport(0, 0, cv_screen_width.data, cv_screen_height.data);
 		glm::mat4 mvp = glm::ortho<float>(
 			0,
@@ -918,8 +1029,85 @@ DEMO_RESULT demo_state::process()
 	TIMER_U tick2;
 
 	tick1 = timer_now();
-	DEMO_RESULT ret = input();
-	if(ret != DEMO_RESULT::CONTINUE) return ret;
+
+#ifdef __EMSCRIPTEN__
+    // emscripten really doesn't like resizing the screen for some reason...
+    // it only does it when I go fullscreen (and the emscripten html button for fullscreen wont resize)
+    // I tried to use the resize callback, but I couldn't get any events.
+    // and resize events won't happen unless I do this hack...
+    int w, h;
+    emscripten_get_canvas_element_size("#canvas", &w, &h);
+    SDL_SetWindowSize(g_app.window, w,h);
+#endif
+    SDL_Event e;
+	while(SDL_PollEvent(&e) != 0)
+	{
+        // important events that should go first and shouldn't be eaten by any elements.
+        switch(e.type)
+		{
+		case SDL_QUIT: return DEMO_RESULT::EXIT;
+		case SDL_WINDOWEVENT:
+			switch(e.window.event)
+			{
+			case SDL_WINDOWEVENT_SIZE_CHANGED:
+				cv_screen_width.data = e.window.data1;
+				cv_screen_height.data = e.window.data2;
+				g_console.resize_text_area();
+				update_screen_resize = true;
+				break;
+/* TODO: pretty important window events.
+            case SDL_WINDOWEVENT_LEAVE:
+                slogf("leave\n");
+                break;
+            case SDL_WINDOWEVENT_ENTER:
+                slogf("enter\n");
+                break;
+            case SDL_WINDOWEVENT_FOCUS_GAINED:
+                slogf("key focus gain\n");
+                break;
+            case SDL_WINDOWEVENT_FOCUS_LOST:
+                slogf("key focus lost\n");
+                break;
+            case SDL_WINDOWEVENT_SHOWN:
+                slogf("shown\n");
+                break;
+            case SDL_WINDOWEVENT_HIDDEN:
+                slogf("hidden\n");
+                break;
+            case SDL_WINDOWEVENT_EXPOSED:
+                slogf("exposed\n");
+                break;
+*/
+            
+
+			}
+			break;
+		case SDL_KEYDOWN:
+			switch(e.key.keysym.sym)
+			{
+			case SDLK_RETURN:
+				if((e.key.keysym.mod & KMOD_ALT) != 0)
+				{
+					cv_fullscreen.data = cv_fullscreen.data == 1 ? 0 : 1;
+					if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
+					{
+						return DEMO_RESULT::ERROR;
+					}
+                    // eat this event, but don't unfocus anything.
+                    return DEMO_RESULT::CONTINUE;
+				}
+			}
+			break;
+        #ifdef __EMSCRIPTEN__
+		case SDL_MOUSEBUTTONUP:
+            continue;
+#endif
+        }
+	    if(!input(e))
+        {
+            return DEMO_RESULT::ERROR;
+        }
+    }
 	tick2 = timer_now();
 	perf_input.test(timer_delta_ms(tick1, tick2));
 

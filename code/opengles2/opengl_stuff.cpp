@@ -201,7 +201,8 @@ bool LoadGLContext(GLES2_Context* data)
 
 	if(SDL_GL_ExtensionSupported("GL_EXT_disjoint_timer_query") == SDL_FALSE)
 	{
-		slog("warning GL_EXT_disjoint_timer_query unsupported\n");
+        // I don't use this for anything, I only use this for mini benchmarking.
+		//slog("warning GL_EXT_disjoint_timer_query unsupported\n");
 	}
 	else
 	{

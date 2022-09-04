@@ -12,6 +12,8 @@
 // I want this because I can use non-null terminating strings for cvar_read....
 //#include <charconv>
 
+// TODO: make each cvar type have a name, so when you get an error or whatever, you can see the type it expects.
+
 std::map<const char*, V_cvar&, cmp_str>& get_convars()
 {
 	static std::map<const char*, V_cvar&, cmp_str> convars;
@@ -43,13 +45,13 @@ bool cvar_int::cvar_read(const char* buffer)
 
 	if(errno == ERANGE)
 	{
-		serrf("Error: cvar value out of range: \"+%s %s\"\n", cvar_key, buffer);
+		serrf("+%s: cvar value out of range: \"%s\"\n", cvar_key, buffer);
 		return false;
 	}
 	if(value > cmax || value < cmin)
 	{
 		serrf(
-			"Error: cvar value out of range: \"+%s %s\" min: %d, max: %d, result: %ld\n",
+			"+%s: cvar value out of range: \"%s\" min: %d, max: %d, result: %ld\n",
 			cvar_key,
 			buffer,
 			cmin,
@@ -59,13 +61,13 @@ bool cvar_int::cvar_read(const char* buffer)
 	}
 	if(end_ptr == buffer)
 	{
-		serrf("Error: cvar value not valid numeric input: \"+%s %s\"\n", cvar_key, buffer);
+		serrf("+%s: cvar value not valid numeric input: \"+%s\"\n", cvar_key, buffer);
 		return false;
 	}
 
 	if(*end_ptr != '\0')
 	{
-		slogf("warning: cvar value extra characters on input: \"+%s %s\"\n", cvar_key, buffer);
+		slogf("+%s: warning cvar value extra characters on input: \"%s\"\n", cvar_key, buffer);
 	}
 
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
@@ -98,18 +100,18 @@ bool cvar_double::cvar_read(const char* buffer)
 	double value = strtod(buffer, &end_ptr);
 	if(errno == ERANGE)
 	{
-		serrf("Error: cvar value out of range: \"+%s %s\"\n", cvar_key, buffer);
+		serrf("+%s: cvar value out of range: \"%s\"\n", cvar_key, buffer);
 		return false;
 	}
 	if(end_ptr == buffer)
 	{
-		serrf("Error: cvar value not valid numeric input: \"+%s %s\"\n", cvar_key, buffer);
+		serrf("+%s: cvar value not valid numeric input: \"%s\"\n", cvar_key, buffer);
 		return false;
 	}
 
 	if(*end_ptr != '\0')
 	{
-		slogf("warning: cvar value extra characters on input: \"+%s %s\"\n", cvar_key, buffer);
+		slogf("+%s: warning cvar value extra characters on input: \"%s\"\n", cvar_key, buffer);
 	}
 
 	data = value;

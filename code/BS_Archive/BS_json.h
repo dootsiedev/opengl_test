@@ -1,5 +1,10 @@
 #pragma once
 
+//I don't need this ATM
+#ifdef __EMSCRIPTEN__
+#define DISABLE_BS_JSON
+#endif
+
 #ifndef DISABLE_BS_JSON
 #include "BS_archive.h"
 

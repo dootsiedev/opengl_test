@@ -151,6 +151,7 @@ bool console_state::init(
 	// set the area the text is placed.
 	resize_text_area();
 
+    #ifndef __EMSCRIPTEN__
 	FILE* fp = fopen(history_path, "rb");
 	if(fp == NULL)
 	{
@@ -192,6 +193,7 @@ bool console_state::init(
 			}
 		}
 	}
+#endif
 
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
@@ -206,6 +208,7 @@ bool console_state::destroy()
 
 	bool success = true;
 
+    #ifndef __EMSCRIPTEN__
 	FILE* fp = serr_wrapper_fopen(history_path, "wb");
 	if(fp == NULL)
 	{
@@ -232,6 +235,7 @@ bool console_state::destroy()
 			success = false;
 		}
 	}
+#endif
 
 	return GL_CHECK(__func__) == GL_NO_ERROR && success;
 }
@@ -280,7 +284,7 @@ void console_state::resize_text_area()
 		60,
 		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_font->get_lineskip());
+		console_font->get_lineskip()+1);
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
 	// but if it's too big it could potentially block UI elements in an annoying way

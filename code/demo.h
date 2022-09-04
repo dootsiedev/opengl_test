@@ -10,6 +10,8 @@
 #include "font/text_prompt.h"
 #include "console.h"
 
+#include <SDL2/SDL.h>
+
 #include <glm/vec2.hpp> // vec2
 #include <glm/vec3.hpp> // vec3
 #include <limits>
@@ -96,6 +98,8 @@ struct demo_state
 	// places glyphs into the atlas texture, and
 	// stores the location of glyphs in the atlas
 	font_bitmap_cache font_style;
+    // if you want to use unifont as a standalone style, use this.
+    hex_font_placeholder unifont_style;
 
 	// this puts the text on the screen using a style and batcher.
 	font_sprite_painter font_painter;
@@ -108,7 +112,7 @@ struct demo_state
 	// show g_console
 	bool show_console = false;
 
-	bool update_projection = false;
+    bool update_screen_resize = true;
 
 	TIMER_U timer_last = 0;
 
@@ -146,7 +150,7 @@ struct demo_state
 	NDSERR bool destroy();
 	NDSERR bool destroy_gl_font();
 
-	NDSERR DEMO_RESULT input();
+	NDSERR bool input(SDL_Event &e);
 	void unfocus();
 	NDSERR bool render();
 

@@ -1618,7 +1618,7 @@ internal_font_painter_state::load_glyph_verts(
 	case FONT_ENTRY::HEXFONT: {
 		float hex_scale = font->get_point_size() / static_cast<float>(HEX_HEIGHT);
 		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * hex_scale;
-		pos[1] = draw_y_pos;
+		pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * hex_scale;
 		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * hex_scale;
 		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * hex_scale;
 		draw_x_pos += static_cast<float>(glyph.advance) * hex_scale;

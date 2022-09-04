@@ -19,7 +19,7 @@ struct shader_pointsprite_state
 		GLint a_vert_pos = -1;
 		GLint a_point_pos = -1;
 		GLint a_point_color = -1;
-		GLint a_point_inst_id = -1;
+		//GLint a_point_inst_id = -1;
 	} gl_attributes;
 
     bool create();

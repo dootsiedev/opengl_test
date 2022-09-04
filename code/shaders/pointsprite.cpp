@@ -12,7 +12,7 @@ uniform mat4 u_view;
 in vec3 a_vert_pos;
 in vec3 a_point_pos;
 in vec4 a_point_color;
-in int a_point_inst_id;
+//in int a_point_inst_id;
 
 out vec4 frag_color;
 
@@ -26,7 +26,7 @@ mat4 Get_Matrix(int offset)
 
 void main()
 {
-	mat4 model = Get_Matrix(a_point_inst_id);
+	mat4 model = Get_Matrix(0);
 	//remove the rotation of the model from the point
 	//I don't actually understand the math this is trial and error
 	vec3 pos = a_point_pos + inverse(mat3(model)) * a_vert_pos;
@@ -87,7 +87,7 @@ bool shader_pointsprite_state::create()
 	SET_GL_ATTRIBUTE_ID(a_vert_pos);
     SET_GL_ATTRIBUTE_ID(a_point_pos);
     SET_GL_ATTRIBUTE_ID(a_point_color);
-	SET_GL_ATTRIBUTE_ID(a_point_inst_id);
+	//SET_GL_ATTRIBUTE_ID(a_point_inst_id);
 #undef SET_GL_ATTRIBUTE_ID
 
     return GL_CHECK(__func__) == GL_NO_ERROR;
