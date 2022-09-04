@@ -106,7 +106,8 @@ I probably should handle ALL the mouse events anyways to prevent SDL2 from makin
 
 static REGISTER_CVAR_STRING(cv_string, "test\n"
 "f1 - open console\n"
-"alt+enter - fullscreen", "the string to display", CVAR_T::STARTUP);
+"alt+enter - fullscreen\n"
+"wasd - move", "the string to display", CVAR_T::STARTUP);
 static REGISTER_CVAR_DOUBLE(cv_string_pt, 16.0, "the point size of the string", CVAR_T::STARTUP);
 static REGISTER_CVAR_STRING(
 	cv_string_font, "seguiemj.ttf", "the font of the string, \"unifont\" is a special font.", CVAR_T::STARTUP);
