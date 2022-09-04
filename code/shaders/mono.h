@@ -5,11 +5,11 @@
 
 struct shader_mono_state
 {
-    GLuint gl_program_id = 0;
+	GLuint gl_program_id = 0;
 
-    struct
+	struct
 	{
-        GLint u_tex = -1;
+		GLint u_tex = -1;
 		GLint u_mvp = -1;
 	} gl_uniforms;
 
@@ -20,8 +20,8 @@ struct shader_mono_state
 		GLint a_color = -1;
 	} gl_attributes;
 
-    bool create();
-    bool destroy();
+	bool create();
+	bool destroy();
 };
 
 // this is a vao that works with interleaved gl_mono_vertex
@@ -52,11 +52,9 @@ struct gl_mono_vertex
 	GLubyte color[4];
 };
 
-
-
 struct mono_2d_batcher
 {
-    enum
+	enum
 	{
 		QUAD_VERTS = 6
 	};
@@ -65,46 +63,46 @@ struct mono_2d_batcher
 	size_t size = 0;
 	size_t cursor = 0;
 
-    void init(gl_mono_vertex* buffer_, size_t size_)
-    {
-        ASSERT(buffer_);
-        buffer = buffer_;
-        size = size_;
-    }
+	void init(gl_mono_vertex* buffer_, size_t size_)
+	{
+		ASSERT(buffer_);
+		buffer = buffer_;
+		size = size_;
+	}
 
 	GLsizei get_current_vertex_count() const
 	{
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		return cursor * QUAD_VERTS;
 	}
-    GLsizeiptr get_current_vertex_size() const
-    {
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        return cursor * QUAD_VERTS * sizeof(gl_mono_vertex);
-    }
-    GLsizeiptr get_total_vertex_size() const
-    {
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        return size * QUAD_VERTS * sizeof(gl_mono_vertex);
-    }
-    size_t get_quad_count() const
+	GLsizeiptr get_current_vertex_size() const
 	{
-        ASSERT(buffer != NULL);
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		return cursor * QUAD_VERTS * sizeof(gl_mono_vertex);
+	}
+	GLsizeiptr get_total_vertex_size() const
+	{
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		return size * QUAD_VERTS * sizeof(gl_mono_vertex);
+	}
+	size_t get_quad_count() const
+	{
+		ASSERT(buffer != NULL);
 		return cursor;
 	}
-    //use the return from get_quad_count
-    void set_cursor(size_t pos)
-    {
-        ASSERT(buffer != NULL);
-        ASSERT(pos < size);
-        cursor = pos;
+	// use the return from get_quad_count
+	void set_cursor(size_t pos)
+	{
+		ASSERT(buffer != NULL);
+		ASSERT(pos < size);
+		cursor = pos;
 	}
 
 	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy
 	bool draw_rect(std::array<float, 4> pos, std::array<float, 4> uv, std::array<uint8_t, 4> color)
 	{
 		ASSERT(buffer != NULL);
-        if(cursor >= size)
+		if(cursor >= size)
 		{
 			return false;
 		}
@@ -112,27 +110,30 @@ struct mono_2d_batcher
 	}
 
 	int placeholder_rect()
-    {
+	{
 		ASSERT(buffer != NULL);
-        if(cursor >= size)
+		if(cursor >= size)
 		{
 			return -1;
 		}
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-        return cursor++;
-    }
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		return cursor++;
+	}
 
-    // index is the quad index.
+	// index is the quad index.
 	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy
 	bool draw_rect_at(
-		size_t index, std::array<float, 4> pos, std::array<float, 4> uv, std::array<uint8_t, 4> color)
+		size_t index,
+		std::array<float, 4> pos,
+		std::array<float, 4> uv,
+		std::array<uint8_t, 4> color)
 	{
 		ASSERT(buffer != NULL);
 		if(index >= size)
 		{
 			return false;
 		}
-        gl_mono_vertex *cur = buffer + index * QUAD_VERTS;
+		gl_mono_vertex* cur = buffer + index * QUAD_VERTS;
 		*cur++ = {pos[0], pos[1], 0.f, uv[0], uv[1], color[0], color[1], color[2], color[3]};
 		*cur++ = {pos[2], pos[3], 0.f, uv[2], uv[3], color[0], color[1], color[2], color[3]};
 		*cur++ = {pos[2], pos[1], 0.f, uv[2], uv[1], color[0], color[1], color[2], color[3]};

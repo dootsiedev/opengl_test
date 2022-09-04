@@ -1266,7 +1266,7 @@ float font_bitmap_cache::get_ascent()
 	}
 	// Get the scalable font metrics for this font
 	FT_Fixed scale = face->size->metrics.y_scale;
-    // NOLINTNEXTLINE(bugprone-integer-division
+	// NOLINTNEXTLINE(bugprone-integer-division
 	return FT_CEIL(FT_MulFix(face->ascender, scale));
 }
 float font_bitmap_cache::get_lineskip()
@@ -1279,12 +1279,12 @@ float font_bitmap_cache::get_lineskip()
 	}
 	FT_Fixed scale = face->size->metrics.y_scale;
 
-    // NOLINTNEXTLINE(bugprone-integer-division)
+	// NOLINTNEXTLINE(bugprone-integer-division)
 	return FT_CEIL(FT_MulFix(face->height, scale));
 }
 float font_bitmap_cache::get_bitmap_size()
 {
-    // NOLINTNEXTLINE(bugprone-integer-division
+	// NOLINTNEXTLINE(bugprone-integer-division
 	return FT_CEIL(current_rasterizer->face->size->metrics.height);
 }
 
@@ -1369,7 +1369,7 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 	tick2 = timer_now();
 	slogf("advance time = %f\n", timer_delta_ms(tick1, tick2));
 #endif
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	*advance = (current_rasterizer->face->glyph->advance.x >> 6);
 	return FONT_RESULT::SUCCESS;
 }

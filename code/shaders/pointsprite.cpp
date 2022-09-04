@@ -2,7 +2,7 @@
 
 #include "pointsprite.h"
 
-static const char *shader_point_sprite_vs = R"(#version 300 es
+static const char* shader_point_sprite_vs = R"(#version 300 es
 precision mediump float;
 
 uniform sampler2D u_inst_table;
@@ -26,6 +26,7 @@ mat4 Get_Matrix(int offset)
 
 void main()
 {
+    //TODO: this is just a placeholder, I have given up on pointsprite so I don't really care.
 	mat4 model = Get_Matrix(0);
 	//remove the rotation of the model from the point
 	//I don't actually understand the math this is trial and error
@@ -35,7 +36,7 @@ void main()
 }
 )";
 
-static const char *shader_point_sprite_fs = R"(#version 300 es
+static const char* shader_point_sprite_fs = R"(#version 300 es
 precision mediump float;
 in vec4 frag_color;
 out vec4 color;
@@ -47,13 +48,13 @@ void main()
 
 bool shader_pointsprite_state::create()
 {
-    gl_program_id = gl_create_program(
+	gl_program_id = gl_create_program(
 		"shader_point_sprite_vs",
 		shader_point_sprite_vs,
 		"shader_point_sprite_fs",
 		shader_point_sprite_fs);
-    if(gl_program_id == 0)
-    {
+	if(gl_program_id == 0)
+	{
 		return false;
 	}
 
@@ -85,12 +86,12 @@ bool shader_pointsprite_state::create()
 	} while(0)
 
 	SET_GL_ATTRIBUTE_ID(a_vert_pos);
-    SET_GL_ATTRIBUTE_ID(a_point_pos);
-    SET_GL_ATTRIBUTE_ID(a_point_color);
-	//SET_GL_ATTRIBUTE_ID(a_point_inst_id);
+	SET_GL_ATTRIBUTE_ID(a_point_pos);
+	SET_GL_ATTRIBUTE_ID(a_point_color);
+	// SET_GL_ATTRIBUTE_ID(a_point_inst_id);
 #undef SET_GL_ATTRIBUTE_ID
 
-    return GL_CHECK(__func__) == GL_NO_ERROR;
+	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
 bool shader_pointsprite_state::destroy()
@@ -100,5 +101,5 @@ bool shader_pointsprite_state::destroy()
 		ctx.glDeleteProgram(gl_program_id);
 		gl_program_id = 0;
 	}
-    return GL_CHECK(__func__) == GL_NO_ERROR;
+	return GL_CHECK(__func__) == GL_NO_ERROR;
 }

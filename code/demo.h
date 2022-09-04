@@ -98,21 +98,21 @@ struct demo_state
 	// places glyphs into the atlas texture, and
 	// stores the location of glyphs in the atlas
 	font_bitmap_cache font_style;
-    // if you want to use unifont as a standalone style, use this.
-    hex_font_placeholder unifont_style;
+	// if you want to use unifont as a standalone style, use this.
+	hex_font_placeholder unifont_style;
 
 	// this puts the text on the screen using a style and batcher.
 	font_sprite_painter font_painter;
 
 	// convenience wrapper for drawing quads vertices into a buffer.
-    // you only need one.
+	// you only need one.
 	mono_2d_batcher font_batcher;
 	std::unique_ptr<gl_mono_vertex[]> font_batcher_buffer;
 
 	// show g_console
 	bool show_console = false;
 
-    bool update_screen_resize = true;
+	bool update_screen_resize = true;
 
 	TIMER_U timer_last = 0;
 
@@ -150,7 +150,7 @@ struct demo_state
 	NDSERR bool destroy();
 	NDSERR bool destroy_gl_font();
 
-	NDSERR bool input(SDL_Event &e);
+	NDSERR bool input(SDL_Event& e);
 	void unfocus();
 	NDSERR bool render();
 

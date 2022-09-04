@@ -246,15 +246,15 @@ bool text_prompt_wrapper::draw()
 		return false;
 	}
 
-    // SDL_IsTextInputShown is available on the same verison TEXTEDIT_EXT is supported.
-    #ifdef IME_TEXTEDIT_EXT
-    // SDL_IsTextInputShown doesn't work on linux mint SDL2 2.0.23 with Mozc IME 
-    // when the IME prompt is empty. I probably NEED to call SDL_StartTextInput 
-    // AFTER I set SDL_SetTextInputRect, which is tedious...
+// SDL_IsTextInputShown is available on the same verison TEXTEDIT_EXT is supported.
+#ifdef IME_TEXTEDIT_EXT
+	// SDL_IsTextInputShown doesn't work on linux mint SDL2 2.0.23 with Mozc IME
+	// when the IME prompt is empty. I probably NEED to call SDL_StartTextInput
+	// AFTER I set SDL_SetTextInputRect, which is tedious...
 	if(markedText.empty() && SDL_IsTextInputShown() == SDL_FALSE)
-    #else
+#else
 	if(markedText.empty())
-    #endif
+#endif
 	{
 		// draw the cursor
 		if(draw_caret && caret_visible)
@@ -830,7 +830,7 @@ bool text_prompt_wrapper::internal_draw_text(
 					}
                     state.draw_x_pos = peek_x;
 #endif
-                    switch(state.load_glyph_verts(ret.codepoint, color, ret.style))
+					switch(state.load_glyph_verts(ret.codepoint, color, ret.style))
 					{
 					case FONT_RESULT::NOT_FOUND:
 						serrf("%s glyph not found: U+%X\n", __func__, ret.codepoint);

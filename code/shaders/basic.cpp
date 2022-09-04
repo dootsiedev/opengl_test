@@ -45,7 +45,8 @@ void main()
 
 bool shader_basic_state::create()
 {
-	gl_program_id = gl_create_program("shader_basic_vs", shader_basic_vs, "shader_basic_fs", shader_basic_fs);
+	gl_program_id =
+		gl_create_program("shader_basic_vs", shader_basic_vs, "shader_basic_fs", shader_basic_fs);
 	if(gl_program_id == 0)
 	{
 		return false;
@@ -92,5 +93,5 @@ bool shader_basic_state::destroy()
 		ctx.glDeleteProgram(gl_program_id);
 		gl_program_id = 0;
 	}
-    return GL_CHECK(__func__) == GL_NO_ERROR;
+	return GL_CHECK(__func__) == GL_NO_ERROR;
 }

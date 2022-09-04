@@ -22,66 +22,67 @@ int main(int argc, char** argv)
 
 	bool success = true;
 
-	for(int i = 0; i < argc; ++i)
+	const char* path = "cvar.cfg";
+	FILE* fp = fopen(path, "rb");
+	if(fp == NULL)
 	{
-		if(strcmp(argv[i], "--help") == 0)
+		// not existing is not an error (maybe make an info log?)
+		// ENOENT = No such file or directory
+		if(errno != ENOENT)
 		{
-			const char* usage_message = "Usage: %s [--options] [+cv_option \"0\"]\n"
-										"\t--help\tshow this usage message\n"
-										"\t--list-cvars\tlist all cv vars options\n"
-										"\tnote that you must put cvars after options\n";
-			slogf(usage_message, "prog_name");
-			return 0;
+			serrf("Failed to open: `%s`, reason: %s\n", path, strerror(errno));
+			success = false;
 		}
-		if(strcmp(argv[i], "--list-cvars") == 0)
+	}
+	else
+	{
+		slogf("info: cvar file found: %s\n", path);
+		RWops_Stdio fp_raii(fp, path);
+		if(!cvar_file(CVAR_T::STARTUP, &fp_raii))
 		{
-			cvar_list(false);
-			return 0;
+			success = false;
 		}
-		if(strcmp(argv[i], "--list-cvars-debug") == 0)
+		if(!fp_raii.close())
 		{
-			cvar_list(true);
-			return 0;
+			success = false;
 		}
-		if(argv[i][0] == '+')
-		{
-			if(!cvar_args(CVAR_T::STARTUP, argc - i, argv + i))
-			{
-				success = false;
-			}
-			break;
-		}
-
-		serrf("ERROR: unknown argument: %s\n", argv[i]);
-		success = false;
 	}
 
+	// load cvar arguments after I load the cvar file
 	if(success)
 	{
-		const char* path = "cvar.cfg";
-		FILE* fp = fopen(path, "rb");
-		if(fp == NULL)
+		for(int i = 0; i < argc; ++i)
 		{
-			// not existing is not an error (maybe make an info log?)
-			// ENOENT = No such file or directory
-			if(errno != ENOENT)
+			if(strcmp(argv[i], "--help") == 0)
 			{
-				serrf("Failed to open: `%s`, reason: %s\n", path, strerror(errno));
-				success = false;
+				const char* usage_message = "Usage: %s [--options] [+cv_option \"0\"]\n"
+											"\t--help\tshow this usage message\n"
+											"\t--list-cvars\tlist all cv vars options\n"
+											"\tnote that you must put cvars after options\n";
+				slogf(usage_message, "prog_name");
+				return 0;
 			}
-		}
-		else
-		{
-			slogf("info: cvar file found: %s\n", path);
-			RWops_Stdio fp_raii(fp, path);
-			if(!cvar_file(CVAR_T::STARTUP, &fp_raii))
+			if(strcmp(argv[i], "--list-cvars") == 0)
 			{
-				success = false;
+				cvar_list(false);
+				return 0;
 			}
-			if(!fp_raii.close())
+			if(strcmp(argv[i], "--list-cvars-debug") == 0)
 			{
-				success = false;
+				cvar_list(true);
+				return 0;
 			}
+			if(argv[i][0] == '+')
+			{
+				if(!cvar_args(CVAR_T::STARTUP, argc - i, argv + i))
+				{
+					success = false;
+				}
+				break;
+			}
+
+			serrf("ERROR: unknown argument: %s\n", argv[i]);
+			success = false;
 		}
 	}
 
@@ -100,25 +101,26 @@ int main(int argc, char** argv)
 			}
 			else
 			{
-                #ifdef __EMSCRIPTEN__
-                struct shitty_payload{
-                    demo_state* p_demo;
-                    bool* p_success; 
-                } pay{&demo, &success};
-                auto loop = [](void* ud){
-                    shitty_payload *p_pay = static_cast<shitty_payload*>(ud);
-                    switch(p_pay->p_demo->process())
+#ifdef __EMSCRIPTEN__
+				struct shitty_payload
+				{
+					demo_state* p_demo;
+					bool* p_success;
+				} pay{&demo, &success};
+				auto loop = [](void* ud) {
+					shitty_payload* p_pay = static_cast<shitty_payload*>(ud);
+					switch(p_pay->p_demo->process())
 					{
 					case DEMO_RESULT::CONTINUE: break;
 					case DEMO_RESULT::EXIT: emscripten_cancel_main_loop(); break;
 					case DEMO_RESULT::ERROR:
-                        emscripten_cancel_main_loop();
+						emscripten_cancel_main_loop();
 						*p_pay->p_success = false;
 						break;
 					}
-};
-                  emscripten_set_main_loop_arg(loop, &pay, 0, 1);
-                #else
+				};
+				emscripten_set_main_loop_arg(loop, &pay, 0, 1);
+#else
 				bool quit = false;
 				while(!quit)
 				{

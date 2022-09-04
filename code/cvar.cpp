@@ -298,13 +298,13 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
 	const size_t max_line_size = 1000;
 
 	char line_buf[max_line_size + 1];
-	size_t count = 0;
+	//size_t count = 0;
 	char* pos = line_buf;
 	char* end = line_buf + max_line_size;
 	while(pos < end)
 	{
 		*pos = reader.Take();
-		++count;
+		//++count;
 		if(*pos == '\n')
 		{
 			if(line_buf[0] == '#' || pos == line_buf)

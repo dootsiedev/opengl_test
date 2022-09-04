@@ -4,12 +4,11 @@
 
 #include <SDL2/SDL.h>
 
-
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/html5.h>
-const char *emscripten_result_to_string(EMSCRIPTEN_RESULT result);
-const char *emscripten_event_type_to_string(int eventType);
+const char* emscripten_result_to_string(EMSCRIPTEN_RESULT result);
+const char* emscripten_event_type_to_string(int eventType);
 #endif
 
 // Note this is not RAII safe

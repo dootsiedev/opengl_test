@@ -3,7 +3,6 @@
 
 #include "opengles2/opengl_stuff.h"
 
-
 App_Info g_app;
 
 REGISTER_CVAR_INT(cv_screen_width, 640, "screen width in windowed mode", CVAR_T::STARTUP);
@@ -18,32 +17,73 @@ REGISTER_CVAR_INT(
 cvar_fullscreen cv_fullscreen;
 cvar_vysnc cv_vsync;
 
-
 #ifdef __EMSCRIPTEN__
+//  TODO: export the console so the web page has a backup prompt.
+//  TODO: some sort of hotkey to restart with startup cvars (or use php url thingy for it?)
+//      or should I just have the web page paused on start so you can enter the cvars?
+//  TODO: clipboard requires async events and there are portability problems
+//      but it's still possible I just need to make keyboard events use the callback
+//      (unless I am wrong that I need a short handler to grab the clipboard?)
+//      and use callbacks to save and load the clipboard asynchronously.
 // this emscripten code is based heavily on test/test_html5_fullscreen.c
-const char *emscripten_event_type_to_string(int eventType) {
-  const char *events[] = { "(invalid)", "(none)", "keypress", "keydown", "keyup", "click", "mousedown", "mouseup", "dblclick", "mousemove", "wheel", "resize",
-    "scroll", "blur", "focus", "focusin", "focusout", "deviceorientation", "devicemotion", "orientationchange", "fullscreenchange", "pointerlockchange",
-    "visibilitychange", "touchstart", "touchend", "touchmove", "touchcancel", "gamepadconnected", "gamepaddisconnected", "beforeunload",
-    "batterychargingchange", "batterylevelchange", "webglcontextlost", "webglcontextrestored", "(invalid)" };
-  ++eventType;
-  if (eventType < 0) eventType = 0;
-  if (eventType >= sizeof(events)/sizeof(events[0])) eventType = sizeof(events)/sizeof(events[0])-1;
-  return events[eventType];
+const char* emscripten_event_type_to_string(int eventType)
+{
+	const char* events[] = {
+		"(invalid)",
+		"(none)",
+		"keypress",
+		"keydown",
+		"keyup",
+		"click",
+		"mousedown",
+		"mouseup",
+		"dblclick",
+		"mousemove",
+		"wheel",
+		"resize",
+		"scroll",
+		"blur",
+		"focus",
+		"focusin",
+		"focusout",
+		"deviceorientation",
+		"devicemotion",
+		"orientationchange",
+		"fullscreenchange",
+		"pointerlockchange",
+		"visibilitychange",
+		"touchstart",
+		"touchend",
+		"touchmove",
+		"touchcancel",
+		"gamepadconnected",
+		"gamepaddisconnected",
+		"beforeunload",
+		"batterychargingchange",
+		"batterylevelchange",
+		"webglcontextlost",
+		"webglcontextrestored",
+		"(invalid)"};
+	++eventType;
+	if(eventType < 0) eventType = 0;
+	if(static_cast<size_t>(eventType) >= sizeof(events) / sizeof(events[0]))
+		eventType = sizeof(events) / sizeof(events[0]) - 1;
+	return events[eventType];
 }
-const char *emscripten_result_to_string(EMSCRIPTEN_RESULT result) {
-  if (result == EMSCRIPTEN_RESULT_SUCCESS) return "EMSCRIPTEN_RESULT_SUCCESS";
-  if (result == EMSCRIPTEN_RESULT_DEFERRED) return "EMSCRIPTEN_RESULT_DEFERRED";
-  if (result == EMSCRIPTEN_RESULT_NOT_SUPPORTED) return "EMSCRIPTEN_RESULT_NOT_SUPPORTED";
-  if (result == EMSCRIPTEN_RESULT_FAILED_NOT_DEFERRED) return "EMSCRIPTEN_RESULT_FAILED_NOT_DEFERRED";
-  if (result == EMSCRIPTEN_RESULT_INVALID_TARGET) return "EMSCRIPTEN_RESULT_INVALID_TARGET";
-  if (result == EMSCRIPTEN_RESULT_UNKNOWN_TARGET) return "EMSCRIPTEN_RESULT_UNKNOWN_TARGET";
-  if (result == EMSCRIPTEN_RESULT_INVALID_PARAM) return "EMSCRIPTEN_RESULT_INVALID_PARAM";
-  if (result == EMSCRIPTEN_RESULT_FAILED) return "EMSCRIPTEN_RESULT_FAILED";
-  if (result == EMSCRIPTEN_RESULT_NO_DATA) return "EMSCRIPTEN_RESULT_NO_DATA";
-  return "Unknown EMSCRIPTEN_RESULT!";
+const char* emscripten_result_to_string(EMSCRIPTEN_RESULT result)
+{
+	if(result == EMSCRIPTEN_RESULT_SUCCESS) return "EMSCRIPTEN_RESULT_SUCCESS";
+	if(result == EMSCRIPTEN_RESULT_DEFERRED) return "EMSCRIPTEN_RESULT_DEFERRED";
+	if(result == EMSCRIPTEN_RESULT_NOT_SUPPORTED) return "EMSCRIPTEN_RESULT_NOT_SUPPORTED";
+	if(result == EMSCRIPTEN_RESULT_FAILED_NOT_DEFERRED)
+		return "EMSCRIPTEN_RESULT_FAILED_NOT_DEFERRED";
+	if(result == EMSCRIPTEN_RESULT_INVALID_TARGET) return "EMSCRIPTEN_RESULT_INVALID_TARGET";
+	if(result == EMSCRIPTEN_RESULT_UNKNOWN_TARGET) return "EMSCRIPTEN_RESULT_UNKNOWN_TARGET";
+	if(result == EMSCRIPTEN_RESULT_INVALID_PARAM) return "EMSCRIPTEN_RESULT_INVALID_PARAM";
+	if(result == EMSCRIPTEN_RESULT_FAILED) return "EMSCRIPTEN_RESULT_FAILED";
+	if(result == EMSCRIPTEN_RESULT_NO_DATA) return "EMSCRIPTEN_RESULT_NO_DATA";
+	return "Unknown EMSCRIPTEN_RESULT!";
 }
-
 
 #if 0
 EM_BOOL on_canvassize_changed(int eventType, const void *reserved, void *userData)
@@ -92,39 +132,47 @@ EM_BOOL fullscreenchange_callback(int eventType, const EmscriptenFullscreenChang
 }
 #endif
 
-// trigger this with an html button because html will only trigger fullscreen if you do it in a correct handler.
-extern "C" 
+// trigger this with an html button because html will only trigger fullscreen if you do it in a
+// correct handler.
+extern "C" {
+extern void enter_fullscreen()
 {
-    extern void enter_fullscreen()
-    {
-        // make the screen pixel perfect to the screen resolution (but this is NOT high-dpi aware)
-        EmscriptenFullscreenStrategy s;
-        memset(&s, 0, sizeof(s));
-        s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_DEFAULT;
-        s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
-        s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
-        s.canvasResizedCallback = 0;//on_canvassize_changed;
-        // deferred means to my understanding that if this fails, 
-        // the next event will fullscreen (so the next click would trigger fullscreen)
-        EMSCRIPTEN_RESULT em_ret = emscripten_request_fullscreen_strategy("#canvas", 1, &s);
-        if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-        {
-            slogf("%s returned %s.\n", "emscripten_request_fullscreen_strategy", emscripten_result_to_string(em_ret));
-        }
-    }
+	// make the screen pixel perfect to the screen resolution (but this is NOT high-dpi aware)
+	EmscriptenFullscreenStrategy s;
+	memset(&s, 0, sizeof(s));
+	s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_DEFAULT;
+	s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
+	s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
+	s.canvasResizedCallback = 0; // on_canvassize_changed;
+	// deferred means to my understanding that if this fails,
+	// the next event will fullscreen (so the next click would trigger fullscreen)
+	EMSCRIPTEN_RESULT em_ret = emscripten_request_fullscreen_strategy("#canvas", 1, &s);
+	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+	{
+		slogf(
+			"%s returned %s.\n",
+			"emscripten_request_fullscreen_strategy",
+			emscripten_result_to_string(em_ret));
+	}
+}
 }
 
-int on_button_click(int eventType, const EmscriptenMouseEvent *mouseEvent, void *userData)
+static int on_button_click(int eventType, const EmscriptenMouseEvent* mouseEvent, void* userData)
 {
-    enter_fullscreen();
-    return 1;
+	(void)userData; // unused
+	(void)mouseEvent; // unused
+	if(eventType == EMSCRIPTEN_EVENT_CLICK)
+	{
+		enter_fullscreen();
+		return 1;
+	}
+	return 0;
 }
 
-//static int original_w = 0;
-//static int original_h = 0;
+// static int original_w = 0;
+// static int original_h = 0;
 
 #endif
-
 
 bool app_init(App_Info& app)
 {
@@ -142,19 +190,23 @@ bool app_init(App_Info& app)
         slogf("%s returned %s.\n", "emscripten_set_fullscreenchange_callback", emscripten_result_to_string(em_ret));
     }
 #endif
-    EMSCRIPTEN_RESULT em_ret = emscripten_set_click_callback("#fullscreen_button", (void*)0, 1, on_button_click);
-    if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-    {
-        slogf("%s returned %s.\n", "emscripten_set_click_callback", emscripten_result_to_string(em_ret));
-    }
+	EMSCRIPTEN_RESULT em_ret =
+		emscripten_set_click_callback("#fullscreen_button", (void*)0, 1, on_button_click);
+	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+	{
+		slogf(
+			"%s returned %s.\n",
+			"emscripten_set_click_callback",
+			emscripten_result_to_string(em_ret));
+	}
 
-    if(cv_fullscreen.data == 1)
-    {
-        slogf("warning: emscripten should not start with fullscreen.\n");
-    }
+	if(cv_fullscreen.data == 1)
+	{
+		slogf("warning: emscripten should not start with fullscreen.\n");
+	}
 
-    //original_w = cv_screen_width.data;
-    //original_h = cv_screen_height.data;
+	// original_w = cv_screen_width.data;
+	// original_h = cv_screen_height.data;
 #endif
 
 	// this is started for some reason...
@@ -216,7 +268,6 @@ bool app_init(App_Info& app)
 		serrf("SDL_CreateWindow Error: %s", SDL_GetError());
 		return false;
 	}
-
 
 	// clear previous SDL errors because we depend on checking it.
 	SDL_ClearError();
@@ -296,16 +347,21 @@ bool app_destroy(App_Info& app)
 		app.window = NULL;
 	}
 
-    #ifdef __EMSCRIPTEN__
-    emscripten_set_click_callback("#fullscreen_button", (void*)0, 1, NULL);
-    #endif
+#ifdef __EMSCRIPTEN__
+	EMSCRIPTEN_RESULT em_ret =
+		emscripten_set_click_callback("#fullscreen_button", (void*)0, 0, NULL);
+	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+	{
+		slogf(
+			"%s returned %s.\n",
+			"emscripten_set_click_callback(#fullscreen_button)",
+			emscripten_result_to_string(em_ret));
+	}
+#endif
 
 	SDL_Quit();
 	return success;
 }
-
-
-
 
 cvar_fullscreen::cvar_fullscreen()
 : cvar_int("cv_fullscreen", 0, "0 = windowed, 1 = fullscreen", CVAR_T::RUNTIME, __FILE__, __LINE__)
@@ -316,55 +372,64 @@ bool cvar_fullscreen::cvar_read(const char* buffer)
 	bool ret = cvar_int::cvar_read(buffer);
 	if(ret && g_app.window != NULL)
 	{
-        
 #ifdef __EMSCRIPTEN__
-// this is a hack to force soft fullscreen to play nicely with the fullscreen button on the emscripten demo page
-        EmscriptenFullscreenChangeEvent fsce;
-        EMSCRIPTEN_RESULT em_ret = emscripten_get_fullscreen_status(&fsce);
-        if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-        {
-            slogf("%s returned %s.\n", "emscripten_get_fullscreen_status", emscripten_result_to_string(em_ret));
-        }
-        else
-        {
-            if (fsce.isFullscreen)
-            {
-                slogf("info: exit fullscreen\n");
-                data = 0;
-                em_ret = emscripten_exit_fullscreen();
-                if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-                {
-                    slogf("%s returned %s.\n", "emscripten_exit_fullscreen", emscripten_result_to_string(em_ret));
-                }
-                // there is a weird glitch I forgot how to reproduce, 
-                // it has to do with mixing soft and full fullscreen,                
-                // but essentially emscripten forgets the original size of the window.
-                // UPDATE: But it turns out that this didn't even fix the problem...
-                // The problem comes from a failed fullscreen request due to long running handler.
-                //SDL_SetWindowSize(g_app.window, original_w, original_h);
-                return ret;
-            }
-        }
-        // use soft fullscreen
-        if(data == 1)
-        {
-            EmscriptenFullscreenStrategy s;
-            memset(&s, 0, sizeof(s));
-            s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_DEFAULT;
-            s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
-            s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
-            s.canvasResizedCallback = NULL;//on_canvassize_changed;
-            em_ret = emscripten_enter_soft_fullscreen("#canvas", &s);
-            if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-            {
-                slogf("%s returned %s.\n", "emscripten_enter_soft_fullscreen", emscripten_result_to_string(em_ret));
-                data = 0;
-            }
-        } 
-        else
-        {
-            emscripten_exit_soft_fullscreen();
-        }
+		// this is a hack to force soft fullscreen to play nicely with the fullscreen button on the
+		// emscripten demo page
+		EmscriptenFullscreenChangeEvent fsce;
+		EMSCRIPTEN_RESULT em_ret = emscripten_get_fullscreen_status(&fsce);
+		if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+		{
+			slogf(
+				"%s returned %s.\n",
+				"emscripten_get_fullscreen_status",
+				emscripten_result_to_string(em_ret));
+		}
+		else
+		{
+			if(fsce.isFullscreen)
+			{
+				slogf("info: exit fullscreen\n");
+				data = 0;
+				em_ret = emscripten_exit_fullscreen();
+				if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+				{
+					slogf(
+						"%s returned %s.\n",
+						"emscripten_exit_fullscreen",
+						emscripten_result_to_string(em_ret));
+				}
+				// there is a weird glitch I forgot how to reproduce,
+				// it has to do with mixing soft and full fullscreen,
+				// but essentially emscripten forgets the original size of the window.
+				// UPDATE: But it turns out that this didn't even fix the problem...
+				// The problem comes from a failed fullscreen request due to long running handler.
+				// SDL_SetWindowSize(g_app.window, original_w, original_h);
+				return ret;
+			}
+		}
+		// use soft fullscreen
+		if(data == 1)
+		{
+			EmscriptenFullscreenStrategy s;
+			memset(&s, 0, sizeof(s));
+			s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_DEFAULT;
+			s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
+			s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
+			s.canvasResizedCallback = NULL; // on_canvassize_changed;
+			em_ret = emscripten_enter_soft_fullscreen("#canvas", &s);
+			if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+			{
+				slogf(
+					"%s returned %s.\n",
+					"emscripten_enter_soft_fullscreen",
+					emscripten_result_to_string(em_ret));
+				data = 0;
+			}
+		}
+		else
+		{
+			emscripten_exit_soft_fullscreen();
+		}
 #else
 		Uint32 fullscreen_mode = data == 1 ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
 		if(SDL_SetWindowFullscreen(g_app.window, fullscreen_mode) < 0)
@@ -372,8 +437,6 @@ bool cvar_fullscreen::cvar_read(const char* buffer)
 			slogf("info: SDL_SetWindowFullscreen failed: %s\n", SDL_GetError());
 		}
 #endif
-
-
 	}
 	return ret;
 }

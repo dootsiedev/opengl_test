@@ -68,9 +68,9 @@ bool console_state::init(
 	{
 		return false;
 	}
-    // set the color table so we can print errors with a different color
-    log_box.color_table = log_color_table.data();
-    log_box.color_table_size = log_color_table.size();
+	// set the color table so we can print errors with a different color
+	log_box.color_table = log_color_table.data();
+	log_box.color_table_size = log_color_table.size();
 
 	//
 	// prompt
@@ -151,7 +151,7 @@ bool console_state::init(
 	// set the area the text is placed.
 	resize_text_area();
 
-    #ifndef __EMSCRIPTEN__
+#ifndef __EMSCRIPTEN__
 	FILE* fp = fopen(history_path, "rb");
 	if(fp == NULL)
 	{
@@ -208,7 +208,7 @@ bool console_state::destroy()
 
 	bool success = true;
 
-    #ifndef __EMSCRIPTEN__
+#ifndef __EMSCRIPTEN__
 	FILE* fp = serr_wrapper_fopen(history_path, "wb");
 	if(fp == NULL)
 	{
@@ -284,7 +284,7 @@ void console_state::resize_text_area()
 		60,
 		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_font->get_lineskip()+1);
+		console_font->get_lineskip() + 1);
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
 	// but if it's too big it could potentially block UI elements in an annoying way
@@ -441,11 +441,11 @@ bool console_state::parse_input()
 	}
 	history_index = -1;
 
-    // TODO: save options?
+	// TODO: save options?
 	if(line == "help")
 	{
 		// TODO: probably should have an option to only show runtime options?
-        // and also showing the debug lines would be nice too.
+		// and also showing the debug lines would be nice too.
 		cvar_list(false);
 	}
 	else
@@ -453,7 +453,7 @@ bool console_state::parse_input()
 		// this will modify the string which means you can't use line after this.
 		if(!cvar_line(CVAR_T::RUNTIME, line.data()))
 		{
-            slog("note, you can type \"help\" for a list of cvars.\n");
+			slog("note, you can type \"help\" for a list of cvars.\n");
 			return post_error(serr_get_error());
 		}
 	}
@@ -476,7 +476,7 @@ bool console_state::update()
 		queue_size = message_queue.size();
 		if(queue_size > cv_console_log_max_row_count.data)
 		{
-            // since culling is based on newlines, I can assume every message has one line.
+			// since culling is based on newlines, I can assume every message has one line.
 			message_queue.erase(
 				message_queue.begin(),
 				message_queue.begin() + (queue_size - cv_console_log_max_row_count.data));
@@ -490,8 +490,8 @@ bool console_state::update()
 	// can't print inside mutex because it would cause a deadlock.
 	if(queue_size > cv_console_log_max_row_count.data)
 	{
-        // this is not an accurate representation of culling, 
-        // since there is a second culling pass that scans the newlines.
+		// this is not an accurate representation of culling,
+		// since there is a second culling pass that scans the newlines.
 		slogf(
 			"info: console culled messages: %d\n",
 			(queue_size - cv_console_log_max_row_count.data));
@@ -503,7 +503,7 @@ bool console_state::update()
 		STB_TEXTEDIT_CHARTYPE text_data[1000];
 		for(size_t i = 0; i < message_count; ++i)
 		{
-		    size_t char_count = 0;
+			size_t char_count = 0;
 			const char* str_cur = message_buffer[i].message.get();
 			const char* str_end =
 				message_buffer[i].message.get() + message_buffer[i].message_length;
@@ -529,7 +529,7 @@ bool console_state::update()
 			case CONSOLE_MESSAGE_TYPE::INFO: log_box.current_color_index = 0; break;
 			case CONSOLE_MESSAGE_TYPE::ERROR: log_box.current_color_index = 1; break;
 			}
-            text_data[char_count] = '\0';
+			text_data[char_count] = '\0';
 
 			log_box.set_readonly(false);
 			// this requires the atlas texture to be bound with 1 byte packing
@@ -537,16 +537,16 @@ bool console_state::update()
 			log_box.stb_insert_chars(log_box.text_data.size(), text_data, char_count);
 			log_box.set_readonly(true);
 		}
-        log_box.current_color_index = 0;
+		log_box.current_color_index = 0;
 
 		// TODO(dootsie): I don't always want this to scroll to the bottom,
 		// I would like it to only do that when the scrollbar is already at the bottom!
 		log_box.scroll_to_bottom();
 
-        // this probably isn't the fastest way of doing this.
-        // I probably could implement this inside of text_prompt_wrapper itself 
-        // using some sort of sliding window thingy in pretext
-        // and it would also fix the problem of this not being word-wrap aware.
+		// this probably isn't the fastest way of doing this.
+		// I probably could implement this inside of text_prompt_wrapper itself
+		// using some sort of sliding window thingy in pretext
+		// and it would also fix the problem of this not being word-wrap aware.
 		if(log_line_count > cv_console_log_max_row_count.data)
 		{
 			auto trim_cursor = log_box.text_data.begin();
