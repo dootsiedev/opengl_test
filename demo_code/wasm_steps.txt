@@ -1,0 +1,29 @@
+// this is not a readme, this is a note to myself.
+// first install emsdk
+// then make sure emsdk commands are available (source ./emsdk_env.sh)
+// I install the libraries into emsdk's default install directory using 
+// "emcmake cmake" or the toolchain file (note with emcmake, you build using cmake)
+// see the build instructions for building native code if you need them.
+// glm (and rapidjson? I think I don't need it ATM), freetype2 (because the one shipped in emsdk is old), 
+// and I personally build SDL2 because I prefer using MinSizeRel (I assume -sUSE_SDL=2 uses Release)
+// but if you already used -sUSE_SDL, you will get errors building because SDL2 is already installed,
+// (actually it is probably because I accidentally installed -sUSE_SDL=1 and it somehow conflicts???)
+// my solution is to go into emsdk's install directory and delete the SDL folders (horrific).
+// also freetype2 complains about harfbuzz being too old, which is good because i don't want it.
+// a better solution to avoid system libraries is use CMAKE_FIND_USE_CMAKE_SYSTEM_PATH=OFF + custom install path
+
+// my final build command looks like this (add -DUSE_OLD_SDL=ON if you didn't build SDL2)
+// I also don't know why I can't place preload-file and shell-file into the cmake file itself,
+// but I use a different directory for development so I would need a way to override it anyways.
+emcmake cmake -S gltest -B wasm_build -DCMAKE_BUILD_TYPE=MinSizeRel -DCMAKE_EXE_LINKER_FLAGS="--preload-file ../gltest/demo_files@/ --shell-file ../gltest/demo_code/wasm_index.html"
+cmake --build wasm_build
+
+// then to test you use  (you can also specifiy the browser you installed using the docs)
+emrun wasm_build/gltest.html
+
+// to publish I rename the html file to index.html
+// note that ATM the hexfont-full.hex file in demo_files is truncated to "U+1FFF" for size, 
+// because it would normally be 4.4mb.
+// and at the moment SDL2 can't use the clipboard because it uses the js async API (and it's not portable),
+// which means people can't copy+paste emojis... (or anything...)
+// and SDL2 can't get the IME running inside of TextInput, so no CJK letters...

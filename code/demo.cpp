@@ -700,6 +700,10 @@ bool demo_state::destroy()
 	success = point_shader.destroy() && success;
 	success = mono_shader.destroy() && success;
 
+    #ifdef __EMSCRIPTEN__
+    emscripten_set_mouseup_callback("#canvas", 0, 1, NULL);
+    #endif
+
 	return success;
 }
 
@@ -1035,6 +1039,7 @@ DEMO_RESULT demo_state::process()
     // it only does it when I go fullscreen (and the emscripten html button for fullscreen wont resize)
     // I tried to use the resize callback, but I couldn't get any events.
     // and resize events won't happen unless I do this hack...
+    // THIS IS NOT THE BEST SOLUTION! I just don't understand how SDL<->html5 interacts.
     int w, h;
     emscripten_get_canvas_element_size("#canvas", &w, &h);
     SDL_SetWindowSize(g_app.window, w,h);
@@ -1098,11 +1103,11 @@ DEMO_RESULT demo_state::process()
 				}
 			}
 			break;
-        #ifdef __EMSCRIPTEN__
-		case SDL_MOUSEBUTTONUP:
-            continue;
+#ifdef __EMSCRIPTEN__
+        // this should already be registered using a callback.
+		case SDL_MOUSEBUTTONUP: continue;
 #endif
-        }
+		}
 	    if(!input(e))
         {
             return DEMO_RESULT::ERROR;
@@ -1208,17 +1213,26 @@ bool demo_state::perf_time()
 bool demo_state::display_perf_text()
 {
 	bool success = true;
-
 	font_painter.set_flags(TEXT_FLAGS::NEWLINE);
 
 	float x = 2;
 	float y = 2;
 #if 1
-	font_painter.set_xy(x, y);
-
-	font_painter.set_anchor(TEXT_ANCHOR::TOP_LEFT);
-
-	success = success && font_painter.draw_text(cv_string.data.c_str(), cv_string.data.size());
+    //globals bad, oh well.
+    static bool test_string_success = true;
+    if(test_string_success)
+	{
+        font_painter.set_xy(x, y);
+        font_painter.set_anchor(TEXT_ANCHOR::TOP_LEFT);
+        if(!font_painter.draw_text(cv_string.data.c_str(), cv_string.data.size()))
+        {
+            if(!g_console.post_error(serr_get_error()))
+            {
+                return false;
+            }
+            test_string_success = false;
+        }
+    }
 	// font_batcher.newline();
 #endif
 	x = static_cast<float>(cv_screen_width.data) - 2;

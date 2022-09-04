@@ -85,7 +85,7 @@ EM_BOOL fullscreenchange_callback(int eventType, const EmscriptenFullscreenChang
     else
     {
         emscripten_exit_soft_fullscreen();
-        SDL_SetWindowSize(g_app.window, original_w, original_h);
+        //SDL_SetWindowSize(g_app.window, original_w, original_h);
     }
 #endif
   return 0;
@@ -120,8 +120,8 @@ int on_button_click(int eventType, const EmscriptenMouseEvent *mouseEvent, void 
     return 1;
 }
 
-static int original_w = 0;
-static int original_h = 0;
+//static int original_w = 0;
+//static int original_h = 0;
 
 #endif
 
@@ -153,8 +153,8 @@ bool app_init(App_Info& app)
         slogf("warning: emscripten should not start with fullscreen.\n");
     }
 
-    original_w = cv_screen_width.data;
-    original_h = cv_screen_height.data;
+    //original_w = cv_screen_width.data;
+    //original_h = cv_screen_height.data;
 #endif
 
 	// this is started for some reason...
@@ -296,6 +296,10 @@ bool app_destroy(App_Info& app)
 		app.window = NULL;
 	}
 
+    #ifdef __EMSCRIPTEN__
+    emscripten_set_click_callback("#fullscreen_button", (void*)0, 1, NULL);
+    #endif
+
 	SDL_Quit();
 	return success;
 }
@@ -335,7 +339,9 @@ bool cvar_fullscreen::cvar_read(const char* buffer)
                 // there is a weird glitch I forgot how to reproduce, 
                 // it has to do with mixing soft and full fullscreen,                
                 // but essentially emscripten forgets the original size of the window.
-                SDL_SetWindowSize(g_app.window, original_w, original_h);
+                // UPDATE: But it turns out that this didn't even fix the problem...
+                // The problem comes from a failed fullscreen request due to long running handler.
+                //SDL_SetWindowSize(g_app.window, original_w, original_h);
                 return ret;
             }
         }

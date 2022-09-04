@@ -1,0 +1,11 @@
+for glm:
+cmake -S glm-master -B prefix_shared/build_glm -DCMAKE_INSTALL_PREFIX=prefix_shared -DGLM_TEST_ENABLE=OFF
+
+for rapidjson:
+cmake -S rapidjson-master -B prefix_shared/build_rj -DCMAKE_INSTALL_PREFIX=prefix_shared -DRAPIDJSON_BUILD_DOC=OFF -DRAPIDJSON_BUILD_EXAMPLES=OFF -DRAPIDJSON_BUILD_TESTS=OFF
+
+for sdl2:
+cmake -S SDL2 -B SDL2_asan_build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=asan_prefix -DBUILD_SHARED_LIBS=ON -DSDL_ASAN=ON  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+for freetype2:
+cmake -S freetype -B freetype_asan_build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=asan_prefix -DCMAKE_C_FLAGS="-fsanitize=address" -DBUILD_SHARED_LIBS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
