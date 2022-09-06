@@ -2,6 +2,8 @@
 #include "cvar.h"
 #include "debug_tools.h"
 
+// disabling the console for emscripten wouldn't be that bad of an idea
+// since I could make the console exist within the 
 #ifndef DISABLE_CONSOLE
 #include "console.h"
 #endif
@@ -29,7 +31,7 @@ static REGISTER_CVAR_INT(
 static REGISTER_CVAR_INT(
 	cv_disable_log,
 	0,
-	"0 = keep log, 1 = disable info logs, 2 = disable info and error logs",
+	"0 = keep log, 1 = disable info logs except errors, 2 = disable info and error logs",
 	CVAR_T::RUNTIME);
 
 #ifdef _WIN32
@@ -144,7 +146,9 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 		memcpy(buffer.get(), msg.c_str(), msg.size());
 		buffer[msg.size()] = '\0';
 		{
+#ifndef __EMSCRIPTEN__
 			std::lock_guard<std::mutex> lk(g_console.mut);
+#endif
 			g_console.message_queue.emplace_back(
 				CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), msg.size());
 		}
@@ -185,7 +189,9 @@ void slog_raw(const char* msg, size_t len)
 	memcpy(buffer.get(), msg, len);
 	buffer[len] = '\0';
 	{
+#ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_console.mut);
+#endif
 		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), len);
 	}
 #endif
@@ -208,7 +214,9 @@ void serr_raw(const char* msg, size_t len)
 	memcpy(buffer.get(), msg, len);
 	buffer[len] = '\0';
 	{
+#ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_console.mut);
+#endif
 		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
 	}
 #endif
@@ -247,7 +255,9 @@ void serr(const char* msg)
 	memcpy(buffer.get(), msg, len);
 	buffer[len] = '\0';
 	{
+#ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_console.mut);
+#endif
 		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
 	}
 #endif
@@ -277,7 +287,9 @@ void slogf(const char* fmt, ...)
 	va_end(args);
 	fwrite(buffer.get(), 1, length, stdout);
 	{
+#ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_console.mut);
+#endif
 		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), length);
 	}
 #endif
@@ -307,7 +319,9 @@ void serrf(const char* fmt, ...)
 	fwrite(buffer.get(), 1, length, stdout);
 #ifndef DISABLE_CONSOLE
 	{
+#ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_console.mut);
+#endif
 		g_console.message_queue.emplace_back(
 			CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), length);
 	}

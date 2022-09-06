@@ -11,7 +11,11 @@
 #include <SDL2/SDL.h>
 #include <deque>
 #include <memory>
+
+// I don't use threads on emscripten.
+#ifndef __EMSCRIPTEN__
 #include <mutex>
+#endif
 
 enum class CONSOLE_RESULT
 {
@@ -52,8 +56,10 @@ struct console_state
 	// since I want to remove old messages anyways.
 	std::deque<log_message> message_queue;
 
+#ifndef __EMSCRIPTEN__
 	// the queue's mutex
 	std::mutex mut;
+#endif
 
 	// keep track of how many newlines are drawn
 	// to cut lines from the top when the limit is reached.
@@ -107,17 +113,19 @@ struct console_state
 	NDSERR bool parse_input();
 
 	// this won't render to the framebuffer,
-	// this will just put the data into the batcher.
-	// you need to access log_batcher and prompt_batcher directly to render.
+	// this will just put the data into the batcher and atlas
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool update();
 
+	// this requires the mono shader & atlas texture to be bound.
 	NDSERR bool render();
 
 	// call this when you need to unfocus, like for example if you press escape or something.
 	void unfocus();
 	void focus();
 
+	// put the error on the error section.
+	// this is a nice place to put a non-fatal serr error
 	NDSERR bool post_error(std::string_view msg);
 
 	void serialize_history(BS_Archive& ar);

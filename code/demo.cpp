@@ -137,8 +137,8 @@ static REGISTER_CVAR_INT(
 	"0 = off, 1 = on, can't bold or italics, but looks different",
 	CVAR_T::STARTUP);
 
-static REGISTER_CVAR_DOUBLE(
-	cv_mouse_sensitivity, 0.4, "the speed of the first person camera", CVAR_T::RUNTIME);
+static REGISTER_CVAR_DOUBLE(cv_mouse_sensitivity, 0.4, "mouse move speed", CVAR_T::RUNTIME);
+static REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed", CVAR_T::RUNTIME);
 
 struct gl_point_vertex
 {
@@ -292,6 +292,10 @@ bool demo_state::init()
 	ctx.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	// not premultiplied
 	// ctx.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+
+    // all my shaders only use 1 texture.
+	ctx.glActiveTexture(GL_TEXTURE0);
 
 	if(!mono_shader.create())
 	{
@@ -497,6 +501,8 @@ bool demo_state::init_gl_point_sprite()
 		return false;
 	}
 
+	//ctx.glActiveTexture(GL_TEXTURE0);
+
 	ctx.glBindTexture(GL_TEXTURE_2D, gl_inst_table_tex_id);
 	ctx.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 0, 1, 0, GL_RGBA, GL_FLOAT, NULL);
 	// Set texture parameters
@@ -508,7 +514,6 @@ bool demo_state::init_gl_point_sprite()
 	// set uniform globals that aren't set every frame
 	ctx.glUseProgram(point_shader.gl_program_id);
 	ctx.glUniform1i(point_shader.gl_uniforms.u_inst_table, 0);
-	ctx.glActiveTexture(GL_TEXTURE0);
 	ctx.glBindTexture(GL_TEXTURE_2D, gl_inst_table_tex_id);
 	ctx.glUseProgram(0);
 
@@ -624,7 +629,9 @@ bool demo_state::init_gl_font()
 			return false;
 		}
 
-		font_style.init(&font_manager, &font_rasterizer);
+		font_style.init(&font_manager, &font_rasterizer, 1);
+        //font_settings.point_size = 32;
+
 	}
 
 #if 0
@@ -893,16 +900,9 @@ bool demo_state::input(SDL_Event& e)
 	}
 	return true;
 }
-bool demo_state::render()
+bool demo_state::update(double delta_sec)
 {
-	TIMER_U current_time = timer_now();
-	double color_delta = timer_delta<1>(timer_last, current_time);
-	float float_delta = static_cast<float>(color_delta);
-	timer_last = current_time;
-
-	TIMER_U tick1;
-	TIMER_U tick2;
-	tick1 = timer_now();
+	float color_delta = static_cast<float>(delta_sec);
 
 	// this will not actually draw, this will just modify the atlas and buffer data.
 	if(show_console)
@@ -911,6 +911,7 @@ bool demo_state::render()
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
 		bool ret = g_console.update();
+		ctx.glBindTexture(GL_TEXTURE_2D, 0);
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 		if(!ret)
@@ -923,7 +924,7 @@ bool demo_state::render()
 	colors[1] = colors[1] + (0.7 * color_delta);
 	colors[2] = colors[2] + (0.11 * color_delta);
 
-	const float cameraSpeed = 5.f * float_delta; // adjust accordingly
+	const float cameraSpeed = static_cast<float>(cv_camera_speed.data * delta_sec); 
 	glm::vec3 up = {0, 1, 0};
 
 	if(keys_down[MOVE_FORWARD])
@@ -945,6 +946,16 @@ bool demo_state::render()
 	{
 		camera_pos += glm::normalize(glm::cross(camera_direction, up)) * cameraSpeed;
 	}
+    return true;
+}
+
+bool demo_state::render()
+{
+	glm::vec3 up = {0, 1, 0};
+
+	TIMER_U tick1;
+	TIMER_U tick2;
+	tick1 = timer_now();
 
 	ctx.glClearColor(
 		static_cast<float>((sin(colors[0]) + 1.0) / 2.0),
@@ -994,6 +1005,7 @@ bool demo_state::render()
 	ctx.glDrawElementsInstanced(
 		GL_TRIANGLES, ibo_buffer_size, GL_UNSIGNED_SHORT, NULL, point_buffer_size);
 	ctx.glBindVertexArray(0);
+	ctx.glBindTexture(GL_TEXTURE_2D, 0);
 #endif
 
 	ctx.glEnable(GL_BLEND);
@@ -1032,14 +1044,17 @@ bool demo_state::render()
 			return false;
 		}
 	}
+	ctx.glBindTexture(GL_TEXTURE_2D, 0);
 
 	ctx.glUseProgram(0);
 
+#ifndef __EMSCRIPTEN__
 	if(cv_vsync.data == 0)
 	{
 		// this isn't ideal, but it saves the CPU and GPU.
 		SDL_Delay(1);
 	}
+#endif
 
 	tick2 = timer_now();
 	perf_render.test(timer_delta_ms(tick1, tick2));
@@ -1142,6 +1157,19 @@ DEMO_RESULT demo_state::process()
 	tick2 = timer_now();
 	perf_input.test(timer_delta_ms(tick1, tick2));
 
+    tick1 = tick2;
+
+    TIMER_U current_time = timer_now();
+	double delta = timer_delta<1>(timer_last, current_time);
+	timer_last = current_time;
+    if(!update(delta))
+	{
+		return DEMO_RESULT::ERROR;
+	}
+
+	tick2 = timer_now();
+    perf_update.test(timer_delta_ms(tick1, tick2));
+
 	if(!render())
 	{
 		return DEMO_RESULT::ERROR;
@@ -1154,8 +1182,9 @@ bool demo_state::perf_time()
 {
 	TIMER_U tick_now = timer_now();
 
-	// NOTE: "total" will include the time of displaying the data, but render wont.
-	// but the time to display the data takes more time that I thought... (~1ms high peak)
+	// NOTE: "total" will include the time of perf_time, 
+    // which is NOT sampled in any of the other timers
+    // so if you add up all the averages, it wont add up to total.
 	static TIMER_U total_start = tick_now;
 	// static bench_data total_data;
 	perf_total.test(timer_delta_ms(total_start, tick_now));
@@ -1211,6 +1240,8 @@ bool demo_state::perf_time()
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 
+		ctx.glBindTexture(GL_TEXTURE_2D, 0);
+
 		success = success && GL_RUNTIME(__func__) == GL_NO_ERROR;
 
 		if(!success)
@@ -1220,6 +1251,7 @@ bool demo_state::perf_time()
 
 		perf_total.reset();
 		perf_input.reset();
+		perf_update.reset();
 		perf_render.reset();
 		perf_swap.reset();
 
@@ -1269,6 +1301,7 @@ bool demo_state::display_perf_text()
 	success = success && font_painter.draw_text("average / low / high\n");
 	success = success && perf_total.display("total", &font_painter);
 	success = success && perf_input.display("input", &font_painter);
+	success = success && perf_update.display("update", &font_painter);
 	success = success && perf_render.display("render", &font_painter);
 	success = success && perf_swap.display("swap", &font_painter);
 	return success;

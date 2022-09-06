@@ -454,7 +454,10 @@ bool console_state::parse_input()
 		if(!cvar_line(CVAR_T::RUNTIME, line.data()))
 		{
 			slog("note, you can type \"help\" for a list of cvars.\n");
-			return post_error(serr_get_error());
+			if(!post_error(serr_get_error()))
+			{
+				return false;
+			}
 		}
 	}
 
@@ -465,13 +468,13 @@ bool console_state::parse_input()
 
 bool console_state::update()
 {
-	bool success = true;
-
 	log_message message_buffer[100];
 	size_t message_count = 0;
 	int queue_size = 0;
 	{
+#ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(mut);
+#endif
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		queue_size = message_queue.size();
 		if(queue_size > cv_console_log_max_row_count.data)
@@ -515,7 +518,12 @@ bool console_state::update()
 				if(err_code != utf8::internal::UTF8_OK)
 				{
 					serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
-					return false;
+					// put the message into the console instead
+					if(!post_error(serr_get_error()))
+					{
+						return false;
+					}
+					break;
 				}
 				text_data[char_count++] = codepoint;
 
@@ -563,10 +571,6 @@ bool console_state::update()
 			log_box.set_readonly(true);
 		}
 	}
-	if(!success)
-	{
-		return false;
-	}
 
 	if(log_box.draw_requested())
 	{
@@ -601,7 +605,11 @@ bool console_state::update()
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!prompt_cmd.draw())
 		{
-			return false;
+			// put the message into the console instead
+			if(!post_error(serr_get_error()))
+			{
+				return false;
+			}
 		}
 		prompt_vertex_count = console_batcher->get_current_vertex_count();
 		if(console_batcher->get_quad_count() != 0)
@@ -624,7 +632,11 @@ bool console_state::update()
 		// this requires the atlas texture to be bound with 1 byte packing
 		if(!error_text.draw())
 		{
-			return false;
+			// put the message into the console instead
+			if(!post_error(serr_get_error()))
+			{
+				return false;
+			}
 		}
 		error_vertex_count = console_batcher->get_current_vertex_count();
 		if(console_batcher->get_quad_count() != 0)

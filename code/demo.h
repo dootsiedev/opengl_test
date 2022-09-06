@@ -141,6 +141,7 @@ struct demo_state
 
 	bench_data perf_total;
 	bench_data perf_input;
+	bench_data perf_update;
 	bench_data perf_render;
 	bench_data perf_swap;
 
@@ -149,7 +150,7 @@ struct demo_state
 
 	NDSERR bool destroy();
 	NDSERR bool destroy_gl_font();
-
+    NDSERR bool update(double delta_sec);
 	NDSERR bool input(SDL_Event& e);
 	void unfocus();
 	NDSERR bool render();

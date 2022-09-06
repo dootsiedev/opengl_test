@@ -12,17 +12,16 @@
 
 #include <memory>
 
-#ifndef _WIN32
-#include <signal.h>
-#else
+// platform specific debug breakpoint headers.
+#if defined(_WIN32)
 #include <intrin.h> // for __debugbreak
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#else
+#include <signal.h>
 #endif
 
-// sometimes a trap is better than a stacktrace,
-// especially when you don't even have a stacktrace.
-// NDEBUG disables the trap because there isn't good debug info.
-// Note I disable NDEBUG on relwithdebinfo in cmake
-// because checking asserts and trapping on release is useful.
+
 static int has_libbacktrace
 #if defined(USE_LIBBACKTRACE)
 	= 1;
@@ -31,9 +30,24 @@ static int has_libbacktrace
 #endif
 static REGISTER_CVAR_INT(
 	cv_has_libbacktrace, has_libbacktrace, "0 = not found, 1 = found", CVAR_T::READONLY);
+
+// sometimes a trap is better than nothing,
+// especially when you don't even have a stacktrace.
+// NDEBUG disables the trap because it means your debugger
+// cant inspect the variables in the stack (not worth trapping for)
+// and the trap is annoying (especially from "cv_serr_bt")
+// because when you run without a debugger, 
+// it just causes your application to exit!
+static int enable_bt_trap
+#if defined(USE_LIBBACKTRACE) || defined(NDEBUG)
+	= 0;
+#else
+	= 1;
+#endif
 static REGISTER_CVAR_INT(
 	cv_bt_trap,
-	has_libbacktrace == 1 ? 0 : 1,
+	enable_bt_trap,
+    // this also does not replace or disable the stacktrace.
 	"raise a debug trap for all stacktraces, 0 (off), 1 (on)",
 	CVAR_T::RUNTIME);
 
@@ -209,14 +223,15 @@ struct bt_state_wrapper
 	}
 };
 
-__attribute__((noinline)) bool debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int skip)
+__attribute__((noinline)) bool
+	debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int skip)
 {
 	if(cv_bt_trap.data == 1)
 	{
-#ifndef _WIN32
-		raise(SIGTRAP);
-#else
+#ifdef _WIN32
 		__debugbreak();
+#else
+		raise(SIGTRAP);
 #endif
 		return false;
 	}
@@ -321,23 +336,59 @@ err:
 }
 #else
 
+#if defined(__EMSCRIPTEN__)
+
+int raw_string_callback(debug_stacktrace_info*, const char*, void* ud)
+{
+	ASSERT(ud != NULL);
+	if(ud != NULL)
+	{
+		char buffer[10000];
+		// no error code, includes size of null terminator so I use -1.
+		int ret = emscripten_get_callstack(0, buffer, sizeof(buffer));
+		std::string* output = reinterpret_cast<std::string*>(ud);
+		output->append(buffer, ret - 1);
+		return 1;
+	}
+	return 0;
+}
+
+bool debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int)
+{
+	if(cv_bt_trap.data == 1)
+	{
+		// this won't always open the debugger, you need need the debugger already open.
+		// which is convenient because since I depend on libbacktrace setting
+		// cv_bt_trap, so that means emscripten ALWAYS traps, but it wont actually.
+		// also this doesn't crash and burn the program, you should have a continue button.
+        // NOTE: while testing this, the inspector debugger seems to be confused,
+        // I think emscripten actually queues this function, which means you can't debug anything...
+		emscripten_debugger();
+	}
+	return callback(NULL, NULL, ud) == 1;
+}
+
+#else
+
+int raw_string_callback(debug_stacktrace_info*, const char*, void*)
+{
+	return 0;
+}
+
 bool debug_raw_stacktrace(debug_stacktrace_callback, void*, int)
 {
 	if(cv_bt_trap.data == 1)
 	{
 		// I know I could easily make a backtrace without libbacktrace,
 		// but I value the source file and line to the point I would rather trap.
-#ifndef _WIN32
-		raise(SIGTRAP);
-#else
+#if defined(_WIN32)
 		__debugbreak();
+#else
+		raise(SIGTRAP);
 #endif
 	}
 	return false;
 }
+#endif
 
-int raw_string_callback(debug_stacktrace_info*, const char*, void*)
-{
-	return 0;
-}
 #endif

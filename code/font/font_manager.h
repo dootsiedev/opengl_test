@@ -175,6 +175,7 @@ struct font_atlas
 
 	// for drawing primitives, this is a single white pixel.
     // this is very out of place, but this needs to be somewhere...
+    // TODO: I could use glScissor + glClear for drawing, but is it worth it?
 	std::array<float, 4> white_uv;
 
 	NDSERR bool find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, uint32_t* y_out);
@@ -187,6 +188,7 @@ struct font_style_interface
 	virtual float get_point_size() = 0;
 	virtual float get_ascent() = 0;
 	virtual float get_lineskip() = 0;
+	virtual float get_scale() = 0;
 	// optional, used for scaling FONT_ENTRY::BITMAP
 	virtual float get_bitmap_size() = 0;
 	// getting the advance does not require the atlas to be bound unlike get_glyph.
@@ -271,7 +273,12 @@ struct hex_font_data : public font_style_interface
 		ASSERT(false && "hex_font_data is for fallbacks ONLY");
 		return NAN;
 	}
-	float get_bitmap_size() override
+    float get_bitmap_size() override
+	{
+		ASSERT(false && "hex_font_data is for fallbacks ONLY");
+		return NAN;
+	}
+	float get_scale() override
 	{
 		ASSERT(false && "hex_font_data is for fallbacks ONLY");
 		return NAN;
@@ -311,10 +318,13 @@ struct hex_font_placeholder : public font_style_interface
 		ASSERT(hex_font != NULL);
 		return height;
 	}
-	float get_bitmap_size() override
+    float get_bitmap_size() override
 	{
-		ASSERT(false && "no bitmaps in hex font");
-		return NAN;
+		return static_cast<float>(HEX_HEIGHT);
+	}
+	float get_scale() override
+	{
+		return height / static_cast<float>(HEX_HEIGHT);
 	}
 	NDSERR FONT_RESULT get_advance(char32_t codepoint, float* advance) override
 	{
@@ -463,11 +473,15 @@ struct font_bitmap_cache : public font_style_interface
 
 	// font_manager_state* font_manager = NULL;
 	font_atlas* atlas = NULL;
-	font_style_interface* fallback = NULL;
+    // this needs to be a hex font because I need to scale the advance...
+	hex_font_data* fallback = NULL;
 	font_ttf_rasterizer* current_rasterizer = NULL;
 	// int current_style = FONT_STYLE_NORMAL;
 
-	void init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer);
+    //warning, this will override 
+    float font_scale = 1.f;
+
+	void init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer, float scale_ = 1.f);
 	NDSERR bool destroy();
 	~font_bitmap_cache() override;
 
@@ -493,7 +507,8 @@ struct font_bitmap_cache : public font_style_interface
 	float get_point_size() override;
 	float get_ascent() override;
 	float get_lineskip() override;
-	float get_bitmap_size() override;
+    float get_bitmap_size() override;
+	float get_scale() override;
 	NDSERR FONT_RESULT get_advance(char32_t codepoint, float* advance) override;
 
 	// you must set opengl's GL_UNPACK_ALIGNMENT to 1 for this to work.
