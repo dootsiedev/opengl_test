@@ -180,7 +180,7 @@ struct text_prompt_wrapper
 	// NOTE: but blink_timer should be in a logic() function...
 	bool draw_requested();
 
-	NDSERR bool replace_string(std::string_view contents);
+	NDSERR bool replace_string(std::string_view contents, bool clear_history = true);
 	void clear_string();
 
 	// this is an expensive operation

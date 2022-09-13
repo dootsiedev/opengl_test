@@ -12,8 +12,8 @@ enum class CVAR_T
 {
 	// requires the app to be restarted
 	STARTUP,
-	// requires the game to be restarted (if there is a game)
-	GAME,
+	// the change is not immediatly made, but it requires some sort of re-loading.
+	DEFFERRED,
 	// you can modify this during runtime and changes should take effect
 	RUNTIME,
 	// warn when this setting is attempted to be set
@@ -65,7 +65,10 @@ struct cmp_str
 std::map<const char*, V_cvar&, cmp_str>& get_convars();
 void cvar_init(); // sets the default
 // flags_req must be either CVAR_STARTUP,CVAR_GAME,CVAR_RUNTIME.
-NDSERR bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv);
+// returns the number of arguments parsed for one CVAR.
+// the first element must start with a '+'
+// returns -1 for error.
+NDSERR int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv);
 // this will modify the string
 NDSERR bool cvar_line(CVAR_T flags_req, char* line);
 NDSERR bool cvar_file(CVAR_T flags_req, RWops* file);
@@ -74,7 +77,7 @@ void cvar_list(bool debug);
 // to define an option for a single source file use this:
 // static REGISTER_CVAR_INT(cv_name_of_option, 1, "this is an option", CVAR_NORMAL);
 // you can use cv_name_of_option.data for reading and writing the value.
-// to share a cvar in a header you can use:
+// to share a cvar in a headrunCinematicFrameer you can use:
 // extern cvar_int cv_name_of_option;
 // and then define REGISTER_CVAR_INT somewhere (without static).
 #define REGISTER_CVAR_INT(key, value, comment, type) \

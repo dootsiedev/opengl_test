@@ -157,7 +157,8 @@ extern void enter_fullscreen()
 }
 }
 
-static int on_button_click(int eventType, const EmscriptenMouseEvent* mouseEvent, void* userData)
+const char* fullscreen_button_string = "#fullscreen_button";
+static int on_fullscreen_button_click(int eventType, const EmscriptenMouseEvent* mouseEvent, void* userData)
 {
 	(void)userData; // unused
 	(void)mouseEvent; // unused
@@ -191,7 +192,7 @@ bool app_init(App_Info& app)
     }
 #endif
 	EMSCRIPTEN_RESULT em_ret =
-		emscripten_set_click_callback("#fullscreen_button", (void*)0, 1, on_button_click);
+		emscripten_set_click_callback(fullscreen_button_string, NULL, 0, on_fullscreen_button_click);
 	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
 	{
 		slogf(
@@ -349,12 +350,13 @@ bool app_destroy(App_Info& app)
 
 #ifdef __EMSCRIPTEN__
 	EMSCRIPTEN_RESULT em_ret =
-		emscripten_set_click_callback("#fullscreen_button", (void*)0, 0, NULL);
+		emscripten_set_click_callback(fullscreen_button_string, (void*)0, 0, NULL);
 	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
 	{
 		slogf(
-			"%s returned %s.\n",
-			"emscripten_set_click_callback(#fullscreen_button)",
+			"%s(\"%s\") returned %s.\n",
+			"emscripten_set_click_callback",
+            fullscreen_button_string,
 			emscripten_result_to_string(em_ret));
 	}
 #endif

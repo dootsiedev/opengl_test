@@ -74,11 +74,14 @@ int main(int argc, char** argv)
 			}
 			if(argv[i][0] == '+')
 			{
-				if(!cvar_args(CVAR_T::STARTUP, argc - i, argv + i))
+                int ret = cvar_arg(CVAR_T::STARTUP, argc - i, argv + i);
+				if(ret == -1)
 				{
 					success = false;
 				}
-				break;
+                argc -= ret;
+                argv += ret;
+				continue;
 			}
 
 			serrf("ERROR: unknown argument: %s\n", argv[i]);
@@ -102,6 +105,8 @@ int main(int argc, char** argv)
 			else
 			{
 #ifdef __EMSCRIPTEN__
+                //TODO: this should be changed to use not use simulate_infinite_loop
+                // because I think some profiling feature wont work or something.
 				struct shitty_payload
 				{
 					demo_state* p_demo;
@@ -159,6 +164,7 @@ int main(int argc, char** argv)
 	// print a stacktrace.
 	if(serr_check_error())
 	{
+        // you probably want to use cv_serr_bt to find the location of the leak.
 		serrf("\nUncaught error before exit\n");
 		SDL_ShowSimpleMessageBox(
 			SDL_MESSAGEBOX_WARNING, "Uncaught error", serr_get_error().c_str(), NULL);

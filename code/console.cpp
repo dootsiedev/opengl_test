@@ -12,11 +12,18 @@
 
 console_state g_console;
 
+static CVAR_T history_enabled
+#ifndef __EMSCRIPTEN__
+= CVAR_T::RUNTIME;
+#else
+= CVAR_T::DISABLED;
+#endif
+
 static REGISTER_CVAR_INT(
 	cv_console_history_max,
 	100,
 	"the maximum number of commands in the history (up arrow)",
-	CVAR_T::RUNTIME);
+	history_enabled);
 static REGISTER_CVAR_INT(
 	cv_console_log_max_row_count,
 	100,
@@ -310,6 +317,14 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 					return CONSOLE_RESULT::ERROR;
 				}
 				return CONSOLE_RESULT::EAT;
+			case SDLK_ESCAPE:
+                // this may be annoying since maybe you expected escape to unfocus.
+                // but you can still just undo.
+                if(!prompt_cmd.replace_string(std::string_view(), false))
+                {
+                    return CONSOLE_RESULT::ERROR;
+                }
+				return CONSOLE_RESULT::EAT;
 			case SDLK_UP:
 				if((e.key.keysym.mod & KMOD_SHIFT) != 0)
 				{
@@ -432,11 +447,14 @@ bool console_state::parse_input()
 		else
 		{
 			command_history.push_front(line);
-			if(command_history.size() > static_cast<size_t>(cv_console_history_max.data))
+			// only cull the history when writing the file.
+            /*
+            if(command_history.size() > static_cast<size_t>(cv_console_history_max.data))
 			{
 				command_history.pop_back();
 				history_index = std::min(history_index, cv_console_history_max.data - 1);
 			}
+            */
 		}
 	}
 	history_index = -1;
@@ -454,6 +472,8 @@ bool console_state::parse_input()
 		if(!cvar_line(CVAR_T::RUNTIME, line.data()))
 		{
 			slog("note, you can type \"help\" for a list of cvars.\n");
+            // TODO: maybe instead of doing this here, I let all the errors
+            // get posted to the console, from outside console(demo)?
 			if(!post_error(serr_get_error()))
 			{
 				return false;
@@ -502,7 +522,6 @@ bool console_state::update()
 
 	if(message_count != 0)
 	{
-		// text_prompt_wrapper::prompt_char
 		STB_TEXTEDIT_CHARTYPE text_data[1000];
 		for(size_t i = 0; i < message_count; ++i)
 		{
@@ -510,11 +529,18 @@ bool console_state::update()
 			const char* str_cur = message_buffer[i].message.get();
 			const char* str_end =
 				message_buffer[i].message.get() + message_buffer[i].message_length;
-			while(str_cur != str_end && char_count < std::size(text_data))
+			while(str_cur != str_end)
 			{
 				uint32_t codepoint;
+			    const char* prev_cur = str_cur;
 				utf8::internal::utf_error err_code =
 					utf8::internal::validate_next(str_cur, str_end, codepoint);
+				if(err_code == utf8::internal::NOT_ENOUGH_ROOM)
+				{
+                    slogf("%s info: trunc log\n", __func__);
+                    str_cur = prev_cur;
+                    break;
+                }
 				if(err_code != utf8::internal::UTF8_OK)
 				{
 					serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
@@ -525,6 +551,11 @@ bool console_state::update()
 					}
 					break;
 				}
+                if(char_count >= std::size(text_data)-1)
+                {
+                    slogf("%s info: trunc log\n", __func__);
+                    break;
+                }
 				text_data[char_count++] = codepoint;
 
 				if(codepoint == '\n')
@@ -537,6 +568,8 @@ bool console_state::update()
 			case CONSOLE_MESSAGE_TYPE::INFO: log_box.current_color_index = 0; break;
 			case CONSOLE_MESSAGE_TYPE::ERROR: log_box.current_color_index = 1; break;
 			}
+			//printf("char_count: %zu\n", char_count);
+			// TODO(dootsie): I should probably include a newline before truncation...
 			text_data[char_count] = '\0';
 
 			log_box.set_readonly(false);

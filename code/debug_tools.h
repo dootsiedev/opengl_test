@@ -2,6 +2,20 @@
 
 #include <string>
 
+#if defined(__EMSCRIPTEN__)
+
+#include <emscripten.h>
+// skip is ignored...
+inline int debug_str_stacktrace(std::string* out, int)
+{
+    char buffer[10000];
+    // no error code, includes size of null terminator so I use -1.
+    int ret = emscripten_get_callstack(0, buffer, sizeof(buffer));
+    out->append(buffer, ret - 1);
+    return 0;
+}
+#else
+
 struct debug_stacktrace_info
 {
 	int index;
@@ -22,3 +36,4 @@ __attribute__((noinline)) bool
 // format: MODULE ! FUNCTION [FILE @ LINE] or MODULE ! PTR
 int raw_string_callback(debug_stacktrace_info* data, const char* error, void* ud);
 #define debug_str_stacktrace(out, skip) debug_raw_stacktrace(raw_string_callback, out, skip)
+#endif

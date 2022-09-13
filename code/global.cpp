@@ -11,8 +11,8 @@
 #include <cstring>
 
 // USE_LIBBACKTRACE should imply debug information exists.
-static int has_libbacktrace =
-#if defined(USE_LIBBACKTRACE)
+static int has_stacktraces =
+#if defined(USE_LIBBACKTRACE) || defined(__EMSCRIPTEN__)
 	1;
 #else
 	0;
@@ -20,7 +20,7 @@ static int has_libbacktrace =
 
 static REGISTER_CVAR_INT(
 	cv_serr_bt,
-	has_libbacktrace,
+	has_stacktraces,
 	// I don't reccomend "always stacktrace" because some errors are nested,
 	// which will make the error very hard to read.
 	// a "capture" is a error that is handled, using serr_get_error()
@@ -177,6 +177,8 @@ bool serr_check_error()
 
 void slog_raw(const char* msg, size_t len)
 {
+    ASSERT(msg != NULL);
+    ASSERT(len != 0);
 	if(cv_disable_log.data != 0)
 	{
 		return;
@@ -198,6 +200,8 @@ void slog_raw(const char* msg, size_t len)
 }
 void serr_raw(const char* msg, size_t len)
 {
+    ASSERT(msg != NULL);
+    ASSERT(len != 0);
 	if(cv_disable_log.data == 2)
 	{
 		// if I didn't do this, there would be side effects
@@ -224,6 +228,7 @@ void serr_raw(const char* msg, size_t len)
 
 void slog(const char* msg)
 {
+    ASSERT(msg != NULL);
 	if(cv_disable_log.data != 0)
 	{
 		return;
@@ -238,6 +243,7 @@ void slog(const char* msg)
 
 void serr(const char* msg)
 {
+    ASSERT(msg != NULL);
 	if(cv_disable_log.data == 2)
 	{
 		// if I didn't do this, there would be side effects
@@ -265,6 +271,7 @@ void serr(const char* msg)
 
 void slogf(const char* fmt, ...)
 {
+    ASSERT(fmt != NULL);
 	if(cv_disable_log.data != 0)
 	{
 		return;
@@ -297,6 +304,7 @@ void slogf(const char* fmt, ...)
 
 void serrf(const char* fmt, ...)
 {
+    ASSERT(fmt != NULL);
 	if(cv_disable_log.data == 2)
 	{
 		// if I didn't do this, there would be side effects
@@ -330,6 +338,7 @@ void serrf(const char* fmt, ...)
 
 std::unique_ptr<char[]> unique_vasprintf(int* length, const char* fmt, va_list args)
 {
+    ASSERT(fmt != NULL);
 	int ret;
 	va_list temp_args;
 	std::unique_ptr<char[]> buffer;

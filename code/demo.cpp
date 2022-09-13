@@ -8,6 +8,7 @@
 #include "font/font_manager.h"
 #include "app.h"
 #include "debug_tools.h"
+#include "keybind.h"
 
 #include <SDL2/SDL.h>
 #include <glm/ext/matrix_clip_space.hpp>
@@ -579,11 +580,14 @@ bool demo_state::init_gl_font()
 	start = timer_now();
 #endif
 
+    font_style_interface* current_font = NULL;
+
 	// Unique_RWops test_font =
 	// Unique_RWops_OpenFS("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "rb");
 	if(cv_string_font.data == "unifont")
 	{
-		unifont_style.init(&font_manager.hex_font, cv_string_pt.data);
+		unifont_style.init(&font_manager.hex_font, static_cast<float>(cv_string_pt.data));
+        current_font = &unifont_style;
 	}
 	else
 	{
@@ -631,6 +635,7 @@ bool demo_state::init_gl_font()
 
 		font_style.init(&font_manager, &font_rasterizer, 1);
         //font_settings.point_size = 32;
+        current_font = &font_style;
 
 	}
 
@@ -668,15 +673,6 @@ bool demo_state::init_gl_font()
 		std::make_unique<gl_mono_vertex[]>(max_quads * mono_2d_batcher::QUAD_VERTS);
 	font_batcher.init(font_batcher_buffer.get(), max_quads);
 
-	font_style_interface* current_font = NULL;
-	if(cv_string_font.data == "unifont")
-	{
-		current_font = &unifont_style;
-	}
-	else
-	{
-		current_font = &font_style;
-	}
 	font_painter.init(&font_batcher, current_font);
 
 	// load the atlas texture.
@@ -730,7 +726,19 @@ bool demo_state::destroy()
 	success = mono_shader.destroy() && success;
 
 #ifdef __EMSCRIPTEN__
-	emscripten_set_mouseup_callback("#canvas", 0, 1, NULL);
+
+    // just in case???
+    unfocus();
+
+	EMSCRIPTEN_RESULT em_ret = emscripten_set_mouseup_callback("#canvas", NULL, 0, NULL);
+	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+	{
+		slogf(
+			"%s returned %s.\n",
+			"emscripten_set_mouseup_callback",
+			emscripten_result_to_string(em_ret));
+	}
+
 #endif
 
 	return success;
@@ -775,6 +783,14 @@ bool demo_state::input(SDL_Event& e)
 		}
 	}
 
+    // I need to use input_eaten to unfocus each UI element,
+    // because unfocus() would unfocus EVERY ui element, and
+    // if I did that the prompt that was in focus would unfocus,
+    // my solution is to let the UI element unfocus itself using lmb down,
+    // and if the event was eaten, unfocus each element after it, using this pattern: 
+    // if(eaten){ui.unfocus()}else{switch(ui.input(e)){continue, eat, or error}}
+    // this of course depends on the draw order of the UI element,
+    // and this is fragile and technically it's possible for 2 elements to focus.
 	if(input_eaten)
 	{
 		unfocus();
@@ -783,7 +799,7 @@ bool demo_state::input(SDL_Event& e)
 
 	switch(e.type)
 	{
-	case SDL_KEYUP:
+	case SDL_KEYDOWN:
 		// NOTE: probably should check this if I added in other keys
 		// I wouldn't want to trigger if I was using a text prompt,
 		// because key events will still be triggered even if textinput is active.
@@ -889,9 +905,13 @@ bool demo_state::input(SDL_Event& e)
 		{
 			break;
 		}
+        if(e.key.keysym.sym == cv_bind_forward.key_binds[0].key)
+        {
+            keys_down[MOVE_FORWARD] = (e.key.state == SDL_PRESSED);
+        }
 		switch(e.key.keysym.sym)
 		{
-		case SDLK_w: keys_down[MOVE_FORWARD] = (e.key.state == SDL_PRESSED); break;
+		//case SDLK_w: keys_down[MOVE_FORWARD] = (e.key.state == SDL_PRESSED); break;
 		case SDLK_s: keys_down[MOVE_BACKWARD] = (e.key.state == SDL_PRESSED); break;
 		case SDLK_a: keys_down[MOVE_LEFT] = (e.key.state == SDL_PRESSED); break;
 		case SDLK_d: keys_down[MOVE_RIGHT] = (e.key.state == SDL_PRESSED); break;

@@ -160,9 +160,10 @@ void cvar_init()
 	}
 }
 
-bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
+int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
 {
-	for(int i = 0; i < argc; ++i)
+    int i = 0;
+	for(;i < argc; ++i)
 	{
 		if(argv[i][0] != '+')
 		{
@@ -170,7 +171,7 @@ bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
 				"ERROR: cvar option must start with a '+'\n"
 				"expression: `%s`\n",
 				argv[i]);
-			return false;
+			return -1;
 		}
 
 		const char* name = argv[i] + 1;
@@ -178,54 +179,60 @@ bool cvar_args(CVAR_T flags_req, int argc, const char* const* argv)
 		if(it == get_convars().end())
 		{
 			serrf("ERROR: cvar not found: `%s`\n", name);
-			return false;
+			return -1;
 		}
 
 		V_cvar& cv = it->second;
+        bool ignore = false;
 
 		// go to next argument.
 		i++;
 		if(i >= argc)
 		{
 			serrf("ERROR: cvar assignment missing: `%s`\n", name);
-			return false;
+			return -1;
 		}
 
 		if(cv.cvar_type == CVAR_T::DISABLED)
 		{
 			slogf("warning: cvar disabled: `%s`\n", name);
-			continue;
+			ignore = true;
 		}
 
 		switch(flags_req)
 		{
 		case CVAR_T::RUNTIME:
-			if(cv.cvar_type == CVAR_T::GAME)
+			if(cv.cvar_type == CVAR_T::DEFFERRED)
 			{
-				slogf("warning: cvar must be set pre-game take effect: `%s`\n", name);
-				continue;
+				slogf("info: cvar defferred: `%s`\n", name);
+				break;
 			}
 			[[fallthrough]];
-		case CVAR_T::GAME:
+		case CVAR_T::DEFFERRED:
 			if(cv.cvar_type == CVAR_T::STARTUP)
 			{
 				slogf("warning: cvar must be set on startup to take effect: `%s`\n", name);
-				continue;
+                // TODO: some way to write the cvar into a startup file?
+                // maybe even a way to completely restart without forcing an exit?
+			    ignore = true;
+				break;
 			}
 			[[fallthrough]];
 		case CVAR_T::STARTUP: break;
 		default: ASSERT(false && "flags_req not implemented");
 		}
 
-		std::string old_value = cv.cvar_write();
-
-		if(!cv.cvar_read(argv[i]))
+		if(!ignore)
 		{
-			return false;
+			std::string old_value = cv.cvar_write();
+			if(!cv.cvar_read(argv[i]))
+			{
+				return -1;
+			}
+			slogf("%s (%s) = %s\n", name, old_value.c_str(), argv[i]);
 		}
-		slogf("%s (%s) = %s\n", name, old_value.c_str(), argv[i]);
 	}
-	return true;
+	return i;
 }
 
 // this IS stupid, but a portable strtok is complicated.
@@ -252,12 +259,14 @@ bool cvar_line(CVAR_T flags_req, char* line)
 	std::vector<const char*> arguments;
 	char* token = line;
 	bool in_quotes = false;
-	do
+	while(token != NULL)
 	{
 		char* next_quote = strchr(token, '\"');
 		if(next_quote != NULL)
 		{
 			*next_quote++ = '\0';
+            // note the in_quotes condition is the opposite
+            // because I toggle before the condition.
 			in_quotes = !in_quotes;
 			if(!in_quotes)
 			{
@@ -277,7 +286,7 @@ bool cvar_line(CVAR_T flags_req, char* line)
 		}
 
 		token = next_quote;
-	} while(token != NULL);
+	}
 
 	if(in_quotes)
 	{
@@ -285,8 +294,21 @@ bool cvar_line(CVAR_T flags_req, char* line)
 		return false;
 	}
 
+	const char** argv = arguments.data();
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-	return cvar_args(flags_req, arguments.size(), arguments.data());
+	int argc = arguments.size();
+	while(argc > 0)
+	{
+		int ret = cvar_arg(flags_req, argc, argv);
+		if(ret == -1)
+		{
+			return false;
+		}
+		argc -= ret;
+		argv += ret;
+	}
+
+	return true;
 }
 
 bool cvar_file(CVAR_T flags_req, RWops* file)
@@ -354,16 +376,16 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
 void cvar_list(bool debug)
 {
 	slog("cvar types:\n"
-		 "-CVAR_RUNTIME:\t"
+		 "-RUNTIME:\t"
 		 "normal, changes should take effect\n"
-		 "-[S] CVAR_STARTUP:\t"
+		 "-[S] STARTUP:\t"
 		 "requires the app to be restarted\n"
-		 "-[G] CVAR_GAME:\t"
-		 "requires the game to be restarted (if there is a game)\n"
-		 "-[R] CVAR_READONLY:\t"
+		 "-[G] DEFFERRED:\t"
+		 "the change isn't immediate because the variable is cached in some way\n"
+		 "-[R] READONLY:\t"
 		 "the value cannot be set\n"
-		 "-[D] CVAR_DISABLED\t"
-		 "the value cannot be read or set\n");
+		 "-[DISABLED]\t"
+		 "the value cannot be read or set due to platform or build options\n");
 	for(const auto& it : get_convars())
 	{
 		std::string value = it.second.cvar_write();
@@ -372,9 +394,9 @@ void cvar_list(bool debug)
 		{
 		case CVAR_T::RUNTIME: type = ""; break;
 		case CVAR_T::STARTUP: type = "[S]"; break;
-		case CVAR_T::GAME: type = "[G]"; break;
+		case CVAR_T::DEFFERRED: type = "[G]"; break;
 		case CVAR_T::READONLY: type = "[R]"; break;
-		case CVAR_T::DISABLED: type = "[D]"; break;
+		case CVAR_T::DISABLED: type = "[DISABLED]"; break;
 		default: ASSERT("unreachable" && false);
 		}
 		slogf("%s %s: \"%s\"\n", it.second.cvar_key, type, value.c_str());

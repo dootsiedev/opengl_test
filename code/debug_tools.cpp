@@ -15,9 +15,11 @@
 // platform specific debug breakpoint headers.
 #if defined(_WIN32)
 #include <intrin.h> // for __debugbreak
+#include <debugapi.h> // for IsDebuggerPresent
 #elif defined(__EMSCRIPTEN__)
 #include <emscripten.h>
 #else
+// assume linux and has SIGTRAP
 #include <signal.h>
 #endif
 
@@ -31,25 +33,41 @@ static int has_libbacktrace
 static REGISTER_CVAR_INT(
 	cv_has_libbacktrace, has_libbacktrace, "0 = not found, 1 = found", CVAR_T::READONLY);
 
-// sometimes a trap is better than nothing,
-// especially when you don't even have a stacktrace.
-// NDEBUG disables the trap because it means your debugger
-// cant inspect the variables in the stack (not worth trapping for)
-// and the trap is annoying (especially from "cv_serr_bt")
-// because when you run without a debugger, 
-// it just causes your application to exit!
+
 static int enable_bt_trap
-#if defined(USE_LIBBACKTRACE) || defined(NDEBUG)
+#if defined(_WIN32) && !defined(USE_LIBBACKTRACE)
+    // Libbacktrace isn't supported on Windows msvc.
+    // I know I can get msvc stacktraces, but sharing symbols a pain in the ass.
+    // So instead I use core dumps for any user crash reports.
+    // core dumps are inconvenient, but if a user has a problem they can reproduce,
+    // they can use the debug binary and give a very informational (100gig...) report.
+    // OR I could use msys2 which supports libbacktrace (but no core dumps...)
+    = 2;
+#elif defined(USE_LIBBACKTRACE) || defined(NDEBUG) || defined(__EMSCRIPTEN__)
+    // NDEBUG means optimizations, and trapping for a crappy backtrace is annoying.
+    // if you have libbacktrace, the trap would prevent the stacktrace from being shown.
 	= 0;
 #else
+	// sometimes a trap is better than nothing,
+	// and if you have debug information, you can inspect many variables.
+    // but the trap is annoying (especially from "cv_serr_bt")
+    // because without a debugger, it just causes your application to exit!
 	= 1;
+#endif
+
+static CVAR_T cv_bt_trap_run
+#if defined(__EMSCRIPTEN__)
+    // the browser doesn't have gdb or lldb that works...
+    // no point in trapping....
+	= CVAR_T::DISABLED;
+#else
+	= CVAR_T::RUNTIME;
 #endif
 static REGISTER_CVAR_INT(
 	cv_bt_trap,
 	enable_bt_trap,
-    // this also does not replace or disable the stacktrace.
-	"raise a debug trap for all stacktraces, 0 (off), 1 (on)",
-	CVAR_T::RUNTIME);
+	"replace all stacktraces with a debug trap, 0 (off), 1 (on), 2 (windows only: only trap inside a debugger)",
+	cv_bt_trap_run);
 
 static CVAR_T has_libbacktrace_run
 #if defined(USE_LIBBACKTRACE)
@@ -61,6 +79,9 @@ static REGISTER_CVAR_INT(
 	cv_bt_demangle, 1, "stacktrace pretty function names, 0 (off), 1 (on)", has_libbacktrace_run);
 static REGISTER_CVAR_INT(
 	cv_bt_full_paths, 0, "stacktrace full file paths, 0 (off), 1 (on)", has_libbacktrace_run);
+
+
+#if !defined(__EMSCRIPTEN__)
 
 // I haven't tested it, but I think msys could work with libbacktrace.
 #ifdef USE_LIBBACKTRACE
@@ -218,23 +239,25 @@ struct bt_state_wrapper
 {
 	backtrace_state* state;
 	explicit bt_state_wrapper(bt_payload& info)
+	: state(backtrace_create_state(NULL, 1, bt_error_callback, &info))
 	{
-		state = backtrace_create_state(NULL, 1, bt_error_callback, &info);
 	}
 };
 
 __attribute__((noinline)) bool
 	debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int skip)
 {
+#if defined(_WIN32)
+	if(cv_bt_trap.data == 1 || (cv_bt_trap.data == 2 && IsDebuggerPresent()))
+	{
+		__debugbreak();
+	}
+#else
 	if(cv_bt_trap.data == 1)
 	{
-#ifdef _WIN32
-		__debugbreak();
-#else
 		raise(SIGTRAP);
-#endif
-		return false;
 	}
+#endif
 
 	bt_payload info;
 	info.call = callback;
@@ -336,39 +359,6 @@ err:
 }
 #else
 
-#if defined(__EMSCRIPTEN__)
-
-int raw_string_callback(debug_stacktrace_info*, const char*, void* ud)
-{
-	ASSERT(ud != NULL);
-	if(ud != NULL)
-	{
-		char buffer[10000];
-		// no error code, includes size of null terminator so I use -1.
-		int ret = emscripten_get_callstack(0, buffer, sizeof(buffer));
-		std::string* output = reinterpret_cast<std::string*>(ud);
-		output->append(buffer, ret - 1);
-		return 1;
-	}
-	return 0;
-}
-
-bool debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int)
-{
-	if(cv_bt_trap.data == 1)
-	{
-		// this won't always open the debugger, you need need the debugger already open.
-		// which is convenient because since I depend on libbacktrace setting
-		// cv_bt_trap, so that means emscripten ALWAYS traps, but it wont actually.
-		// also this doesn't crash and burn the program, you should have a continue button.
-        // NOTE: while testing this, the inspector debugger seems to be confused,
-        // I think emscripten actually queues this function, which means you can't debug anything...
-		emscripten_debugger();
-	}
-	return callback(NULL, NULL, ud) == 1;
-}
-
-#else
 
 int raw_string_callback(debug_stacktrace_info*, const char*, void*)
 {
@@ -377,18 +367,20 @@ int raw_string_callback(debug_stacktrace_info*, const char*, void*)
 
 bool debug_raw_stacktrace(debug_stacktrace_callback, void*, int)
 {
+#if defined(_WIN32)
+    if(cv_bt_trap.data == 1 || (cv_bt_trap.data == 2 && IsDebuggerPresent()))
+    {
+		__debugbreak();
+    }
+#else
 	if(cv_bt_trap.data == 1)
 	{
-		// I know I could easily make a backtrace without libbacktrace,
-		// but I value the source file and line to the point I would rather trap.
-#if defined(_WIN32)
-		__debugbreak();
-#else
 		raise(SIGTRAP);
-#endif
 	}
+#endif
 	return false;
 }
+
 #endif
 
 #endif

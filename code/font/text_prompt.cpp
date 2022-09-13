@@ -80,7 +80,7 @@ bool text_prompt_wrapper::init(
 	return state.font->get_advance(' ', &space_advance_cache) == FONT_RESULT::SUCCESS;
 }
 
-bool text_prompt_wrapper::replace_string(std::string_view contents)
+bool text_prompt_wrapper::replace_string(std::string_view contents, bool clear_history)
 {
 	update_buffer = true;
 
@@ -101,15 +101,20 @@ bool text_prompt_wrapper::replace_string(std::string_view contents)
 		wstr.push_back(codepoint);
 	}
 
-	// I clear the state because stb_textedit_paste will create 2 undo's
-	// otherwise I would only reset the state if this was readonly() to save memory (if it was
-	// dynamic).
-	stb_textedit_clear_state(&stb_state, single_line() ? 1 : 0);
-	text_data.clear();
-
-	// stb_state.select_start = STB_TEXTEDIT_STRINGLEN(this);
-	// stb_state.select_end = STB_TEXTEDIT_STRINGLEN(this);
-	// stb_state.cursor = STB_TEXTEDIT_STRINGLEN(this);
+    if(clear_history)
+    {
+        // I clear the state because stb_textedit_paste will create 2 undo's
+        // otherwise I would only reset the state if this was readonly() to save memory (if it was
+        // dynamic).
+        stb_textedit_clear_state(&stb_state, single_line() ? 1 : 0);
+        text_data.clear();
+    }
+    else 
+    {
+        stb_state.select_start = 0;
+        stb_state.select_end = STB_TEXTEDIT_STRINGLEN(this);
+        //stb_state.cursor = STB_TEXTEDIT_STRINGLEN(this);
+    }
 
 	// avoid read only error.
 	TEXTP_FLAG was_readonly = flags;
