@@ -710,7 +710,7 @@ bool console_state::render()
 			ctx.glEnable(GL_SCISSOR_TEST);
 			// don't forget that 0,0 is the bottom left corner...
 			ctx.glScissor(
-				scissor_x, cv_screen_height.data - scissor_y + scissor_h, scissor_w, scissor_h);
+				scissor_x, cv_screen_height.data - scissor_y - scissor_h, scissor_w, scissor_h);
 			ctx.glBindVertexArray(gl_log_vao_id);
 			ctx.glDrawArrays(GL_TRIANGLES, 0, log_vertex_count);
 			ctx.glBindVertexArray(0);
@@ -734,7 +734,7 @@ bool console_state::render()
 			ctx.glEnable(GL_SCISSOR_TEST);
 			// don't forget that 0,0 is the bottom left corner...
 			ctx.glScissor(
-				scissor_x, cv_screen_height.data - scissor_y + scissor_h, scissor_w, scissor_h);
+				scissor_x, cv_screen_height.data - scissor_y - scissor_h, scissor_w, scissor_h);
 			ctx.glBindVertexArray(gl_prompt_vao_id);
 			ctx.glDrawArrays(GL_TRIANGLES, 0, prompt_vertex_count);
 			ctx.glBindVertexArray(0);

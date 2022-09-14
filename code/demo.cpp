@@ -148,6 +148,7 @@ static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_backward, SDLK_s, "move backward", CVA
 static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_left, SDLK_a, "move left", CVAR_T::RUNTIME);
 static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_right, SDLK_d, "move right", CVAR_T::RUNTIME);
 static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_console, SDLK_F1, "open console overlay", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_options, SDLK_SLASH, "open option menu", CVAR_T::RUNTIME);
 static REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, "toggle fullscreen", CVAR_T::RUNTIME);
 
 struct gl_point_vertex
@@ -684,10 +685,12 @@ bool demo_state::init_gl_font()
 
 	font_painter.init(&font_batcher, current_font);
 
-	// load the atlas texture.
-	bool ret = g_console.init(current_font, &font_batcher, mono_shader);
-	// restore to the default 4 alignment.
-	if(!ret)
+	if(!g_console.init(current_font, &font_batcher, mono_shader))
+	{
+		return false;
+	}
+
+    if(!option_menu.init(current_font, &font_batcher, mono_shader))
 	{
 		return false;
 	}
@@ -727,6 +730,9 @@ bool demo_state::destroy_gl_font()
 bool demo_state::destroy()
 {
 	bool success = true;
+
+    success = option_menu.destroy() && success;
+    success = g_console.destroy() && success;
 
 	success = destroy_gl_font() && success;
 	success = destroy_gl_point_sprite() && success;
@@ -792,6 +798,20 @@ bool demo_state::input(SDL_Event& e)
 		}
 	}
 
+    if(input_eaten)
+	{
+        option_menu.unfocus();
+    }
+    else if(show_options)
+    {
+        switch(option_menu.input(e))
+		{
+		case OPTION_MENU_RESULT::CONTINUE: break;
+		case OPTION_MENU_RESULT::EAT: input_eaten = true; break;
+		case OPTION_MENU_RESULT::ERROR: return false;
+		}
+    }
+
     // I need to use input_eaten to unfocus each UI element,
     // because unfocus() would unfocus EVERY ui element, and
     // if I did that the prompt that was in focus would unfocus,
@@ -820,6 +840,21 @@ bool demo_state::input(SDL_Event& e)
             show_console = true;
         }
 	}
+
+    if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+    {
+
+        if(show_options)
+        {
+            option_menu.unfocus();
+            show_options = false;
+        }
+        else
+        {
+            unfocus();
+            show_options = true;
+        }
+    }
 
 	switch(e.type)
 	{
@@ -1063,6 +1098,14 @@ bool demo_state::render()
 		ctx.glDrawArrays(GL_TRIANGLES, 0, gl_font_vertex_count);
 		ctx.glBindVertexArray(0);
 	}
+
+    if(show_options)
+    {
+        if(!option_menu.render())
+        {
+            return false;
+        }
+    }
 
 	if(show_console)
 	{

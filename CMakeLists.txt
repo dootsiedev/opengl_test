@@ -381,6 +381,8 @@ add_executable(${PROJECT_NAME}
     code/console.cpp
     code/keybind.h
     code/keybind.cpp
+    code/options.h
+    code/options.cpp
     
     code/shaders/pointsprite.h
     code/shaders/pointsprite.cpp
@@ -449,6 +451,9 @@ if(EMSCRIPTEN)
     #set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "--preload-file ../data_folder@/)
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sEXPORTED_FUNCTIONS=_main,_enter_fullscreen -sEXPORTED_RUNTIME_METHODS=ccall,cwrap")
     if(USE_OLD_SDL2)
+        # emscripten actually uses the newest SDL2 version
+        # but I repurpose USE_OLD_SDL2 to equal "let emscripten automatically build SDL2"
+        # it's stupid.
         set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sUSE_SDL=2")
     endif()
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sFULL_ES3")

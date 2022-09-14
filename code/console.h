@@ -98,14 +98,12 @@ struct console_state
 	std::string original_prompt;
 	int history_index = -1;
 
-	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool init(
 		font_style_interface* console_font_,
 		mono_2d_batcher* console_batcher_,
 		shader_mono_state& mono_shader);
 	NDSERR bool destroy();
 
-	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR CONSOLE_RESULT input(SDL_Event& e);
 
 	void resize_text_area();
@@ -120,6 +118,7 @@ struct console_state
 
 	// call this when you need to unfocus, like for example if you press escape or something.
 	void unfocus();
+    // this will make the prompt focused.
 	void focus();
 
 	// put the error on the error section.

@@ -9,6 +9,7 @@
 #include "font/font_manager.h"
 #include "font/text_prompt.h"
 #include "console.h"
+#include "options.h"
 
 #include <SDL2/SDL.h>
 
@@ -108,6 +109,9 @@ struct demo_state
 	// you only need one.
 	mono_2d_batcher font_batcher;
 	std::unique_ptr<gl_mono_vertex[]> font_batcher_buffer;
+
+    option_menu_state option_menu;
+    bool show_options = false;
 
 	// show g_console
 	bool show_console = false;
