@@ -3,65 +3,28 @@
 
 #define MOUSE_LMB_STRING_NAME "LMB"
 #define MOUSE_RMB_STRING_NAME "RMB"
+#define MOUSE_MMB_STRING_NAME "MMB"
 
-//forward declaration
+// forward declaration
+Uint16 find_sdl_mod(const char* string, size_t size);
 SDL_Keycode find_sdl_keycode(const char* string, size_t size);
 const char* get_sdl_key_name(SDL_Keycode key);
 
-
-REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_forward, SDLK_w, "move forward", CVAR_T::RUNTIME);
-
 cvar_key_bind::cvar_key_bind(
-    const char* key,
-    keybind_entry value,
-    const char* comment,
-    CVAR_T type,
-    const char* file,
-    int line)
-    : V_cvar(key, comment, type, file, line)
+	const char* key,
+	keybind_entry value,
+	const char* comment,
+	CVAR_T type,
+	const char* file,
+	int line)
+: V_cvar(key, comment, type, file, line)
 {
 	auto [it, success] = get_convars().try_emplace(key, *this);
 	(void)success;
 	// this shouldn't be possible.
 	ASSERT(success && "cvar already registered");
-    key_bind_count = 1;
-    key_binds[0] = value;
-}
-
-bool cvar_key_bind::convert_string_to_event(const char* buffer, size_t size)
-{
-    if(key_bind_count >= MAX_KEY_BINDS)
-    {
-        serrf("too many key binds, ignoring: %*.s\n", static_cast<int>(size), buffer);
-        return false;
-    }
-    SDL_Keycode key = find_sdl_keycode(buffer, size);
-	if(key != -1)
-	{
-		key_binds[key_bind_count].type = KEYBIND_T::KEY;
-        key_binds[key_bind_count].key = key;
-        ++key_bind_count;
-		return true;
-	}
-	if(strncmp(MOUSE_LMB_STRING_NAME, buffer, size) == 0)
-	{
-		key_binds[key_bind_count].type = KEYBIND_T::MOUSE;
-        key_binds[key_bind_count].mouse_button = SDL_BUTTON_LEFT;
-        ++key_bind_count;
-		return true;
-	}
-	if(strncmp(MOUSE_RMB_STRING_NAME, buffer, size) == 0)
-	{
-		key_binds[key_bind_count].type = KEYBIND_T::MOUSE;
-        key_binds[key_bind_count].mouse_button = SDL_BUTTON_RIGHT;
-        ++key_bind_count;
-		return true;
-	}
-    
-    // flags
-	serrf("unknown key bind string: %*.s\n", static_cast<int>(size), buffer);
-	return false;
+	key_bind_count = 1;
+	key_binds[0] = value;
 }
 bool cvar_key_bind::cvar_read(const char* buffer)
 {
@@ -71,39 +34,57 @@ bool cvar_key_bind::cvar_read(const char* buffer)
 	memset(&key_binds, 0, sizeof(key_binds));
 	const char* token_start = buffer;
 	const char* token_cur = buffer;
-	while(*token_cur != '\0')
+	for(; *token_cur != '\0'; ++token_cur)
 	{
 		if(*token_cur == ';' && token_cur != token_start)
-        {
-            // can't use SDL_GetKeyName because null terminator, 
-            // but I think the performance is about the same.
-            if(!convert_string_to_event(token_start, token_cur - token_start))
-            {
-                return false;
-            }
-            ++token_cur;
-            token_start = token_cur;
-            continue;
-        }
-        ++token_cur;
+		{
+			// can't use SDL_GetKeyName because null terminator,
+			// but I think the performance is about the same.
+			if(!convert_string_to_event(token_start, token_cur - token_start))
+			{
+				return false;
+			}
+			token_start = token_cur + 1;
+			continue;
+		}
 	}
 	if(token_cur != token_start)
-    {
-        if(!convert_string_to_event(token_start, token_cur - token_start))
-        {
-            return false;
-        }
+	{
+		if(!convert_string_to_event(token_start, token_cur - token_start))
+		{
+			return false;
+		}
 	}
 	return true;
 }
 std::string cvar_key_bind::cvar_write()
 {
-    std::string out;
-    for(size_t i = 0; i < key_bind_count; ++i)
-    {
-        if(i != 0)
+	std::string out;
+	for(size_t i = 0; i < key_bind_count; ++i)
+	{
+		if(i != 0)
 		{
 			out += ';';
+		}
+
+		if(key_binds[i].mod != 0)
+		{
+			if((KMOD_CTRL & key_binds[i].mod) != 0)
+			{
+				out += "KMOD_CTRL;";
+			}
+			else if((KMOD_SHIFT & key_binds[i].mod) != 0)
+			{
+				out += "KMOD_SHIFT;";
+			}
+			else if((KMOD_ALT & key_binds[i].mod) != 0)
+			{
+				out += "KMOD_ALT;";
+			}
+			else
+			{
+				out += "UNKNOWN_MODIFIER????";
+			}
 		}
 		switch(key_binds[i].type)
 		{
@@ -113,12 +94,191 @@ std::string cvar_key_bind::cvar_write()
 			{
 			case SDL_BUTTON_LEFT: out += MOUSE_LMB_STRING_NAME; break;
 			case SDL_BUTTON_RIGHT: out += MOUSE_RMB_STRING_NAME; break;
-			default: ASSERT(false && "unreachable");
+			case SDL_BUTTON_MIDDLE: out += MOUSE_MMB_STRING_NAME; break;
+			default: out += "UNKNOWN_MOUSE_BUTTON????";
 			}
 			break;
 		}
 	}
-    return out;
+	return out;
+}
+
+bool cvar_key_bind::bind_sdl_event(SDL_Event& e, keybind_entry* keybind)
+{
+	switch(e.type)
+	{
+        // I use button up because if I try to use the modifier,
+        // the modifier would be eaten as the bind before you could press another button.
+	case SDL_KEYUP:
+		keybind->type = KEYBIND_T::KEY;
+		keybind->key = e.key.keysym.sym;
+		keybind->mod = e.key.keysym.mod;
+		return true;
+	case SDL_MOUSEBUTTONUP:
+		keybind->type = KEYBIND_T::MOUSE;
+		keybind->mouse_button = e.button.button;
+		keybind->mod = SDL_GetModState();
+		return true;
+	}
+	return false;
+}
+keybind_compare_type cvar_key_bind::compare_sdl_event(SDL_Event& e, keybind_compare_type flags)
+{
+	keybind_compare_type mask = 0;
+	for(size_t i = 0; i < key_bind_count; ++i)
+	{
+		switch(key_binds[i].type)
+		{
+		case KEYBIND_T::KEY:
+			switch(e.type)
+			{
+			case SDL_KEYDOWN:
+                // this doesn't apply to keyup, because then we will never get a keyup!!!
+				if(key_binds[i].mod != 0 && (key_binds[i].mod & e.key.keysym.mod) == 0)
+				{
+					// modifier required.
+					break;
+				}
+				[[fallthrough]];
+			case SDL_KEYUP:
+				if(e.key.keysym.sym == key_binds[i].key)
+				{
+					if(e.key.repeat != 0)
+					{
+						if((flags & KEYBIND_REPEAT) != 0)
+						{
+							mask |= KEYBIND_REPEAT;
+						}
+						else
+						{
+							// no input
+							break;
+						}
+					}
+					if(e.key.state == SDL_PRESSED && (flags & KEYBIND_BUTTON_DOWN) != 0)
+					{
+						mask |= KEYBIND_BUTTON_DOWN;
+					}
+					else if(e.key.state == SDL_RELEASED && (flags & KEYBIND_BUTTON_UP) != 0)
+					{
+						mask |= KEYBIND_BUTTON_UP;
+					}
+					return mask;
+				}
+				break;
+			}
+			break;
+		case KEYBIND_T::MOUSE:
+			switch(e.type)
+			{
+			case SDL_MOUSEBUTTONDOWN:
+				if(key_binds[i].mod != 0 && (key_binds[i].mod & e.key.keysym.mod) == 0)
+				{
+					// modifier required.
+					break;
+				}
+				[[fallthrough]];
+			case SDL_MOUSEBUTTONUP:
+				if(e.button.button == key_binds[i].mouse_button)
+				{
+					if(e.button.state == SDL_PRESSED && (flags & KEYBIND_BUTTON_DOWN) != 0)
+					{
+						mask |= KEYBIND_BUTTON_DOWN;
+					}
+					else if(e.button.state == SDL_RELEASED && (flags & KEYBIND_BUTTON_UP) != 0)
+					{
+						mask |= KEYBIND_BUTTON_UP;
+					}
+					return mask;
+				}
+				break;
+			}
+			break;
+		}
+	}
+	return KEYBIND_NULL;
+}
+
+bool cvar_key_bind::convert_string_to_event(const char* buffer, size_t size)
+{
+	if(key_bind_count >= MAX_KEY_BINDS)
+	{
+		serrf("too many key binds, ignoring: %*.s\n", static_cast<int>(size), buffer);
+		return false;
+	}
+	SDL_Keycode key = find_sdl_keycode(buffer, size);
+	if(key != -1)
+	{
+		key_binds[key_bind_count].type = KEYBIND_T::KEY;
+		key_binds[key_bind_count].key = key;
+		++key_bind_count;
+		return true;
+	}
+	Uint16 mod = find_sdl_mod(buffer, size);
+	if(mod != 0)
+	{
+		// this isn't a key, just modify the "next slot"
+		// for the next string that isn't a modifier
+		key_binds[key_bind_count].mod |= mod;
+		return true;
+	}
+	if(strncmp(MOUSE_LMB_STRING_NAME, buffer, size) == 0)
+	{
+		key_binds[key_bind_count].type = KEYBIND_T::MOUSE;
+		key_binds[key_bind_count].mouse_button = SDL_BUTTON_LEFT;
+		++key_bind_count;
+		return true;
+	}
+	if(strncmp(MOUSE_RMB_STRING_NAME, buffer, size) == 0)
+	{
+		key_binds[key_bind_count].type = KEYBIND_T::MOUSE;
+		key_binds[key_bind_count].mouse_button = SDL_BUTTON_RIGHT;
+		++key_bind_count;
+		return true;
+	}
+	if(strncmp(MOUSE_MMB_STRING_NAME, buffer, size) == 0)
+	{
+		key_binds[key_bind_count].type = KEYBIND_T::MOUSE;
+		key_binds[key_bind_count].mouse_button = SDL_BUTTON_MIDDLE;
+		++key_bind_count;
+		return true;
+	}
+
+	// flags
+	serrf("unknown key bind string: %*.s\n", static_cast<int>(size), buffer);
+	return false;
+}
+
+// returns = 0 for no modifier
+Uint16 find_sdl_mod(const char* string, size_t size)
+{
+#define XSTRNCMP(code)                                                 \
+	do                                                                 \
+	{                                                                  \
+		if(strlen(#code) == size && strncmp(string, #code, size) == 0) \
+		{                                                              \
+			return code;                                               \
+		}                                                              \
+	} while(0)
+	XSTRNCMP(KMOD_NONE);
+	XSTRNCMP(KMOD_LSHIFT);
+	XSTRNCMP(KMOD_RSHIFT);
+	XSTRNCMP(KMOD_LCTRL);
+	XSTRNCMP(KMOD_RCTRL);
+	XSTRNCMP(KMOD_LALT);
+	XSTRNCMP(KMOD_RALT);
+	XSTRNCMP(KMOD_LGUI);
+	XSTRNCMP(KMOD_RGUI);
+	XSTRNCMP(KMOD_NUM);
+	XSTRNCMP(KMOD_CAPS);
+	XSTRNCMP(KMOD_MODE);
+	XSTRNCMP(KMOD_SCROLL);
+	XSTRNCMP(KMOD_CTRL);
+	XSTRNCMP(KMOD_SHIFT);
+	XSTRNCMP(KMOD_ALT);
+	XSTRNCMP(KMOD_GUI);
+#undef XSTRNCMP
+	return 0;
 }
 
 // this is horrible, but because I need SDL_GetKeyName and I haven't initialized SDL
@@ -127,13 +287,13 @@ std::string cvar_key_bind::cvar_write()
 // NOLINTNEXTLINE
 SDL_Keycode find_sdl_keycode(const char* string, size_t size)
 {
-#define XSTRNCMP(code)                                                \
-	do                                                                \
-	{                                                                 \
+#define XSTRNCMP(code)                                                 \
+	do                                                                 \
+	{                                                                  \
 		if(strlen(#code) == size && strncmp(string, #code, size) == 0) \
-		{                                                             \
-			return code;                                              \
-		}                                                             \
+		{                                                              \
+			return code;                                               \
+		}                                                              \
 	} while(0)
 	XSTRNCMP(SDLK_RETURN);
 	XSTRNCMP(SDLK_ESCAPE);
@@ -379,20 +539,21 @@ SDL_Keycode find_sdl_keycode(const char* string, size_t size)
 	XSTRNCMP(SDLK_CALL);
 	XSTRNCMP(SDLK_ENDCALL);
 	return -1;
-    #undef XSTRNCMP
+#undef XSTRNCMP
 }
 
 // I know I don't need to copy-paste this if I used the X macro
 // but I didn't expect SDL_GetKeyName to not return SDLK_ formatted strings!!!!
+// NOLINTNEXTLINE
 const char* get_sdl_key_name(SDL_Keycode key)
 {
-#define XSTRNCMP(code)                        \
-	do                                        \
-	{                                         \
+#define XSTRNCMP(code)    \
+	do                    \
+	{                     \
 		if((code) == key) \
-		{                                     \
-			return #code;                      \
-		}                                     \
+		{                 \
+			return #code; \
+		}                 \
 	} while(0)
 	XSTRNCMP(SDLK_RETURN);
 	XSTRNCMP(SDLK_ESCAPE);
@@ -637,6 +798,6 @@ const char* get_sdl_key_name(SDL_Keycode key)
 	XSTRNCMP(SDLK_SOFTRIGHT);
 	XSTRNCMP(SDLK_CALL);
 	XSTRNCMP(SDLK_ENDCALL);
-	return "UNKNOWN????";
-    #undef XSTRNCMP
+	return "UNKNOWN_KEY_CODE????";
+#undef XSTRNCMP
 }

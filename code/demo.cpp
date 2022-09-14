@@ -141,6 +141,15 @@ static REGISTER_CVAR_INT(
 static REGISTER_CVAR_DOUBLE(cv_mouse_sensitivity, 0.4, "mouse move speed", CVAR_T::RUNTIME);
 static REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed", CVAR_T::RUNTIME);
 
+//keybinds
+
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_forward, SDLK_w, "move forward", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_backward, SDLK_s, "move backward", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_left, SDLK_a, "move left", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_right, SDLK_d, "move right", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_console, SDLK_F1, "open console overlay", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, "toggle fullscreen", CVAR_T::RUNTIME);
+
 struct gl_point_vertex
 {
 	GLfloat coords[3];
@@ -797,6 +806,21 @@ bool demo_state::input(SDL_Event& e)
 		return true;
 	}
 
+    if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+        if(show_console)
+        {
+            g_console.unfocus();
+            show_console = false;
+        }
+        else
+        {
+            unfocus();
+            g_console.focus();
+            show_console = true;
+        }
+	}
+
 	switch(e.type)
 	{
 	case SDL_KEYDOWN:
@@ -812,19 +836,6 @@ bool demo_state::input(SDL_Event& e)
 			if(show_console)
 			{
 				g_console.unfocus();
-			}
-			break;
-		case SDLK_F1:
-			if(show_console)
-			{
-				g_console.unfocus();
-				show_console = false;
-			}
-			else
-			{
-				unfocus();
-				g_console.focus();
-				show_console = true;
 			}
 			break;
 		case SDLK_F10: {
@@ -894,30 +905,30 @@ bool demo_state::input(SDL_Event& e)
 		}
 		break;
 	}
-	// another switch statement because I combine KEYDOWN and KEYUP
-	switch(e.type)
+	
+    // movement.
+	keybind_compare_type ret;
+	ret = cv_bind_forward.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	if(ret != KEYBIND_NULL)
 	{
-	case SDL_KEYDOWN:
-	case SDL_KEYUP:
-		// key events will still be triggered even if textinput is active.
-		// which means that prompts can't "EAT" the event because they don't use it.
-		if(SDL_IsTextInputActive() == SDL_TRUE)
-		{
-			break;
-		}
-        if(e.key.keysym.sym == cv_bind_forward.key_binds[0].key)
-        {
-            keys_down[MOVE_FORWARD] = (e.key.state == SDL_PRESSED);
-        }
-		switch(e.key.keysym.sym)
-		{
-		//case SDLK_w: keys_down[MOVE_FORWARD] = (e.key.state == SDL_PRESSED); break;
-		case SDLK_s: keys_down[MOVE_BACKWARD] = (e.key.state == SDL_PRESSED); break;
-		case SDLK_a: keys_down[MOVE_LEFT] = (e.key.state == SDL_PRESSED); break;
-		case SDLK_d: keys_down[MOVE_RIGHT] = (e.key.state == SDL_PRESSED); break;
-		}
-		break;
+		keys_down[MOVE_FORWARD] = (ret & KEYBIND_BUTTON_DOWN) != 0;
 	}
+	ret = cv_bind_backward.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	if(ret != KEYBIND_NULL)
+	{
+		keys_down[MOVE_BACKWARD] = (ret & KEYBIND_BUTTON_DOWN) != 0;
+	}
+	ret = cv_bind_left.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	if(ret != KEYBIND_NULL)
+	{
+		keys_down[MOVE_LEFT] = (ret & KEYBIND_BUTTON_DOWN) != 0;
+	}
+	ret = cv_bind_right.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	if(ret != KEYBIND_NULL)
+	{
+		keys_down[MOVE_RIGHT] = (ret & KEYBIND_BUTTON_DOWN) != 0;
+	}
+
 	return true;
 }
 bool demo_state::update(double delta_sec)
@@ -1120,7 +1131,6 @@ DEMO_RESULT demo_state::process()
 			case SDL_WINDOWEVENT_SIZE_CHANGED:
 				cv_screen_width.data = e.window.data1;
 				cv_screen_height.data = e.window.data2;
-				g_console.resize_text_area();
 				update_screen_resize = true;
 				break;
 				/* TODO: pretty important window events.
@@ -1148,6 +1158,7 @@ DEMO_RESULT demo_state::process()
 				*/
 			}
 			break;
+            /*
 		case SDL_KEYDOWN:
 			switch(e.key.keysym.sym)
 			{
@@ -1164,11 +1175,22 @@ DEMO_RESULT demo_state::process()
 				}
 			}
 			break;
+            */
 #ifdef __EMSCRIPTEN__
 		// this should already be registered using a callback.
 		case SDL_MOUSEBUTTONUP: continue;
 #endif
 		}
+        if(cv_bind_fullscreen.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+        {
+            cv_fullscreen.data = cv_fullscreen.data == 1 ? 0 : 1;
+            if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
+            {
+                return DEMO_RESULT::ERROR;
+            }
+            // eat this event, but don't unfocus anything.
+            continue;
+        }
 		if(!input(e))
 		{
 			return DEMO_RESULT::ERROR;

@@ -304,6 +304,14 @@ void console_state::resize_text_area()
 
 CONSOLE_RESULT console_state::input(SDL_Event& e)
 {
+	switch(e.type)
+	{
+	case SDL_WINDOWEVENT:
+		switch(e.window.event)
+		{
+		case SDL_WINDOWEVENT_SIZE_CHANGED: resize_text_area(); break;
+		}
+	}
 	if(prompt_cmd.text_focus)
 	{
 		switch(e.type)
@@ -522,7 +530,7 @@ bool console_state::update()
 
 	if(message_count != 0)
 	{
-		STB_TEXTEDIT_CHARTYPE text_data[1000];
+		STB_TEXTEDIT_CHARTYPE text_data[10000];
 		for(size_t i = 0; i < message_count; ++i)
 		{
 			size_t char_count = 0;

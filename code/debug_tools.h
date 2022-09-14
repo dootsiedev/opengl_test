@@ -8,8 +8,10 @@
 // skip is ignored...
 inline int debug_str_stacktrace(std::string* out, int)
 {
+    // the problem with this is that there is no way to "skip" calls.
     char buffer[10000];
-    // no error code, includes size of null terminator so I use -1.
+    // no error code, includes size of null terminator.
+    // there is no way to detect if truncation occurred.
     int ret = emscripten_get_callstack(0, buffer, sizeof(buffer));
     out->append(buffer, ret - 1);
     return 0;

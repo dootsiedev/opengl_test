@@ -110,7 +110,12 @@ implement_CHECK(bool cond, const char* expr, const char* file, int line)
 // serr buffer lazy initialized.
 std::shared_ptr<std::string> internal_get_serr_buffer()
 {
-	static thread_local std::shared_ptr<std::string> buffer;
+	static
+#ifndef __EMSCRIPTEN__
+		thread_local
+#endif
+		std::shared_ptr<std::string>
+			buffer;
 	if(!buffer)
 	{
 		buffer = std::make_shared<std::string>();
@@ -120,6 +125,8 @@ std::shared_ptr<std::string> internal_get_serr_buffer()
 
 static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 {
+    // NOTE: I am thinking of making the stacktrace only appear in stdout
+    // and in the console error section.
 	(void)skip;
 	if(cv_serr_bt.data == 2 || (cv_serr_bt.data == 1 && !serr_check_error()))
 	{
@@ -137,8 +144,9 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 
 		internal_get_serr_buffer()->append(msg);
 		fwrite(msg.c_str(), 1, msg.size(), stdout);
-// TODO: would be better if I could combine this with the serr message
+// TODO(dootsie): would be better if I could combine this with the serr message
 // because the order could be scrambled by other threads.
+// but this only affects stdout/console order, serr is thread safe.
 #ifndef DISABLE_CONSOLE
 		// lovely, another allocation. thank god this pales in comparison
 		// to the actual cost of resolving debug information of a stacktrace.

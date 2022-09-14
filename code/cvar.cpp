@@ -378,11 +378,11 @@ void cvar_list(bool debug)
 	slog("cvar types:\n"
 		 "-RUNTIME:\t"
 		 "normal, changes should take effect\n"
-		 "-[S] STARTUP:\t"
+		 "-[STARTUP]:\t"
 		 "requires the app to be restarted\n"
-		 "-[G] DEFFERRED:\t"
-		 "the change isn't immediate because the variable is cached in some way\n"
-		 "-[R] READONLY:\t"
+		 "-[DEFFERRED]:\t"
+		 "the value is cached in some way, so the value may not make instant changes\n"
+		 "-[READONLY]:\t"
 		 "the value cannot be set\n"
 		 "-[DISABLED]\t"
 		 "the value cannot be read or set due to platform or build options\n");
@@ -393,9 +393,9 @@ void cvar_list(bool debug)
 		switch(it.second.cvar_type)
 		{
 		case CVAR_T::RUNTIME: type = ""; break;
-		case CVAR_T::STARTUP: type = "[S]"; break;
-		case CVAR_T::DEFFERRED: type = "[G]"; break;
-		case CVAR_T::READONLY: type = "[R]"; break;
+		case CVAR_T::STARTUP: type = "[STARTUP]"; break;
+		case CVAR_T::DEFFERRED: type = "[DEFFERRED]"; break;
+		case CVAR_T::READONLY: type = "[READONLY]"; break;
 		case CVAR_T::DISABLED: type = "[DISABLED]"; break;
 		default: ASSERT("unreachable" && false);
 		}
