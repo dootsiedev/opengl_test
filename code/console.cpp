@@ -65,7 +65,6 @@ bool console_state::init(
 	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_log_interleave_vbo);
 	gl_create_interleaved_mono_vertex_vao(mono_shader);
 
-	// this requires the atlas texture to be bound with 1 byte packing
 	if(!log_box.init(
 		   "",
 		   console_batcher,
@@ -540,13 +539,11 @@ bool console_state::update()
 			while(str_cur != str_end)
 			{
 				uint32_t codepoint;
-			    const char* prev_cur = str_cur;
 				utf8::internal::utf_error err_code =
 					utf8::internal::validate_next(str_cur, str_end, codepoint);
 				if(err_code == utf8::internal::NOT_ENOUGH_ROOM)
 				{
                     slogf("%s info: trunc log\n", __func__);
-                    str_cur = prev_cur;
                     break;
                 }
 				if(err_code != utf8::internal::UTF8_OK)
@@ -581,7 +578,6 @@ bool console_state::update()
 			text_data[char_count] = '\0';
 
 			log_box.set_readonly(false);
-			// this requires the atlas texture to be bound with 1 byte packing
 			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 			log_box.stb_insert_chars(log_box.text_data.size(), text_data, char_count);
 			log_box.set_readonly(true);
@@ -613,7 +609,12 @@ bool console_state::update()
 		}
 	}
 
-	if(log_box.draw_requested())
+	return true;
+}
+
+bool console_state::render()
+{
+    if(log_box.draw_requested())
 	{
 		console_batcher->set_cursor(0);
 		// this requires the atlas texture to be bound with 1 byte packing
@@ -656,7 +657,6 @@ bool console_state::update()
 		if(console_batcher->get_quad_count() != 0)
 		{
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_prompt_interleave_vbo);
-
 			ctx.glBufferData(
 				GL_ARRAY_BUFFER, console_batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
 			ctx.glBufferSubData(
@@ -694,11 +694,6 @@ bool console_state::update()
 		}
 	}
 
-	return GL_RUNTIME(__func__) == GL_NO_ERROR;
-}
-
-bool console_state::render()
-{
 	if(log_vertex_count != 0)
 	{
 		float x;
@@ -715,7 +710,7 @@ bool console_state::render()
 			ctx.glEnable(GL_SCISSOR_TEST);
 			// don't forget that 0,0 is the bottom left corner...
 			ctx.glScissor(
-				scissor_x, cv_screen_height.data - (scissor_y + scissor_h), scissor_w, scissor_h);
+				scissor_x, cv_screen_height.data - scissor_y + scissor_h, scissor_w, scissor_h);
 			ctx.glBindVertexArray(gl_log_vao_id);
 			ctx.glDrawArrays(GL_TRIANGLES, 0, log_vertex_count);
 			ctx.glBindVertexArray(0);
@@ -739,7 +734,7 @@ bool console_state::render()
 			ctx.glEnable(GL_SCISSOR_TEST);
 			// don't forget that 0,0 is the bottom left corner...
 			ctx.glScissor(
-				scissor_x, cv_screen_height.data - (scissor_y + scissor_h), scissor_w, scissor_h);
+				scissor_x, cv_screen_height.data - scissor_y + scissor_h, scissor_w, scissor_h);
 			ctx.glBindVertexArray(gl_prompt_vao_id);
 			ctx.glDrawArrays(GL_TRIANGLES, 0, prompt_vertex_count);
 			ctx.glBindVertexArray(0);

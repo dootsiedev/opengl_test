@@ -95,8 +95,8 @@ bool text_prompt_wrapper::replace_string(std::string_view contents, bool clear_h
 			utf8::internal::validate_next(str_cur, str_end, codepoint);
 		if(err_code != utf8::internal::UTF8_OK)
 		{
-			serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
-			return false;
+			slogf("info: %s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
+			break;
 		}
 		wstr.push_back(codepoint);
 	}
@@ -991,8 +991,8 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 			utf8::internal::validate_next(str_cur, str_end, codepoint);
 		if(err_code != utf8::internal::UTF8_OK)
 		{
-			serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
-			return false;
+			slogf("info: %s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
+			break;
 		}
 
 		switch(state.load_glyph_verts(codepoint, text_color, FONT_STYLE_NORMAL))
@@ -1354,8 +1354,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				utf8::internal::validate_next(str_cur, str_end, codepoint);
 			if(err_code != utf8::internal::UTF8_OK)
 			{
-				serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
-				return TEXT_PROMPT_RESULT::ERROR;
+				slogf("info: %s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
+                break;
 			}
 			wstr.push_back(codepoint);
 		}

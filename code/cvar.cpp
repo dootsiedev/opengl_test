@@ -167,11 +167,18 @@ int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
 	{
 		if(argv[i][0] != '+')
 		{
-			serrf(
-				"ERROR: cvar option must start with a '+'\n"
-				"expression: `%s`\n",
-				argv[i]);
-			return -1;
+            auto it = get_convars().find(argv[i]);
+            if(it == get_convars().end())
+            {
+                serrf(
+                    "ERROR: cvar option must start with a '+'\n"
+                    "expression: `%s`\n",
+                    argv[i]);
+                return -1;
+            }
+            // print the value.
+            slogf("%s\n", it->second.cvar_write().c_str());
+            continue;
 		}
 
 		const char* name = argv[i] + 1;

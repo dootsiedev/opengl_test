@@ -938,14 +938,7 @@ bool demo_state::update(double delta_sec)
 	// this will not actually draw, this will just modify the atlas and buffer data.
 	if(show_console)
 	{
-		// load the atlas texture.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
-		bool ret = g_console.update();
-		ctx.glBindTexture(GL_TEXTURE_2D, 0);
-		// restore to the default 4 alignment.
-		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-		if(!ret)
+		if(!g_console.update())
 		{
 			return false;
 		}
@@ -1060,6 +1053,10 @@ bool demo_state::render()
 	// ctx.glActiveTexture(GL_TEXTURE0);
 	ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
 
+    // since the text is stored in a GL_RED texture,
+    // I would need to pad each row to align to 4, but I don't.
+    ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
 	if(gl_font_vertex_count != 0)
 	{
 		ctx.glBindVertexArray(gl_font_vao_id);
@@ -1075,6 +1072,7 @@ bool demo_state::render()
 			return false;
 		}
 	}
+    ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 	ctx.glBindTexture(GL_TEXTURE_2D, 0);
 
 	ctx.glUseProgram(0);
@@ -1158,24 +1156,6 @@ DEMO_RESULT demo_state::process()
 				*/
 			}
 			break;
-            /*
-		case SDL_KEYDOWN:
-			switch(e.key.keysym.sym)
-			{
-			case SDLK_RETURN:
-				if((e.key.keysym.mod & KMOD_ALT) != 0)
-				{
-					cv_fullscreen.data = cv_fullscreen.data == 1 ? 0 : 1;
-					if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
-					{
-						return DEMO_RESULT::ERROR;
-					}
-					// eat this event, but don't unfocus anything.
-					continue;
-				}
-			}
-			break;
-            */
 #ifdef __EMSCRIPTEN__
 		// this should already be registered using a callback.
 		case SDL_MOUSEBUTTONUP: continue;
@@ -1266,8 +1246,10 @@ bool demo_state::perf_time()
 		success = success && display_perf_text();
 
 		font_painter.end();
+
 		// restore to the default 4 alignment.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+		ctx.glBindTexture(GL_TEXTURE_2D, 0);
 
 		gl_font_vertex_count = font_batcher.get_current_vertex_count();
 
@@ -1282,7 +1264,6 @@ bool demo_state::perf_time()
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 
-		ctx.glBindTexture(GL_TEXTURE_2D, 0);
 
 		success = success && GL_RUNTIME(__func__) == GL_NO_ERROR;
 

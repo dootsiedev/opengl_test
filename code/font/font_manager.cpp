@@ -28,12 +28,16 @@
 #define FT_CEIL(X) ((((X) + 63) & -64) / 64)
 #define FT_FLOOR(X) (((X) & -64) / 64)
 
-static REGISTER_CVAR_INT(cv_font_atlas_size, 16384, "the texture size", CVAR_T::STARTUP);
+static REGISTER_CVAR_INT(
+	cv_font_atlas_size, 16384, "the texture size, must be a power of 2", CVAR_T::STARTUP);
 
 // this is an annoying warning because the glyph will still use the unifont fallback,
 // and if the unifont also doesn't have the font, it turns into an error.
 static REGISTER_CVAR_INT(
-	cv_font_warnings, 0, "0 = no warnings, 1 = show warnings for missing glyphs", CVAR_T::RUNTIME);
+	cv_font_fallback_warning,
+	0,
+	"0 = off, 1 = on, show a warning for using the unifont fallback",
+	CVAR_T::RUNTIME);
 
 // this is referenced from SDL_TTF
 void internal_TTF_SetFTError(
@@ -142,7 +146,7 @@ bool font_manager_state::create()
 		return false;
 	}
 
-    ctx.glActiveTexture(GL_TEXTURE0);
+	ctx.glActiveTexture(GL_TEXTURE0);
 	ctx.glBindTexture(GL_TEXTURE_2D, gl_atlas_tex_id);
 	ctx.glTexImage2D(
 		GL_TEXTURE_2D,
@@ -826,8 +830,7 @@ hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_e
 	}
 
 	// ctx.glBindTexture(GL_TEXTURE_2D, gl_atlas_tex_id);
-	// note this works with GL_UNPACK_ALIGNMENT set to 8
-	// because hex only supports widths of 8 or 16
+	// note the outline requires GL_UNPACK_ALIGNMENT set to 1
 	ctx.glTexSubImage2D(
 		GL_TEXTURE_2D,
 		0,
@@ -1096,7 +1099,8 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 	// return true;
 }
 
-void font_bitmap_cache::init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer, float scale_)
+void font_bitmap_cache::init(
+	font_manager_state* font_manager, font_ttf_rasterizer* rasterizer, float scale_)
 {
 	ASSERT(font_manager != NULL);
 	ASSERT(rasterizer != NULL);
@@ -1106,18 +1110,18 @@ void font_bitmap_cache::init(font_manager_state* font_manager, font_ttf_rasteriz
 	fallback = &font_manager->hex_font;
 
 	FT_Bitmap_Init(&convert_bitmap);
-/*
-	FT_Face face = current_rasterizer->face;
-	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
-	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
-	{
-		int bitmap_height = FT_CEIL(face->size->metrics.height);
-		float bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
-        // combine the bitmap scale with the custom scale.
-		font_scale = scale_ * bitmap_scale;
-	}
-	else
-    */
+	/*
+		FT_Face face = current_rasterizer->face;
+		const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
+		if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
+		{
+			int bitmap_height = FT_CEIL(face->size->metrics.height);
+			float bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
+			// combine the bitmap scale with the custom scale.
+			font_scale = scale_ * bitmap_scale;
+		}
+		else
+		*/
 	{
 		font_scale = scale_;
 	}
@@ -1303,9 +1307,9 @@ float font_bitmap_cache::get_bitmap_size()
 	// NOLINTNEXTLINE(bugprone-integer-division
 	return FT_CEIL(current_rasterizer->face->size->metrics.height);
 }
-float font_bitmap_cache::get_scale() 
+float font_bitmap_cache::get_scale()
 {
-    return font_scale;
+	return font_scale;
 }
 
 FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
@@ -1340,7 +1344,6 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 
 	font_cache_block& block = font_cache_blocks[block_chunk];
 
-
 	bool use_bitmap = current_rasterizer->face->num_fixed_sizes != 0 &&
 					  (current_rasterizer->face_settings->force_bitmap ||
 					   !FT_IS_SCALABLE(current_rasterizer->face));
@@ -1354,8 +1357,7 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 			if(use_bitmap)
 			{
 				float bitmap_scale = (get_point_size() * font_scale) / get_bitmap_size();
-				*advance =
-					std::ceil(static_cast<float>(glyph.advance) * bitmap_scale);
+				*advance = std::ceil(static_cast<float>(glyph.advance) * bitmap_scale);
 				return FONT_RESULT::SUCCESS;
 			}
 			*advance = std::ceil(static_cast<float>(glyph.advance) * get_scale());
@@ -1369,10 +1371,10 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 		glyph_index = FT_Get_Char_Index(current_rasterizer->face, codepoint);
 		if(glyph_index == 0)
 		{
-			if(cv_font_warnings.data != 0)
+			if(cv_font_fallback_warning.data != 0)
 			{
 				slogf(
-					"info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+					"info: %s fallback not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
 			}
 			block.bad_indexes.set(block_index);
 		}
@@ -1381,9 +1383,9 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 	if(glyph_index == 0)
 	{
 		float hex_scale = (get_point_size() * get_scale()) / static_cast<float>(HEX_HEIGHT);
-		FONT_RESULT ret = fallback->get_advance(codepoint, advance); 
-        *advance *= hex_scale;
-        return ret;
+		FONT_RESULT ret = fallback->get_advance(codepoint, advance);
+		*advance *= hex_scale;
+		return ret;
 	}
 
 #if 0
@@ -1471,10 +1473,10 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 		glyph_index = FT_Get_Char_Index(current_rasterizer->face, codepoint);
 		if(glyph_index == 0)
 		{
-			if(cv_font_warnings.data != 0)
+			if(cv_font_fallback_warning.data != 0)
 			{
 				slogf(
-					"info: %s not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+					"info: %s fallback not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
 			}
 			block.bad_indexes.set(block_index);
 		}
@@ -1518,15 +1520,16 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 		glyph_out->rect_h = 0;
 		if(use_bitmap)
 		{
-            float bitmap_scale = (get_point_size()* font_scale) / get_bitmap_size();
+			float bitmap_scale = (get_point_size() * font_scale) / get_bitmap_size();
 			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			glyph_out->advance = std::ceil(
-				static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6)) * bitmap_scale;
+			glyph_out->advance =
+				std::ceil(static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6)) *
+				bitmap_scale;
 		}
 		else
 		{
 			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			glyph_out->advance = (current_rasterizer->face->glyph->advance.x >> 6)  * font_scale;
+			glyph_out->advance = (current_rasterizer->face->glyph->advance.x >> 6) * font_scale;
 		}
 	}
 	else
@@ -1644,22 +1647,22 @@ internal_font_painter_state::load_glyph_verts(
 	{
 	default: CHECK(false && "unreachable"); return FONT_RESULT::ERROR;
 	case FONT_ENTRY::NORMAL:
-    /*
-		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin);
-		pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin);
-		pos[2] = pos[0] + static_cast<float>(glyph.rect_w);
-		pos[3] = pos[1] + static_cast<float>(glyph.rect_h);
-		draw_x_pos += static_cast<float>(glyph.advance);
-		break;*/
+		/*
+			pos[0] = draw_x_pos + static_cast<float>(glyph.xmin);
+			pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin);
+			pos[2] = pos[0] + static_cast<float>(glyph.rect_w);
+			pos[3] = pos[1] + static_cast<float>(glyph.rect_h);
+			draw_x_pos += static_cast<float>(glyph.advance);
+			break;*/
 		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * font_scale;
 		pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * font_scale;
 		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * font_scale;
 		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * font_scale;
 		draw_x_pos += static_cast<float>(glyph.advance) * font_scale;
-        break;
-    
+		break;
+
 	case FONT_ENTRY::BITMAP: {
-		float bitmap_scale = (font->get_point_size()* font_scale) / font->get_bitmap_size();
+		float bitmap_scale = (font->get_point_size() * font_scale) / font->get_bitmap_size();
 		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * bitmap_scale;
 		pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * bitmap_scale;
 		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * bitmap_scale;
@@ -1669,17 +1672,16 @@ internal_font_painter_state::load_glyph_verts(
 	break;
 
 	case FONT_ENTRY::HEXFONT: {
-		float hex_scale =
-			(font->get_point_size() * font_scale) / static_cast<float>(HEX_HEIGHT);
+		float hex_scale = (font->get_point_size() * font_scale) / static_cast<float>(HEX_HEIGHT);
 		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * hex_scale;
 		pos[1] = draw_y_pos + static_cast<float>(HEX_HEIGHT - glyph.ymin) * hex_scale;
-        // this looks better on fonts that have HUGE lineskips... like NotoSansCJK-Regular
-        // because without this, hexfont will align to the TOP,
-        // but if I used this for a normal font (that looks similar to unifont in 16pt), 
-        // hexfont would look horribly offset,
-        // because usually the lineskip == pointsize, and aligning to the top works.
-        // TODO(dootise): I might offer this as an extra setting in case I need this.
-		//pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * hex_scale;
+		// this looks better on fonts that have HUGE lineskips... like NotoSansCJK-Regular
+		// because without this, hexfont will align to the TOP,
+		// but if I used this for a normal font (that looks similar to unifont in 16pt),
+		// hexfont would look horribly offset,
+		// because usually the lineskip == pointsize, and aligning to the top works.
+		// TODO(dootise): I might offer this as an extra setting in case I need this.
+		// pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * hex_scale;
 		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * hex_scale;
 		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * hex_scale;
 		draw_x_pos += static_cast<float>(glyph.advance) * hex_scale;
@@ -1687,7 +1689,7 @@ internal_font_painter_state::load_glyph_verts(
 	break;
 
 	case FONT_ENTRY::SPACE:
-		draw_x_pos += static_cast<float>(glyph.advance) ;
+		draw_x_pos += static_cast<float>(glyph.advance);
 		return FONT_RESULT::SUCCESS;
 	}
 

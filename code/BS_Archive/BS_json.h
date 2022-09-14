@@ -1063,7 +1063,8 @@ public:
 		ASSERT(max_size <= BS_MAX_STRING_SIZE);
 		ASSERT(str.size() <= max_size);
 #ifndef BS_JSON_BASE64
-		good = good && CHECK(writer.String(str.data(), str.size()));
+		good = good &&
+			   CHECK(writer.String(str.data(), std::min<size_t>(str.size(), BS_MAX_STRING_SIZE)));
 #else
 		std::string tmp = base64_encode(str.data(), str.size());
 		good = good && CHECK(writer.String(tmp.data(), tmp.size()));
@@ -1072,7 +1073,8 @@ public:
 	}
 	bool Key(std::string_view str) override
 	{
-		good = good && CHECK(writer.Key(str.data(), str.size()));
+		good =
+			good && CHECK(writer.Key(str.data(), std::min<size_t>(str.size(), BS_MAX_STRING_SIZE)));
 		return good;
 	}
 
