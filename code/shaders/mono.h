@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../global.h"
+
 #include <array>
 #include "../opengles2/opengl_stuff.h"
 
@@ -90,12 +92,23 @@ struct mono_2d_batcher
 		ASSERT(buffer != NULL);
 		return cursor;
 	}
+    void clear()
+    {
+		ASSERT(buffer != NULL);
+        cursor = 0;
+    }
 	// use the return from get_quad_count
-	void set_cursor(size_t pos)
+	NDSERR bool set_cursor(size_t pos)
 	{
 		ASSERT(buffer != NULL);
 		ASSERT(pos < size);
+		if(pos >= size)
+        {
+            serrf("%s out of bounds: %zu (size: %zu)\n", __func__, pos, size);
+            return false;
+        }
 		cursor = pos;
+        return true;
 	}
 
 	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy

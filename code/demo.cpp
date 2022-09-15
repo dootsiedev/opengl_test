@@ -80,8 +80,12 @@ static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, v
 		}
 
 		*/
-		double client_w, client_h, xscale, yscale;
-		int window_w, window_h;
+        double xscale;
+        double yscale;
+		double client_w = 1;
+        double client_h = 1;
+		int window_w = 1;
+        int window_h = 1;
 		EMSCRIPTEN_RESULT em_ret =
 			emscripten_get_canvas_element_size("#canvas", &window_w, &window_h);
 		if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
@@ -979,6 +983,14 @@ bool demo_state::update(double delta_sec)
 		}
 	}
 
+    if(show_options)
+	{
+		if(!option_menu.update(delta_sec))
+		{
+			return false;
+		}
+	}
+
 	colors[0] = colors[0] + (0.5 * color_delta);
 	colors[1] = colors[1] + (0.7 * color_delta);
 	colors[2] = colors[2] + (0.11 * color_delta);
@@ -1268,7 +1280,7 @@ bool demo_state::perf_time()
 		// I would need to pad each row to align to 4, but I don't.
 		ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-		font_batcher.set_cursor(0);
+		font_batcher.clear();
 
 		font_painter.begin();
 

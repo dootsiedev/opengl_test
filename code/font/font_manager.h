@@ -176,6 +176,8 @@ struct font_atlas
 	// for drawing primitives, this is a single white pixel.
     // this is very out of place, but this needs to be somewhere...
     // TODO: I could use glScissor + glClear for drawing, but is it worth it?
+    // I could also use a uniform switch in the shader to disable the texture,
+    // and I could also make the mono shader support colored textures too.
 	std::array<float, 4> white_uv;
 
 	NDSERR bool find_atlas_slot(uint32_t w_in, uint32_t h_in, uint32_t* x_out, uint32_t* y_out);

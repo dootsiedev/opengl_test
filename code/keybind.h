@@ -12,6 +12,10 @@
 #define REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(key, value, mod, comment, type) \
 	cvar_key_bind key(#key, {KEYBIND_T::KEY, 0, value, mod}, comment, type, __FILE__, __LINE__)
 
+class cvar_key_bind;
+// for the options menu to be able to list and modify keybinds.
+std::map<const char*, cvar_key_bind&, cmp_str>& get_keybinds();
+
 // used for registry
 enum class KEYBIND_T : uint8_t
 {

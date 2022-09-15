@@ -1521,8 +1521,8 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 		if(use_bitmap)
 		{
 			float bitmap_scale = (get_point_size() * font_scale) / get_bitmap_size();
-			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 			glyph_out->advance =
+			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 				std::ceil(static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6)) *
 				bitmap_scale;
 		}

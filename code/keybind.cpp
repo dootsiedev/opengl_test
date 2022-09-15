@@ -10,6 +10,14 @@ Uint16 find_sdl_mod(const char* string, size_t size);
 SDL_Keycode find_sdl_keycode(const char* string, size_t size);
 const char* get_sdl_key_name(SDL_Keycode key);
 
+
+std::map<const char*, cvar_key_bind&, cmp_str>& get_keybinds()
+{
+	static std::map<const char*, cvar_key_bind&, cmp_str> keybinds;
+	return keybinds;
+}
+
+
 cvar_key_bind::cvar_key_bind(
 	const char* key,
 	keybind_entry value,
@@ -19,10 +27,18 @@ cvar_key_bind::cvar_key_bind(
 	int line)
 : V_cvar(key, comment, type, file, line)
 {
-	auto [it, success] = get_convars().try_emplace(key, *this);
-	(void)success;
-	// this shouldn't be possible.
-	ASSERT(success && "cvar already registered");
+	{
+        auto [it, success] = get_convars().try_emplace(key, *this);
+	    (void)success;
+        // this shouldn't be possible.
+        ASSERT(success && "cvar already registered");
+    }
+	{
+        auto [it, success] = get_keybinds().try_emplace(key, *this);
+	    (void)success;
+        // this shouldn't be possible.
+        ASSERT(success && "keybind already registered");
+    }
 	key_bind_count = 1;
 	key_binds[0] = value;
 }
@@ -107,17 +123,18 @@ bool cvar_key_bind::bind_sdl_event(SDL_Event& e, keybind_entry* keybind)
 {
 	switch(e.type)
 	{
-        // I use button up because if I try to use the modifier,
-        // the modifier would be eaten as the bind before you could press another button.
+		// I use button up because if I try to use the modifier,
+		// the modifier would be eaten as the bind before you could press another button.
 	case SDL_KEYUP:
 		keybind->type = KEYBIND_T::KEY;
 		keybind->key = e.key.keysym.sym;
-		keybind->mod = e.key.keysym.mod;
+        // needs a mask because apparently scroll lock is included....
+		keybind->mod = e.key.keysym.mod & (KMOD_CTRL | KMOD_SHIFT | KMOD_ALT);
 		return true;
-	case SDL_MOUSEBUTTONUP:
+	case SDL_MOUSEBUTTONDOWN:
 		keybind->type = KEYBIND_T::MOUSE;
 		keybind->mouse_button = e.button.button;
-		keybind->mod = SDL_GetModState();
+		keybind->mod = SDL_GetModState() & (KMOD_CTRL | KMOD_SHIFT | KMOD_ALT);
 		return true;
 	}
 	return false;

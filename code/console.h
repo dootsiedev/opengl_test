@@ -118,7 +118,7 @@ struct console_state
 
 	// call this when you need to unfocus, like for example if you press escape or something.
 	void unfocus();
-    // this will make the prompt focused.
+	// this will make the prompt focused.
 	void focus();
 
 	// put the error on the error section.
