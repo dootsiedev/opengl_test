@@ -23,7 +23,7 @@ struct button_color_state
 	std::array<uint8_t, 4> bbox_color = {0, 0, 0, 255};
 	std::array<uint8_t, 4> idle_fill_color = RGBA8_PREMULT(50, 50, 50, 200);
 	std::array<uint8_t, 4> hot_fill_color = RGBA8_PREMULT(100, 100, 100, 200);
-	std::array<uint8_t, 4> idle_text_color = {0, 0, 0, 255};
+	std::array<uint8_t, 4> idle_text_color = {255, 255, 255, 255};
 	std::array<uint8_t, 4> hot_text_color = {255, 255, 255, 255};
 	float fade_speed = 4;
 };
@@ -90,6 +90,28 @@ struct option_menu_state
 
 	int requested_keybind_index = -1;
 	bool input_keybind_requested = false;
+
+/*
+probably should have some sort of system to make this not be copy pasted from prompt code...
+    float box_xmin = -1;
+	float box_xmax = -1;
+	float box_ymin = -1;
+	float box_ymax = -1;
+
+	float scroll_y = -1;
+
+	// I use this for drawing the scrollbar.
+	float scroll_h = -1;
+
+	// this is the offset that you clicked into the scroll thumb.
+	float scroll_thumb_click_offset = -1;
+
+	// position the mouse dragged on the text after clicking
+	float scroll_drag_y = -1;
+
+	float scrollbar_thickness = 20;
+	float scrollbar_thumb_min_size = 20;
+    */
 
 	NDSERR bool init(
 		font_style_interface* font_, mono_2d_batcher* batcher_, shader_mono_state& mono_shader);

@@ -68,12 +68,12 @@ bool mono_button_object::draw_buffer()
 	float ymax = pos[1] + pos[3];
 
 	// normalize the colors 0-1
-	float hot_fill_f[4] = {
+	float hot_fill[4] = {
 		static_cast<float>(color_state->hot_fill_color[0]) / 255.f,
 		static_cast<float>(color_state->hot_fill_color[1]) / 255.f,
 		static_cast<float>(color_state->hot_fill_color[2]) / 255.f,
 		static_cast<float>(color_state->hot_fill_color[3]) / 255.f};
-	float idle_fill_f[4] = {
+	float idle_fill[4] = {
 		static_cast<float>(color_state->idle_fill_color[0]) / 255.f,
 		static_cast<float>(color_state->idle_fill_color[1]) / 255.f,
 		static_cast<float>(color_state->idle_fill_color[2]) / 255.f,
@@ -81,10 +81,10 @@ bool mono_button_object::draw_buffer()
 
 	// blend the colors.
 	std::array<uint8_t, 4> fill_color = {
-		static_cast<uint8_t>((hot_fill_f[0] * fade + idle_fill_f[0] * (1.f - fade)) * 255.f),
-		static_cast<uint8_t>((hot_fill_f[1] * fade + idle_fill_f[1] * (1.f - fade)) * 255.f),
-		static_cast<uint8_t>((hot_fill_f[2] * fade + idle_fill_f[2] * (1.f - fade)) * 255.f),
-		static_cast<uint8_t>((hot_fill_f[3] * fade + idle_fill_f[3] * (1.f - fade)) * 255.f),
+		static_cast<uint8_t>((hot_fill[0] * fade + idle_fill[0] * (1.f - fade)) * 255.f),
+		static_cast<uint8_t>((hot_fill[1] * fade + idle_fill[1] * (1.f - fade)) * 255.f),
+		static_cast<uint8_t>((hot_fill[2] * fade + idle_fill[2] * (1.f - fade)) * 255.f),
+		static_cast<uint8_t>((hot_fill[3] * fade + idle_fill[3] * (1.f - fade)) * 255.f),
 	};
 
 	// fill
@@ -98,14 +98,27 @@ bool mono_button_object::draw_buffer()
 
 	// font
 	font_painter->begin();
-	font_painter->set_color(
-		hover_over ? color_state->hot_text_color : color_state->idle_text_color);
-	font_painter->set_xy(xmin + (xmax - xmin) / 2.f, ymin + (ymax - ymin) / 2.f);
+
+    //outline
+	font_painter->set_style(FONT_STYLE_OUTLINE);
+	font_painter->set_color(0, 0, 0, 255);
 	font_painter->set_anchor(TEXT_ANCHOR::CENTER_PERFECT);
+	font_painter->set_xy(xmin + (xmax - xmin) / 2.f, ymin + (ymax - ymin) / 2.f);
 	if(!font_painter->draw_text(text.c_str(), text.size()))
 	{
 		return false;
 	}
+
+    //outline inside
+	font_painter->set_style(FONT_STYLE_NORMAL);
+	font_painter->set_color(
+		hover_over ? color_state->hot_text_color : color_state->idle_text_color);
+	font_painter->set_xy(xmin + (xmax - xmin) / 2.f, ymin + (ymax - ymin) / 2.f);
+	if(!font_painter->draw_text(text.c_str(), text.size()))
+	{
+		return false;
+	}
+
 	font_painter->end();
 
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;

@@ -790,11 +790,11 @@ bool text_prompt_wrapper::internal_draw_text(
 				// state.insert_padding(space_advance_cache * 4);
 				state.draw_x_pos += space_advance_cache * 4;
 			}
-			else if(!single_line() && ret.codepoint == '\n')
+			else if(!single_line() && ret.codepoint == '\n' && !draw_backdrop())
 			{
 				// make the newline draw a selected area to show you are selecting the newline
-				// NOTE: I removed this because it made the backdrop look ugly
-				// batcher->insert_padding(space_advance_cache);
+				// NOTE: the backdrop looks ugly with this on, so I removed it if you use it.
+				state.draw_x_pos += space_advance_cache;
 			}
 			else
 			{
