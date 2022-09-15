@@ -1,10 +1,11 @@
 #include "../global.h"
-#include "../cvar.h"
+#include "../app.h" // for the scroll cvar
 #include "text_prompt.h"
 #include "utf8_stuff.h"
 
 // TODO(dootsie): add in double click selection?
-// TODO(dootsie): add in size limited prompt?
+// TODO(dootsie): add in size limited option (in bytes)
+// TODO(dootsie): the text is too close to the bbox, should add in a padding.
 
 #define STB_TEXTEDIT_KEYTYPE SDL_Keycode
 #define STB_TEXTEDIT_STRING text_prompt_wrapper
@@ -53,9 +54,6 @@
 
 #define STB_TEXTEDIT_IMPLEMENTATION
 #include "../3rdparty/stb_textedit.h"
-
-static REGISTER_CVAR_DOUBLE(
-	cv_prompt_scroll_rate, 3, "scroll rate factor of size of a row", CVAR_T::RUNTIME);
 
 bool text_prompt_wrapper::init(
 	std::string_view contents,
@@ -790,11 +788,14 @@ bool text_prompt_wrapper::internal_draw_text(
 				// state.insert_padding(space_advance_cache * 4);
 				state.draw_x_pos += space_advance_cache * 4;
 			}
-			else if(!single_line() && ret.codepoint == '\n' && !draw_backdrop())
+			else if(!single_line() && ret.codepoint == '\n')
 			{
 				// make the newline draw a selected area to show you are selecting the newline
 				// NOTE: the backdrop looks ugly with this on, so I removed it if you use it.
-				state.draw_x_pos += space_advance_cache;
+				if(!draw_backdrop())
+				{
+					state.draw_x_pos += space_advance_cache;
+				}
 			}
 			else
 			{
@@ -1085,7 +1086,6 @@ bool text_prompt_wrapper::internal_scroll_y_inside(float mouse_x, float mouse_y)
 
 		if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 		{
-			// NOTE: this shouldn't be here because it makes this function only used for clicking
 			scroll_thumb_click_offset = mouse_y - thumb_offset;
 			return true;
 		}
@@ -1115,7 +1115,6 @@ bool text_prompt_wrapper::internal_scroll_x_inside(float mouse_x, float mouse_y)
 		float ymax = box_ymax;
 		if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 		{
-			// NOTE: this shouldn't be here because it makes this function only used for clicking
 			scroll_thumb_click_offset = mouse_x - thumb_offset;
 			return true;
 		}
@@ -1182,7 +1181,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				// NOTE: but there is a minor bug where you drag text at the top of the scroll,
 				// and scroll up, the selection will move up, same for the bottom.
 				// This could be fixed by finding the cursor during drawing instead.
-				scroll_y -= static_cast<float>(e.wheel.y * cv_prompt_scroll_rate.data) *
+				scroll_y -= static_cast<float>(e.wheel.y * cv_scroll_speed.data) *
 							state.font->get_lineskip();
 				// the draw function will clamp it to keep the scroll area inside of the text.
 				update_buffer = true;

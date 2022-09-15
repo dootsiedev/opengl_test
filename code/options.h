@@ -70,7 +70,6 @@ struct option_menu_state
 
 	// this puts the text on the screen using a style and batcher.
 	font_sprite_painter font_painter;
-	GLsizei batcher_vertex_count = 0;
 
 	struct keybind_entry
 	{
@@ -91,16 +90,19 @@ struct option_menu_state
 	int requested_keybind_index = -1;
 	bool input_keybind_requested = false;
 
-/*
-probably should have some sort of system to make this not be copy pasted from prompt code...
+
+//probably should have some sort of system to make this not be copy pasted from prompt code...
+    bool y_scrollbar_held = false;
+
     float box_xmin = -1;
 	float box_xmax = -1;
 	float box_ymin = -1;
 	float box_ymax = -1;
 
-	float scroll_y = -1;
+    // the offset of the scroll box
+	float scroll_y = 0;
 
-	// I use this for drawing the scrollbar.
+	// the height of the contents in the scroll box
 	float scroll_h = -1;
 
 	// this is the offset that you clicked into the scroll thumb.
@@ -111,7 +113,7 @@ probably should have some sort of system to make this not be copy pasted from pr
 
 	float scrollbar_thickness = 20;
 	float scrollbar_thumb_min_size = 20;
-    */
+    
 
 	NDSERR bool init(
 		font_style_interface* font_, mono_2d_batcher* batcher_, shader_mono_state& mono_shader);
@@ -129,4 +131,7 @@ probably should have some sort of system to make this not be copy pasted from pr
 
 	// call this when you need to unfocus, like for example if you press escape or something.
 	void unfocus();
+
+    void internal_scroll_y_to(float mouse_y);
+    bool internal_scroll_y_inside(float mouse_x, float mouse_y);
 };

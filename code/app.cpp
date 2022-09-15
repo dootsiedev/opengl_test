@@ -14,6 +14,8 @@ REGISTER_CVAR_INT(
 	"0 = off, 1 = show detailed opengl errors, 2 = stacktrace per call",
 	CVAR_T::STARTUP);
 
+REGISTER_CVAR_DOUBLE(cv_scroll_speed, 3, "scroll rate of the mouse wheel", CVAR_T::RUNTIME);
+
 cvar_fullscreen cv_fullscreen;
 cvar_vysnc cv_vsync;
 

@@ -80,12 +80,12 @@ static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, v
 		}
 
 		*/
-        double xscale;
-        double yscale;
+		double xscale;
+		double yscale;
 		double client_w = 1;
-        double client_h = 1;
+		double client_h = 1;
 		int window_w = 1;
-        int window_h = 1;
+		int window_h = 1;
 		EMSCRIPTEN_RESULT em_ret =
 			emscripten_get_canvas_element_size("#canvas", &window_w, &window_h);
 		if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
@@ -145,15 +145,19 @@ static REGISTER_CVAR_INT(
 static REGISTER_CVAR_DOUBLE(cv_mouse_sensitivity, 0.4, "mouse move speed", CVAR_T::RUNTIME);
 static REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed", CVAR_T::RUNTIME);
 
-//keybinds
+// keybinds
 
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_forward, SDLK_w, "move forward", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_backward, SDLK_s, "move backward", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_left, SDLK_a, "move left", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_right, SDLK_d, "move right", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_console, SDLK_F1, "open console overlay", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_options, SDLK_SLASH, "open option menu", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, "toggle fullscreen", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, "move forward", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, "move backward", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, "move left", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, "move right", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_open_console, SDLK_F1, "open console overlay", CVAR_T::RUNTIME);
+// TODO: I shouldn't need a options menu button, remove it
+static REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_open_options, SDLK_SLASH, "open option menu", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
+	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, "toggle fullscreen", CVAR_T::RUNTIME);
 
 struct gl_point_vertex
 {
@@ -308,8 +312,7 @@ bool demo_state::init()
 	// not premultiplied
 	// ctx.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-
-    // all my shaders only use 1 texture.
+	// all my shaders only use 1 texture.
 	ctx.glActiveTexture(GL_TEXTURE0);
 
 	if(!mono_shader.create())
@@ -516,7 +519,7 @@ bool demo_state::init_gl_point_sprite()
 		return false;
 	}
 
-	//ctx.glActiveTexture(GL_TEXTURE0);
+	// ctx.glActiveTexture(GL_TEXTURE0);
 
 	ctx.glBindTexture(GL_TEXTURE_2D, gl_inst_table_tex_id);
 	ctx.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, 0, 1, 0, GL_RGBA, GL_FLOAT, NULL);
@@ -594,14 +597,14 @@ bool demo_state::init_gl_font()
 	start = timer_now();
 #endif
 
-    font_style_interface* current_font = NULL;
+	font_style_interface* current_font = NULL;
 
 	// Unique_RWops test_font =
 	// Unique_RWops_OpenFS("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "rb");
 	if(cv_string_font.data == "unifont")
 	{
 		unifont_style.init(&font_manager.hex_font, static_cast<float>(cv_string_pt.data));
-        current_font = &unifont_style;
+		current_font = &unifont_style;
 	}
 	else
 	{
@@ -648,9 +651,8 @@ bool demo_state::init_gl_font()
 		}
 
 		font_style.init(&font_manager, &font_rasterizer, 1);
-        //font_settings.point_size = 32;
-        current_font = &font_style;
-
+		// font_settings.point_size = 32;
+		current_font = &font_style;
 	}
 
 #if 0
@@ -694,7 +696,7 @@ bool demo_state::init_gl_font()
 		return false;
 	}
 
-    if(!option_menu.init(current_font, &font_batcher, mono_shader))
+	if(!option_menu.init(current_font, &font_batcher, mono_shader))
 	{
 		return false;
 	}
@@ -735,8 +737,8 @@ bool demo_state::destroy()
 {
 	bool success = true;
 
-    success = option_menu.destroy() && success;
-    success = g_console.destroy() && success;
+	success = option_menu.destroy() && success;
+	success = g_console.destroy() && success;
 
 	success = destroy_gl_font() && success;
 	success = destroy_gl_point_sprite() && success;
@@ -746,8 +748,8 @@ bool demo_state::destroy()
 
 #ifdef __EMSCRIPTEN__
 
-    // just in case???
-    unfocus();
+	// just in case???
+	unfocus();
 
 	EMSCRIPTEN_RESULT em_ret = emscripten_set_mouseup_callback("#canvas", NULL, 0, NULL);
 	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
@@ -802,63 +804,63 @@ bool demo_state::input(SDL_Event& e)
 		}
 	}
 
-    if(input_eaten)
+	if(input_eaten)
 	{
-        option_menu.unfocus();
-    }
-    else if(show_options)
-    {
-        switch(option_menu.input(e))
+		option_menu.unfocus();
+	}
+	else if(show_options)
+	{
+		switch(option_menu.input(e))
 		{
 		case OPTION_MENU_RESULT::CONTINUE: break;
 		case OPTION_MENU_RESULT::EAT: input_eaten = true; break;
 		case OPTION_MENU_RESULT::ERROR: return false;
 		}
-    }
+	}
 
-    // I need to use input_eaten to unfocus each UI element,
-    // because unfocus() would unfocus EVERY ui element, and
-    // if I did that the prompt that was in focus would unfocus,
-    // my solution is to let the UI element unfocus itself using lmb down,
-    // and if the event was eaten, unfocus each element after it, using this pattern: 
-    // if(eaten){ui.unfocus()}else{switch(ui.input(e)){continue, eat, or error}}
-    // this of course depends on the draw order of the UI element,
-    // and this is fragile and technically it's possible for 2 elements to focus.
+	// I need to use input_eaten to unfocus each UI element,
+	// because unfocus() would unfocus EVERY ui element, and
+	// if I did that the prompt that was in focus would unfocus,
+	// my solution is to let the UI element unfocus itself using lmb down,
+	// and if the event was eaten, unfocus each element after it, using this pattern:
+	// if(eaten){ui.unfocus()}else{switch(ui.input(e)){continue, eat, or error}}
+	// this of course depends on the draw order of the UI element,
+	// and this is fragile and technically it's possible for 2 elements to focus.
 	if(input_eaten)
 	{
 		unfocus();
 		return true;
 	}
 
-    if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
 	{
-        if(show_console)
-        {
-            g_console.unfocus();
-            show_console = false;
-        }
-        else
-        {
-            unfocus();
-            g_console.focus();
-            show_console = true;
-        }
+		if(show_console)
+		{
+			g_console.unfocus();
+			show_console = false;
+		}
+		else
+		{
+			unfocus();
+			g_console.focus();
+            g_console.resize_text_area();
+			show_console = true;
+		}
 	}
 
-    if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-    {
-
-        if(show_options)
-        {
-            option_menu.unfocus();
-            show_options = false;
-        }
-        else
-        {
-            unfocus();
-            show_options = true;
-        }
-    }
+	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+		if(show_options)
+		{
+			option_menu.unfocus();
+			show_options = false;
+		}
+		else
+		{
+			unfocus();
+			show_options = true;
+		}
+	}
 
 	switch(e.type)
 	{
@@ -944,25 +946,25 @@ bool demo_state::input(SDL_Event& e)
 		}
 		break;
 	}
-	
-    // movement.
+
+	// movement.
 	keybind_compare_type ret;
-	ret = cv_bind_forward.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	ret = cv_bind_move_forward.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
 	if(ret != KEYBIND_NULL)
 	{
 		keys_down[MOVE_FORWARD] = (ret & KEYBIND_BUTTON_DOWN) != 0;
 	}
-	ret = cv_bind_backward.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	ret = cv_bind_move_backward.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
 	if(ret != KEYBIND_NULL)
 	{
 		keys_down[MOVE_BACKWARD] = (ret & KEYBIND_BUTTON_DOWN) != 0;
 	}
-	ret = cv_bind_left.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	ret = cv_bind_move_left.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
 	if(ret != KEYBIND_NULL)
 	{
 		keys_down[MOVE_LEFT] = (ret & KEYBIND_BUTTON_DOWN) != 0;
 	}
-	ret = cv_bind_right.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	ret = cv_bind_move_right.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
 	if(ret != KEYBIND_NULL)
 	{
 		keys_down[MOVE_RIGHT] = (ret & KEYBIND_BUTTON_DOWN) != 0;
@@ -983,7 +985,7 @@ bool demo_state::update(double delta_sec)
 		}
 	}
 
-    if(show_options)
+	if(show_options)
 	{
 		if(!option_menu.update(delta_sec))
 		{
@@ -995,7 +997,7 @@ bool demo_state::update(double delta_sec)
 	colors[1] = colors[1] + (0.7 * color_delta);
 	colors[2] = colors[2] + (0.11 * color_delta);
 
-	const float cameraSpeed = static_cast<float>(cv_camera_speed.data * delta_sec); 
+	const float cameraSpeed = static_cast<float>(cv_camera_speed.data * delta_sec);
 	glm::vec3 up = {0, 1, 0};
 
 	if(keys_down[MOVE_FORWARD])
@@ -1017,7 +1019,7 @@ bool demo_state::update(double delta_sec)
 	{
 		camera_pos += glm::normalize(glm::cross(camera_direction, up)) * cameraSpeed;
 	}
-    return true;
+	return true;
 }
 
 bool demo_state::render()
@@ -1100,9 +1102,9 @@ bool demo_state::render()
 	// ctx.glActiveTexture(GL_TEXTURE0);
 	ctx.glBindTexture(GL_TEXTURE_2D, font_manager.gl_atlas_tex_id);
 
-    // since the text is stored in a GL_RED texture,
-    // I would need to pad each row to align to 4, but I don't.
-    ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	// since the text is stored in a GL_RED texture,
+	// I would need to pad each row to align to 4, but I don't.
+	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
 	if(gl_font_vertex_count != 0)
 	{
@@ -1111,13 +1113,13 @@ bool demo_state::render()
 		ctx.glBindVertexArray(0);
 	}
 
-    if(show_options)
-    {
-        if(!option_menu.render())
-        {
-            return false;
-        }
-    }
+	if(show_options)
+	{
+		if(!option_menu.render())
+		{
+			return false;
+		}
+	}
 
 	if(show_console)
 	{
@@ -1127,7 +1129,7 @@ bool demo_state::render()
 			return false;
 		}
 	}
-    ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 	ctx.glBindTexture(GL_TEXTURE_2D, 0);
 
 	ctx.glUseProgram(0);
@@ -1216,16 +1218,16 @@ DEMO_RESULT demo_state::process()
 		case SDL_MOUSEBUTTONUP: continue;
 #endif
 		}
-        if(cv_bind_fullscreen.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-        {
-            cv_fullscreen.data = cv_fullscreen.data == 1 ? 0 : 1;
-            if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
-            {
-                return DEMO_RESULT::ERROR;
-            }
-            // eat this event, but don't unfocus anything.
-            continue;
-        }
+		if(cv_bind_fullscreen.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+		{
+			cv_fullscreen.data = cv_fullscreen.data == 1 ? 0 : 1;
+			if(!cv_fullscreen.cvar_read(cv_fullscreen.data == 1 ? "1" : "0"))
+			{
+				return DEMO_RESULT::ERROR;
+			}
+			// eat this event, but don't unfocus anything.
+			continue;
+		}
 		if(!input(e))
 		{
 			return DEMO_RESULT::ERROR;
@@ -1234,18 +1236,18 @@ DEMO_RESULT demo_state::process()
 	tick2 = timer_now();
 	perf_input.test(timer_delta_ms(tick1, tick2));
 
-    tick1 = tick2;
+	tick1 = tick2;
 
-    TIMER_U current_time = timer_now();
+	TIMER_U current_time = timer_now();
 	double delta = timer_delta<1>(timer_last, current_time);
 	timer_last = current_time;
-    if(!update(delta))
+	if(!update(delta))
 	{
 		return DEMO_RESULT::ERROR;
 	}
 
 	tick2 = timer_now();
-    perf_update.test(timer_delta_ms(tick1, tick2));
+	perf_update.test(timer_delta_ms(tick1, tick2));
 
 	if(!render())
 	{
@@ -1259,9 +1261,9 @@ bool demo_state::perf_time()
 {
 	TIMER_U tick_now = timer_now();
 
-	// NOTE: "total" will include the time of perf_time, 
-    // which is NOT sampled in any of the other timers
-    // so if you add up all the averages, it wont add up to total.
+	// NOTE: "total" will include the time of perf_time,
+	// which is NOT sampled in any of the other timers
+	// so if you add up all the averages, it wont add up to total.
 	static TIMER_U total_start = tick_now;
 	// static bench_data total_data;
 	perf_total.test(timer_delta_ms(total_start, tick_now));
@@ -1318,7 +1320,6 @@ bool demo_state::perf_time()
 				GL_ARRAY_BUFFER, 0, font_batcher.get_current_vertex_size(), font_batcher.buffer);
 			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
-
 
 		success = success && GL_RUNTIME(__func__) == GL_NO_ERROR;
 
