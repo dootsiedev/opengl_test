@@ -19,17 +19,18 @@ std::map<const char*, cvar_key_bind&, cmp_str>& get_keybinds();
 // used for registry
 enum class KEYBIND_T : uint8_t
 {
+    NONE,
 	KEY,
 	MOUSE
 	// TODO: scroll wheel, maybe controller?
 };
 // used for registry
-struct keybind_entry
+struct keybind_state
 {
 	// union-like, not worth making into a union.
     // and very unfortunately, I want to use std::variant,
     // but these types are ambiguous (code is horrible)
-	KEYBIND_T type;
+	KEYBIND_T type = KEYBIND_T::NONE;
     // SDL_BUTTON_LEFT or SDL_BUTTON_RIGHT, MIDDLE
 	uint8_t mouse_button;
     // SDLK_... keybord keys
@@ -47,15 +48,13 @@ enum : keybind_compare_type
 	KEYBIND_BUTTON_DOWN = (1 << 1),
 	KEYBIND_BUTTON_UP = (1 << 2),
     // KEYBIND_REPEAT will make keys repeat when held down (timed by SDL)
-    // and the return will return this if key is repeating 
+    // and the return will OR this into the result if key is repeating 
 	KEYBIND_REPEAT = (1 << 3)
 };
 
 // the cvar is a string formatted like this:
 // "SDLK_a" means it uses "a" on the keyboard, 
 // and the string is copied from SDL's enum for SDL_Keycode
-// if you want to bind multiple keys to the same event, you can a semicolon: 
-// "SDLK_a;SDLK_b" means you can press "a" or "b"
 // if you want the key to only be triggered with a combination of keys
 // you can use ctrl,alt,shift modifiers: 
 // "KMOD_SHIFT;SDLK_a" means you must hold shift AND "a",
@@ -63,26 +62,16 @@ enum : keybind_compare_type
 // note that if you use modifiers, it won't work for KEYBIND_BUTTON_UP
 // (because for movement, if you release the modifier before releasing the key, 
 //  KEYBIND_BUTTON_UP will not be detected, I could fix this with flags...)
-// note that if you use modifiers it will only affect the NEXT NON MODIFIER string,
-// so: "SDLK_a;KMOD_SHIFT" won't work
-// and "KMOD_SHIFT;SDLK_a;SDLK_b" will only make SDLK_a require shift.
 // note that if you combine modifiers, it will only require one modifier for the input
 // (this is because SDL KMOD_SHIFT is a combination of KMOD_LSHIFT and KMOD_RSHIFT)
 class cvar_key_bind : public V_cvar
 {
 public:
-	enum
-	{
-        // 3 binds, not because it's robust
-        // but because I think more than 3 binds is wrong.
-		MAX_KEY_BINDS = 3
-	};
 
 	// SDL_Event is just a very convenient union,
 	// I mainly just use keyboard and mouse
 	// but this could support a controller as well.
-	keybind_entry key_binds[MAX_KEY_BINDS];
-	size_t key_bind_count = 0;
+	keybind_state key_binds;
 
 	// NOTE: the problem is that this ONLY supports 1 key
 	// Note that I really want to use a string for the registry,
@@ -91,7 +80,7 @@ public:
 	// so I need some way to make cvar_read NOT use serr?
 	cvar_key_bind(
 		const char* key,
-		keybind_entry value,
+		keybind_state value,
 		const char* comment,
 		CVAR_T type,
 		const char* file,
@@ -99,7 +88,7 @@ public:
 	NDSERR bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;
 	// returns true if the event is eaten.
-	bool bind_sdl_event(SDL_Event& e, keybind_entry* keybind);
+	bool bind_sdl_event(SDL_Event& e, keybind_state* keybind);
 	// returns the flag that was eaten, if you use KEYBIND_REPEAT, it will be OR'd into the return.
 	keybind_compare_type compare_sdl_event(SDL_Event& e, keybind_compare_type flags);
 	// internal use

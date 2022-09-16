@@ -1,6 +1,7 @@
 #include "global.h"
 #include "keybind.h"
 
+#define KEYBIND_NONE_STRING_NAME "NONE"
 #define MOUSE_LMB_STRING_NAME "LMB"
 #define MOUSE_RMB_STRING_NAME "RMB"
 #define MOUSE_MMB_STRING_NAME "MMB"
@@ -20,7 +21,7 @@ std::map<const char*, cvar_key_bind&, cmp_str>& get_keybinds()
 
 cvar_key_bind::cvar_key_bind(
 	const char* key,
-	keybind_entry value,
+	keybind_state value,
 	const char* comment,
 	CVAR_T type,
 	const char* file,
@@ -39,14 +40,13 @@ cvar_key_bind::cvar_key_bind(
         // this shouldn't be possible.
         ASSERT(success && "keybind already registered");
     }
-	key_bind_count = 1;
-	key_binds[0] = value;
+	key_binds = value;
 }
 bool cvar_key_bind::cvar_read(const char* buffer)
 {
 	ASSERT(buffer);
 	// reset values.
-	key_bind_count = 0;
+	key_binds.type = KEYBIND_T::NONE;
 	memset(&key_binds, 0, sizeof(key_binds));
 	const char* token_start = buffer;
 	const char* token_cur = buffer;
@@ -76,50 +76,44 @@ bool cvar_key_bind::cvar_read(const char* buffer)
 std::string cvar_key_bind::cvar_write()
 {
 	std::string out;
-	for(size_t i = 0; i < key_bind_count; ++i)
-	{
-		if(i != 0)
-		{
-			out += ';';
-		}
 
-		if(key_binds[i].mod != 0)
-		{
-			if((KMOD_CTRL & key_binds[i].mod) != 0)
-			{
-				out += "KMOD_CTRL;";
-			}
-			else if((KMOD_SHIFT & key_binds[i].mod) != 0)
-			{
-				out += "KMOD_SHIFT;";
-			}
-			else if((KMOD_ALT & key_binds[i].mod) != 0)
-			{
-				out += "KMOD_ALT;";
-			}
-			else
-			{
-				out += "UNKNOWN_MODIFIER????";
-			}
-		}
-		switch(key_binds[i].type)
-		{
-		case KEYBIND_T::KEY: out += get_sdl_key_name(key_binds[i].key); break;
-		case KEYBIND_T::MOUSE:
-			switch(key_binds[i].mouse_button)
-			{
-			case SDL_BUTTON_LEFT: out += MOUSE_LMB_STRING_NAME; break;
-			case SDL_BUTTON_RIGHT: out += MOUSE_RMB_STRING_NAME; break;
-			case SDL_BUTTON_MIDDLE: out += MOUSE_MMB_STRING_NAME; break;
-			default: out += "UNKNOWN_MOUSE_BUTTON????";
-			}
-			break;
-		}
-	}
+    if(key_binds.mod != 0)
+    {
+        if((KMOD_CTRL & key_binds.mod) != 0)
+        {
+            out += "KMOD_CTRL;";
+        }
+        else if((KMOD_SHIFT & key_binds.mod) != 0)
+        {
+            out += "KMOD_SHIFT;";
+        }
+        else if((KMOD_ALT & key_binds.mod) != 0)
+        {
+            out += "KMOD_ALT;";
+        }
+        else
+        {
+            out += "UNKNOWN_MODIFIER????";
+        }
+    }
+    switch(key_binds.type)
+    {
+    case KEYBIND_T::KEY: out += get_sdl_key_name(key_binds.key); break;
+    case KEYBIND_T::MOUSE:
+        switch(key_binds.mouse_button)
+        {
+        case SDL_BUTTON_LEFT: out += MOUSE_LMB_STRING_NAME; break;
+        case SDL_BUTTON_RIGHT: out += MOUSE_RMB_STRING_NAME; break;
+        case SDL_BUTTON_MIDDLE: out += MOUSE_MMB_STRING_NAME; break;
+        default: out += "UNKNOWN_MOUSE_BUTTON????";
+        }
+        break;
+    }
+	
 	return out;
 }
 
-bool cvar_key_bind::bind_sdl_event(SDL_Event& e, keybind_entry* keybind)
+bool cvar_key_bind::bind_sdl_event(SDL_Event& e, keybind_state* keybind)
 {
 	switch(e.type)
 	{
@@ -142,93 +136,90 @@ bool cvar_key_bind::bind_sdl_event(SDL_Event& e, keybind_entry* keybind)
 keybind_compare_type cvar_key_bind::compare_sdl_event(SDL_Event& e, keybind_compare_type flags)
 {
 	keybind_compare_type mask = 0;
-	for(size_t i = 0; i < key_bind_count; ++i)
+	switch(key_binds.type)
 	{
-		switch(key_binds[i].type)
+	case KEYBIND_T::KEY:
+		switch(e.type)
 		{
-		case KEYBIND_T::KEY:
-			switch(e.type)
+		case SDL_KEYDOWN:
+			// this doesn't apply to keyup, because then we will never get a keyup!!!
+			if(key_binds.mod != 0 && (key_binds.mod & e.key.keysym.mod) == 0)
 			{
-			case SDL_KEYDOWN:
-                // this doesn't apply to keyup, because then we will never get a keyup!!!
-				if(key_binds[i].mod != 0 && (key_binds[i].mod & e.key.keysym.mod) == 0)
-				{
-					// modifier required.
-					break;
-				}
-				[[fallthrough]];
-			case SDL_KEYUP:
-				if(e.key.keysym.sym == key_binds[i].key)
-				{
-					if(e.key.repeat != 0)
-					{
-						if((flags & KEYBIND_REPEAT) != 0)
-						{
-							mask |= KEYBIND_REPEAT;
-						}
-						else
-						{
-							// no input
-							break;
-						}
-					}
-					if(e.key.state == SDL_PRESSED && (flags & KEYBIND_BUTTON_DOWN) != 0)
-					{
-						mask |= KEYBIND_BUTTON_DOWN;
-					}
-					else if(e.key.state == SDL_RELEASED && (flags & KEYBIND_BUTTON_UP) != 0)
-					{
-						mask |= KEYBIND_BUTTON_UP;
-					}
-					return mask;
-				}
+				// modifier required.
 				break;
 			}
-			break;
-		case KEYBIND_T::MOUSE:
-			switch(e.type)
+			[[fallthrough]];
+		case SDL_KEYUP:
+			if(e.key.keysym.sym == key_binds.key)
 			{
-			case SDL_MOUSEBUTTONDOWN:
-				if(key_binds[i].mod != 0 && (key_binds[i].mod & e.key.keysym.mod) == 0)
+				if(e.key.repeat != 0)
 				{
-					// modifier required.
-					break;
+					if((flags & KEYBIND_REPEAT) != 0)
+					{
+						mask |= KEYBIND_REPEAT;
+					}
+					else
+					{
+						// no input
+						break;
+					}
 				}
-				[[fallthrough]];
-			case SDL_MOUSEBUTTONUP:
-				if(e.button.button == key_binds[i].mouse_button)
+				if(e.key.state == SDL_PRESSED && (flags & KEYBIND_BUTTON_DOWN) != 0)
 				{
-					if(e.button.state == SDL_PRESSED && (flags & KEYBIND_BUTTON_DOWN) != 0)
-					{
-						mask |= KEYBIND_BUTTON_DOWN;
-					}
-					else if(e.button.state == SDL_RELEASED && (flags & KEYBIND_BUTTON_UP) != 0)
-					{
-						mask |= KEYBIND_BUTTON_UP;
-					}
-					return mask;
+					mask |= KEYBIND_BUTTON_DOWN;
 				}
-				break;
+				else if(e.key.state == SDL_RELEASED && (flags & KEYBIND_BUTTON_UP) != 0)
+				{
+					mask |= KEYBIND_BUTTON_UP;
+				}
+				return mask;
 			}
 			break;
 		}
+		break;
+	case KEYBIND_T::MOUSE:
+		switch(e.type)
+		{
+		case SDL_MOUSEBUTTONDOWN:
+			if(key_binds.mod != 0 && (key_binds.mod & e.key.keysym.mod) == 0)
+			{
+				// modifier required.
+				break;
+			}
+			[[fallthrough]];
+		case SDL_MOUSEBUTTONUP:
+			if(e.button.button == key_binds.mouse_button)
+			{
+				if(e.button.state == SDL_PRESSED && (flags & KEYBIND_BUTTON_DOWN) != 0)
+				{
+					mask |= KEYBIND_BUTTON_DOWN;
+				}
+				else if(e.button.state == SDL_RELEASED && (flags & KEYBIND_BUTTON_UP) != 0)
+				{
+					mask |= KEYBIND_BUTTON_UP;
+				}
+				return mask;
+			}
+			break;
+		}
+		break;
 	}
+
 	return KEYBIND_NULL;
 }
 
 bool cvar_key_bind::convert_string_to_event(const char* buffer, size_t size)
 {
-	if(key_bind_count >= MAX_KEY_BINDS)
-	{
-		serrf("too many key binds, ignoring: %*.s\n", static_cast<int>(size), buffer);
-		return false;
-	}
+	if(strlen(KEYBIND_NONE_STRING_NAME) == size && strncmp(KEYBIND_NONE_STRING_NAME, buffer, size) == 0)
+    {
+        key_binds.type = KEYBIND_T::NONE;
+        return true;
+    }
 	SDL_Keycode key = find_sdl_keycode(buffer, size);
 	if(key != -1)
 	{
-		key_binds[key_bind_count].type = KEYBIND_T::KEY;
-		key_binds[key_bind_count].key = key;
-		++key_bind_count;
+		key_binds.type = KEYBIND_T::KEY;
+		key_binds.key = key;
 		return true;
 	}
 	Uint16 mod = find_sdl_mod(buffer, size);
@@ -236,28 +227,25 @@ bool cvar_key_bind::convert_string_to_event(const char* buffer, size_t size)
 	{
 		// this isn't a key, just modify the "next slot"
 		// for the next string that isn't a modifier
-		key_binds[key_bind_count].mod |= mod;
+		key_binds.mod |= mod;
 		return true;
 	}
-	if(strncmp(MOUSE_LMB_STRING_NAME, buffer, size) == 0)
+	if(strlen(MOUSE_LMB_STRING_NAME) == size && strncmp(MOUSE_LMB_STRING_NAME, buffer, size) == 0)
 	{
-		key_binds[key_bind_count].type = KEYBIND_T::MOUSE;
-		key_binds[key_bind_count].mouse_button = SDL_BUTTON_LEFT;
-		++key_bind_count;
+		key_binds.type = KEYBIND_T::MOUSE;
+		key_binds.mouse_button = SDL_BUTTON_LEFT;
 		return true;
 	}
-	if(strncmp(MOUSE_RMB_STRING_NAME, buffer, size) == 0)
+	if(strlen(MOUSE_RMB_STRING_NAME) == size && strncmp(MOUSE_RMB_STRING_NAME, buffer, size) == 0)
 	{
-		key_binds[key_bind_count].type = KEYBIND_T::MOUSE;
-		key_binds[key_bind_count].mouse_button = SDL_BUTTON_RIGHT;
-		++key_bind_count;
+		key_binds.type = KEYBIND_T::MOUSE;
+		key_binds.mouse_button = SDL_BUTTON_RIGHT;
 		return true;
 	}
-	if(strncmp(MOUSE_MMB_STRING_NAME, buffer, size) == 0)
+	if(strlen(MOUSE_MMB_STRING_NAME) == size && strncmp(MOUSE_MMB_STRING_NAME, buffer, size) == 0)
 	{
-		key_binds[key_bind_count].type = KEYBIND_T::MOUSE;
-		key_binds[key_bind_count].mouse_button = SDL_BUTTON_MIDDLE;
-		++key_bind_count;
+		key_binds.type = KEYBIND_T::MOUSE;
+		key_binds.mouse_button = SDL_BUTTON_MIDDLE;
 		return true;
 	}
 

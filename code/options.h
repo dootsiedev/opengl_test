@@ -23,30 +23,31 @@ struct button_color_state
 	std::array<uint8_t, 4> bbox_color = {0, 0, 0, 255};
 	std::array<uint8_t, 4> idle_fill_color = RGBA8_PREMULT(50, 50, 50, 200);
 	std::array<uint8_t, 4> hot_fill_color = RGBA8_PREMULT(100, 100, 100, 200);
-	std::array<uint8_t, 4> idle_text_color = {255, 255, 255, 255};
-	std::array<uint8_t, 4> hot_text_color = {255, 255, 255, 255};
+	std::array<uint8_t, 4> text_color = {255, 255, 255, 255};
+	std::array<uint8_t, 4> disabled_text_color = {100, 100, 100, 255};
 	float fade_speed = 4;
 };
 
 struct mono_button_object
 {
-	button_color_state* color_state = NULL;
+	button_color_state color_state;
 	font_sprite_painter* font_painter = NULL;
 	std::string text;
 	float fade = 0.f;
 	// pos on the screen, x,y,w,h
-	std::array<float, 4> pos{};
+	std::array<float, 4> button_rect{};
 	bool hover_over = false;
+    bool disabled = false;
 
-	void init(font_sprite_painter* font_painter_, button_color_state* color_state_);
+	void init(font_sprite_painter* font_painter_, button_color_state* color_state_ = NULL);
 
 	void set_rect(std::array<float, 4> pos_)
 	{
-		pos = pos_;
+		button_rect = pos_;
 	}
 	void set_rect(float x, float y, float w, float h)
 	{
-		pos = {x, y, w, h};
+		button_rect = {x, y, w, h};
 	}
 
 	NDSERR BUTTON_RESULT input(SDL_Event& e);
@@ -59,6 +60,7 @@ struct mono_button_object
 enum class OPTION_MENU_RESULT
 {
 	EAT,
+	CLOSE,
 	CONTINUE,
 	ERROR
 };
@@ -83,12 +85,32 @@ struct option_menu_state
 	button_color_state button_color_config;
 	std::vector<keybind_entry> buttons;
 
+    struct edit_history
+	{
+        keybind_state value;
+        keybind_entry* slot;
+	};
+    std::vector<edit_history> history;
+
+    // maybe add a X button?
+	mono_button_object revert_button;
+    mono_button_object ok_button;
+
 	// the buffer that contains the menu rects and text
 	GLuint gl_options_interleave_vbo = 0;
 	GLuint gl_options_vao_id = 0;
 
-	int requested_keybind_index = -1;
-	bool input_keybind_requested = false;
+	keybind_entry* requested_button = NULL;
+
+    // area that the bottom buttons go
+    // based on the size of the font.
+    // used for getting the size of the scrollbox.
+    float footer_height = -1;
+    // added size to the lineskip for the button size.
+    float font_padding = 4;
+    // padding between elements (buttons, scrollbar, etc)
+    float element_padding = 10;
+
 
 
 //probably should have some sort of system to make this not be copy pasted from prompt code...
@@ -122,7 +144,8 @@ struct option_menu_state
 
 	NDSERR OPTION_MENU_RESULT input(SDL_Event& e);
 
-	NDSERR bool draw_buffer();
+	NDSERR bool draw_base();
+	NDSERR bool draw_scroll();
 
 	NDSERR bool update(double delta_sec);
 
@@ -134,4 +157,7 @@ struct option_menu_state
 
     void internal_scroll_y_to(float mouse_y);
     bool internal_scroll_y_inside(float mouse_x, float mouse_y);
+
+    //x,y,w,h
+    std::array<float,4> internal_get_scrollbox_view() const;
 };

@@ -814,6 +814,7 @@ bool demo_state::input(SDL_Event& e)
 		{
 		case OPTION_MENU_RESULT::CONTINUE: break;
 		case OPTION_MENU_RESULT::EAT: input_eaten = true; break;
+		case OPTION_MENU_RESULT::CLOSE: show_options = false; break;
 		case OPTION_MENU_RESULT::ERROR: return false;
 		}
 	}
