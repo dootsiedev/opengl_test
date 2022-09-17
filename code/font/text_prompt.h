@@ -334,6 +334,7 @@ struct text_prompt_wrapper
 		has_vertical =
 			(y_scrollable() &&
 			 scroll_h + (has_horizontal ? scrollbar_thickness : 0) > (box_ymax - box_ymin));
+             // TODO: horizontal_padding should be included in scroll_w
 		return scroll_w + (has_vertical ? scrollbar_thickness : 0) + horizontal_padding;
 	}
 	// scroll_h will not account for the padding for the scrollbar

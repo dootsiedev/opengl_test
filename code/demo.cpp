@@ -853,13 +853,13 @@ bool demo_state::input(SDL_Event& e)
 	{
 		switch(option_menu.input(e))
 		{
-		case OPTION_MENU_RESULT::CONTINUE: break;
-		case OPTION_MENU_RESULT::EAT: input_eaten = true; break;
-		case OPTION_MENU_RESULT::CLOSE:
+		case OPTIONS_RESULT::CONTINUE: break;
+		case OPTIONS_RESULT::EAT: input_eaten = true; break;
+		case OPTIONS_RESULT::CLOSE:
 			input_eaten = true;
 			show_options = false;
 			break;
-		case OPTION_MENU_RESULT::ERROR: return false;
+		case OPTIONS_RESULT::ERROR: return false;
 		}
 	}
 

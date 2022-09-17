@@ -1720,9 +1720,34 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				return TEXT_PROMPT_RESULT::EAT;
 			}
 			break;
+		default:
+			if(read_only())
+			{
+				break;
+			}
+			// if this is a "printable key" eat the key.
+			if((e.key.keysym.sym & SDLK_SCANCODE_MASK) == 0)
+			{
+				return TEXT_PROMPT_RESULT::EAT;
+			}
 		}
 	}
 	break;
+	case SDL_KEYUP:
+		if(!text_focus)
+		{
+			break;
+		}
+		if(read_only())
+		{
+			break;
+		}
+		// if this is a "printable key" eat the key.
+		if((e.key.keysym.sym & SDLK_SCANCODE_MASK) == 0)
+		{
+			return TEXT_PROMPT_RESULT::EAT;
+		}
+		break;
 	}
 	return TEXT_PROMPT_RESULT::CONTINUE;
 }

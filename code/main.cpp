@@ -49,6 +49,8 @@ int main(int argc, char** argv)
 	}
 
 	// load cvar arguments after I load the cvar file
+    // I probably shouldn't so the --help output could be cleaner,
+    // but it doesn't matter much.
 	if(success)
 	{
 		for(int i = 0; i < argc; ++i)

@@ -381,8 +381,21 @@ add_executable(${PROJECT_NAME}
     code/console.cpp
     code/keybind.h
     code/keybind.cpp
-    code/options.h
-    code/options.cpp
+    code/ui.h
+    code/ui.cpp
+
+    code/options_menu/options.h
+    code/options_menu/options.cpp
+    code/options_menu/options_select.h
+    code/options_menu/options_select.cpp
+    code/options_menu/options_keybinds.h
+    code/options_menu/options_keybinds.cpp
+    code/options_menu/options_controls.h
+    code/options_menu/options_controls.cpp
+    code/options_menu/options_video.h
+    code/options_menu/options_video.cpp
+    code/options_menu/options_audio.h
+    code/options_menu/options_audio.cpp
     
     code/shaders/pointsprite.h
     code/shaders/pointsprite.cpp
@@ -446,6 +459,8 @@ endif()
 # EMSCRIPTEN
 #
 if(EMSCRIPTEN)
+    #NOTE: for USE_ASAN I need -sINITIAL_MEMORY=159391744, and it only works when I use CMAKE_EXE_LINKER_FLAGS
+    #TODO: removing NDEBUG isn't enough to enable asserts for some reason. So don't use RelWithDebInfo, use Debug...
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
     #preload just doesn't work unless I do it for CMAKE_EXE_LINKER_FLAGS ????
     #set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "--preload-file ../data_folder@/)
@@ -454,6 +469,8 @@ if(EMSCRIPTEN)
         # emscripten actually uses the newest SDL2 version
         # but I repurpose USE_OLD_SDL2 to equal "let emscripten automatically build SDL2"
         # it's stupid.
+        # the reason I do this is because I build SDL2 with MinSizeRel
+        # note that you probably want to call emcc --clear-ports to remove the port before building SDL2
         set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sUSE_SDL=2")
     endif()
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sFULL_ES3")
