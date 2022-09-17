@@ -4,17 +4,33 @@
 
 #include <SDL2/SDL.h>
 
-#define REGISTER_CVAR_KEY_BIND_KEY(key, value, comment, type) \
-	cvar_key_bind key(#key, {KEYBIND_T::KEY, 0, value, 0}, comment, type, __FILE__, __LINE__)
-#define REGISTER_CVAR_KEY_BIND_MOUSE(key, value, comment, type) \
-	cvar_key_bind key(#key, {KEYBIND_T::MOUSE, value, 0, 0}, comment, type, __FILE__, __LINE__)
-// this is only used for fullscreen alt + enter...
-#define REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(key, value, mod, comment, type) \
-	cvar_key_bind key(#key, {KEYBIND_T::KEY, 0, value, mod}, comment, type, __FILE__, __LINE__)
+// keyboard
+#define REGISTER_CVAR_KEY_BIND_KEY(key, value, hidden, comment, type) \
+	cvar_key_bind key(                                                \
+		#key, {KEYBIND_T::KEY, 0, value, 0}, hidden, comment, type, __FILE__, __LINE__)
+// mouse
+#define REGISTER_CVAR_KEY_BIND_MOUSE(key, value, hidden, comment, type) \
+	cvar_key_bind key(                                                  \
+		#key, {KEYBIND_T::MOUSE, value, 0, 0}, hidden, comment, type, __FILE__, __LINE__)
+// this is used for fullscreen alt + enter.
+#define REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(key, value, mod, hidden, comment, type) \
+	cvar_key_bind key(                                                             \
+		#key, {KEYBIND_T::KEY, 0, value, mod}, hidden, comment, type, __FILE__, __LINE__)
+// unbound key.
+#define REGISTER_CVAR_KEY_BIND_NONE(key, hidden, comment, type) \
+	cvar_key_bind key(#key, {KEYBIND_T::NONE, 0, 0, 0}, hidden, comment, type, __FILE__, __LINE__)
 
 class cvar_key_bind;
 // for the options menu to be able to list and modify keybinds.
 std::map<const char*, cvar_key_bind&, cmp_str>& get_keybinds();
+
+// this is only used for hiding the keybind from the keybind menu
+// because some keybinds shouldn't be changed (like the console)
+enum class KEYBIND_VIS : uint8_t
+{
+    NORMAL,
+    HIDDEN
+};
 
 // used for registry
 enum class KEYBIND_T : uint8_t
@@ -73,6 +89,8 @@ public:
 	// but this could support a controller as well.
 	keybind_state key_binds;
 
+    KEYBIND_VIS visablity;
+
 	// NOTE: the problem is that this ONLY supports 1 key
 	// Note that I really want to use a string for the registry,
 	// but the problem is that if an error occurrs, it can't be caught in serr
@@ -81,6 +99,7 @@ public:
 	cvar_key_bind(
 		const char* key,
 		keybind_state value,
+        KEYBIND_VIS visablity_,
 		const char* comment,
 		CVAR_T type,
 		const char* file,

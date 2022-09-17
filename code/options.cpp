@@ -3,6 +3,8 @@
 #include "options.h"
 #include "app.h"
 
+// TODO(dootsie): make the escape button close the menu, but make a popup that asks if you want to
+// keep the changes.
 
 void mono_button_object::init(font_sprite_painter* font_painter_, button_color_state* color_state_)
 {
@@ -16,10 +18,10 @@ void mono_button_object::init(font_sprite_painter* font_painter_, button_color_s
 }
 BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 {
-    if(disabled)
-    {
-	    return BUTTON_RESULT::CONTINUE;
-    }
+	if(disabled)
+	{
+		return BUTTON_RESULT::CONTINUE;
+	}
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
@@ -35,8 +37,8 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 	}
 	break;
 	case SDL_MOUSEBUTTONDOWN: {
-		float mouse_x = static_cast<float>(e.motion.x);
-		float mouse_y = static_cast<float>(e.motion.y);
+		float mouse_x = static_cast<float>(e.button.x);
+		float mouse_y = static_cast<float>(e.button.y);
 
 		float xmin = button_rect[0];
 		float xmax = button_rect[0] + button_rect[2];
@@ -45,8 +47,37 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 
 		if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 		{
-			//slog("click\n");
-			return BUTTON_RESULT::TRIGGER;
+			if(mouse_button_down)
+			{
+				// slog("click\n");
+				return BUTTON_RESULT::TRIGGER;
+			}
+			clicked_on = true;
+		}
+		else
+		{
+			clicked_on = false;
+		}
+	}
+	break;
+	case SDL_MOUSEBUTTONUP: {
+		if(!mouse_button_down && clicked_on)
+		{
+            clicked_on = false;
+
+			float mouse_x = static_cast<float>(e.button.x);
+			float mouse_y = static_cast<float>(e.button.y);
+
+			float xmin = button_rect[0];
+			float xmax = button_rect[0] + button_rect[2];
+			float ymin = button_rect[1];
+			float ymax = button_rect[1] + button_rect[3];
+
+			if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+			{
+				// slog("click\n");
+				return BUTTON_RESULT::TRIGGER;
+			}
 		}
 	}
 	break;
@@ -56,8 +87,12 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 }
 bool mono_button_object::update(double delta_sec)
 {
+    // NOTE: I wouldn't need this if I used a setter for disabling the button...
+	hover_over = !disabled && hover_over;
+
 	// add fade
-	fade += static_cast<float>(hover_over && !disabled ? delta_sec : -delta_sec) * color_state.fade_speed;
+	fade += static_cast<float>(hover_over ? delta_sec : -delta_sec) * color_state.fade_speed;
+
 	// clamp
 	fade = std::min(fade, 1.f);
 	fade = std::max(fade, 0.f);
@@ -105,40 +140,26 @@ bool mono_button_object::draw_buffer()
 		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, color_state.bbox_color);
 		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, color_state.bbox_color);
 	}
-	// scroll bar
-	{
-		float xmin = button_rect[0];
-		float xmax = button_rect[0] + button_rect[2];
-		float ymin = button_rect[1];
-		float ymax = button_rect[1] + button_rect[3];
-
-		// fill
-		batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, fill_color);
-
-		// bbox
-		batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, color_state.bbox_color);
-		batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, color_state.bbox_color);
-		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, color_state.bbox_color);
-		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, color_state.bbox_color);
-	}
 
 	// font
 	font_painter->begin();
 
-	// outline
-	font_painter->set_style(FONT_STYLE_OUTLINE);
-	font_painter->set_color(0, 0, 0, 255);
-	font_painter->set_anchor(TEXT_ANCHOR::CENTER_PERFECT);
-	font_painter->set_xy(
-		button_rect[0] + (button_rect[2] / 2.f), button_rect[1] + (button_rect[3] / 2.f));
-	if(!font_painter->draw_text(text.c_str(), text.size()))
+	if(color_state.show_outline)
 	{
-		return false;
+		// outline
+		font_painter->set_style(FONT_STYLE_OUTLINE);
+		font_painter->set_color(color_state.text_outline_color);
+		font_painter->set_anchor(TEXT_ANCHOR::CENTER_PERFECT);
+		font_painter->set_xy(
+			button_rect[0] + (button_rect[2] / 2.f), button_rect[1] + (button_rect[3] / 2.f));
+		if(!font_painter->draw_text(text.c_str(), text.size()))
+		{
+			return false;
+		}
 	}
 
-	// outline inside
 	font_painter->set_style(FONT_STYLE_NORMAL);
-	font_painter->set_color(disabled ? color_state.disabled_text_color: color_state.text_color);
+	font_painter->set_color(disabled ? color_state.disabled_text_color : color_state.text_color);
 	font_painter->set_xy(
 		button_rect[0] + (button_rect[2] / 2.f), button_rect[1] + (button_rect[3] / 2.f));
 	if(!font_painter->draw_text(text.c_str(), text.size()))
@@ -152,6 +173,7 @@ bool mono_button_object::draw_buffer()
 }
 void mono_button_object::unfocus()
 {
+    clicked_on = false;
 	hover_over = false;
 }
 
@@ -167,17 +189,26 @@ bool option_menu_state::init(
 
 	for(const auto& [key, value] : get_keybinds())
 	{
-		buttons.emplace_back(value);
-		buttons.back().button.init(&font_painter);
-		buttons.back().button.text = value.cvar_write();
+		switch(value.visablity)
+		{
+		case KEYBIND_VIS::HIDDEN: break;
+		case KEYBIND_VIS::NORMAL:
+			buttons.emplace_back(value);
+			buttons.back().button.init(&font_painter);
+			buttons.back().button.text = value.cvar_write();
+			break;
+		}
 	}
-
 
 	revert_button.init(&font_painter);
 	revert_button.text = "revert";
-    revert_button.disabled = true;
+	revert_button.disabled = true;
+
 	ok_button.init(&font_painter);
 	ok_button.text = "ok";
+
+	defaults_button.init(&font_painter);
+	defaults_button.text = "reset defaults";
 
 	// create the buffer for the shader
 	ctx.glGenBuffers(1, &gl_options_interleave_vbo);
@@ -312,33 +343,42 @@ OPTION_MENU_RESULT option_menu_state::input(SDL_Event& e)
 
 		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 		{
+			// insert into history
+			history.emplace_back(keybind.key_binds, *requested_button);
+			revert_button.disabled = false;
+
+			// set the button
+			if(!keybind.cvar_read("NONE"))
+			{
+				return OPTION_MENU_RESULT::ERROR;
+			}
 			button.text = keybind.cvar_write();
 			button.color_state.text_color = {255, 255, 255, 255};
 			requested_button = NULL;
+
+			//slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
 			return OPTION_MENU_RESULT::EAT;
 		}
 
-        keybind_state out;
-        if(keybind.bind_sdl_event(e, &out))
-        {
-            //insert into history
-            history.emplace_back();
-            history.back().slot = requested_button;
-            history.back().value = keybind.key_binds;
-            revert_button.disabled = false;
+		keybind_state out;
+		if(keybind.bind_sdl_event(e, &out))
+		{
+			// insert into history
+			history.emplace_back(keybind.key_binds, *requested_button);
+			revert_button.disabled = false;
 
-            //set the button
-            keybind.key_binds = out;
-            button.text = keybind.cvar_write();
-            button.color_state.text_color = {255,255,255,255};
-            requested_button = NULL;
-            
-            slogf("new bind: %s\n", keybind.cvar_write().c_str());
-            return OPTION_MENU_RESULT::EAT;
-        }
-		
+			// set the button
+			keybind.key_binds = out;
+			button.text = keybind.cvar_write();
+			button.color_state.text_color = {255, 255, 255, 255};
+			requested_button = NULL;
+
+			//slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
+			return OPTION_MENU_RESULT::EAT;
+		}
 	}
 
+	// filter out mouse events that are clipped out of the scroll_view
 	bool in_scroll_bounds = true;
 	switch(e.type)
 	{
@@ -376,17 +416,15 @@ OPTION_MENU_RESULT option_menu_state::input(SDL_Event& e)
 	}
 	else
 	{
-		int index = 0;
 		for(auto& button : buttons)
 		{
-			++index;
 			// too high
-			if(scroll_view[1] >= button.button.button_rect[1] + button.button.button_rect[3])
+			if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
 			{
 				continue;
 			}
 			// too low
-			if(scroll_view[1] + scroll_view[3] <= button.button.button_rect[1])
+			if(scroll_ymax <= button.button.button_rect[1])
 			{
 				break;
 			}
@@ -396,7 +434,7 @@ OPTION_MENU_RESULT option_menu_state::input(SDL_Event& e)
 			case BUTTON_RESULT::TRIGGER:
 				requested_button = &button;
 				button.button.text = "[press button]";
-                button.button.color_state.text_color = {255,255,0,255};
+				button.button.color_state.text_color = {255, 255, 0, 255};
 				return OPTION_MENU_RESULT::EAT;
 			case BUTTON_RESULT::ERROR: return OPTION_MENU_RESULT::ERROR;
 			}
@@ -409,24 +447,56 @@ OPTION_MENU_RESULT option_menu_state::input(SDL_Event& e)
 		{
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
-			slog("revert click\n");
+			//slog("revert click\n");
 			for(auto rit = history.rbegin(); rit != history.rend(); ++rit)
 			{
-				rit->slot->keybind.key_binds = rit->value;
-				rit->slot->button.text = rit->slot->keybind.cvar_write();
+				rit->slot.keybind.key_binds = rit->value;
+				rit->slot.button.text = rit->slot.keybind.cvar_write();
 			}
 			history.clear();
-            revert_button.disabled = true;
+			revert_button.disabled = true;
 			return OPTION_MENU_RESULT::EAT;
 
 		case BUTTON_RESULT::ERROR: return OPTION_MENU_RESULT::ERROR;
 		}
+
 		switch(ok_button.input(e))
 		{
 		case BUTTON_RESULT::CONTINUE: break;
-		case BUTTON_RESULT::TRIGGER: slog("ok click\n"); return OPTION_MENU_RESULT::CLOSE;
+		case BUTTON_RESULT::TRIGGER:
+			//slog("ok click\n");
+			history.clear();
+			revert_button.disabled = true;
+			return OPTION_MENU_RESULT::CLOSE;
 		case BUTTON_RESULT::ERROR: return OPTION_MENU_RESULT::ERROR;
 		}
+
+		switch(defaults_button.input(e))
+		{
+		case BUTTON_RESULT::CONTINUE: break;
+		case BUTTON_RESULT::TRIGGER:
+			//slog("reset defaults click\n");
+			for(auto& button : buttons)
+			{
+				history.emplace_back(button.keybind.key_binds, button);
+				if(!button.keybind.cvar_read(button.keybind.cvar_default_value.c_str()))
+				{
+					return OPTION_MENU_RESULT::ERROR;
+				}
+				button.button.text = button.keybind.cvar_write();
+			}
+			revert_button.disabled = false;
+			return OPTION_MENU_RESULT::EAT;
+		case BUTTON_RESULT::ERROR: return OPTION_MENU_RESULT::ERROR;
+		}
+	}
+
+	if( //! input_eaten &&
+		e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
+	{
+		// unfocus any selection left.
+		// not an eat because this is similar to clicking outside the element
+		unfocus();
 	}
 
 	// backdrop
@@ -510,6 +580,13 @@ bool option_menu_state::draw_base()
 		{
 			return false;
 		}
+		x_cursor -= (button_width * 2) + element_padding;
+		defaults_button.set_rect(
+			x_cursor, box_ymax - footer_height + element_padding, button_width * 2, button_height);
+		if(!defaults_button.draw_buffer())
+		{
+			return false;
+		}
 	}
 
 	return true;
@@ -521,6 +598,10 @@ bool option_menu_state::draw_scroll()
 	auto white_uv = font_painter.state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 	std::array<float, 4> scroll_view = internal_get_scrollbox_view();
+	// float scroll_xmin = scroll_view[0];
+	float scroll_xmax = scroll_view[0] + scroll_view[2];
+	float scroll_ymin = scroll_view[1];
+	float scroll_ymax = scroll_view[1] + scroll_view[3];
 
 	float button_height = font_painter.state.font->get_lineskip() + font_padding;
 
@@ -543,10 +624,10 @@ bool option_menu_state::draw_scroll()
 	{
 		// draw the scrollbar bbox
 		{
-			float xmin = scroll_view[0] + scroll_view[2] - scrollbar_thickness;
-			float xmax = scroll_view[0] + scroll_view[2];
-			float ymin = scroll_view[1];
-			float ymax = scroll_view[1] + scroll_view[3];
+			float xmin = scroll_xmax - scrollbar_thickness;
+			float xmax = scroll_xmax;
+			float ymin = scroll_ymin;
+			float ymax = scroll_ymax;
 
 			batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
 			batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
@@ -564,10 +645,10 @@ bool option_menu_state::draw_scroll()
 				(scrollbar_max_height - thumb_height) / (scroll_h - scroll_view[3]);
 			float thumb_offset = scroll_y * scroll_ratio;
 
-			float xmin = scroll_view[0] + scroll_view[2] - scrollbar_thickness;
-			float xmax = scroll_view[0] + scroll_view[2];
-			float ymin = scroll_view[1] + thumb_offset;
-			float ymax = scroll_view[1] + thumb_offset + thumb_height;
+			float xmin = scroll_xmax - scrollbar_thickness;
+			float xmax = scroll_xmax;
+			float ymin = scroll_ymin + thumb_offset;
+			float ymax = scroll_ymin + thumb_offset + thumb_height;
 
 			std::array<uint8_t, 4> fill_color = RGBA8_PREMULT(50, 50, 50, 200);
 
@@ -581,7 +662,6 @@ bool option_menu_state::draw_scroll()
 
 	// draw the keybind description text
 	{
-		font_painter.begin();
 		float y = 0;
 		for(auto& button : buttons)
 		{
@@ -589,15 +669,20 @@ bool option_menu_state::draw_scroll()
 			y += button_height + element_padding;
 
 			// too high
-			if(scroll_view[1] >= button.button.button_rect[1] + button.button.button_rect[3])
+			if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
 			{
 				continue;
 			}
 			// too low
-			if(scroll_view[1] + scroll_view[3] <= button.button.button_rect[1])
+			if(scroll_ymax <= button.button.button_rect[1])
 			{
 				break;
 			}
+
+			size_t len = strlen(button.keybind.cvar_comment);
+
+
+		    font_painter.begin();
 
 			// outline
 			font_painter.set_style(FONT_STYLE_OUTLINE);
@@ -605,7 +690,7 @@ bool option_menu_state::draw_scroll()
 			font_painter.set_anchor(TEXT_ANCHOR::CENTER_LEFT);
 			font_painter.set_xy(
 				box_xmin + element_padding, box_ymin + y_pos + button_height / 2.f - scroll_y);
-			if(!font_painter.draw_format("%s:", button.keybind.cvar_comment))
+			if(!font_painter.draw_text(button.keybind.cvar_comment, len))
 			{
 				return false;
 			}
@@ -616,29 +701,17 @@ bool option_menu_state::draw_scroll()
 			font_painter.set_xy(
 				box_xmin + element_padding, box_ymin + y_pos + button_height / 2.f - scroll_y);
 
-			if(!font_painter.draw_format("%s:", button.keybind.cvar_comment))
+			if(!font_painter.draw_text(button.keybind.cvar_comment, len))
 			{
 				return false;
 			}
-		}
-		font_painter.end();
-	}
+		    font_painter.end();
 
-	for(auto& button : buttons)
-	{
-		// too high
-		if(scroll_view[1] >= button.button.button_rect[1] + button.button.button_rect[3])
-		{
-			continue;
-		}
-		// too low
-		if(scroll_view[1] + scroll_view[3] <= button.button.button_rect[1])
-		{
-			break;
-		}
-		if(!button.button.draw_buffer())
-		{
-			return false;
+
+            if(!button.button.draw_buffer())
+            {
+                return false;
+            }
 		}
 	}
 	return true;
@@ -658,6 +731,10 @@ bool option_menu_state::update(double delta_sec)
 		return false;
 	}
 	if(!ok_button.update(delta_sec))
+	{
+		return false;
+	}
+	if(!defaults_button.update(delta_sec))
 	{
 		return false;
 	}
@@ -683,6 +760,7 @@ bool option_menu_state::render()
 		return false;
 	}
 
+	// I need to split the batch into 2 draw calls for clipping the scroll.
 	GLsizei base_vertex_count = batcher->get_current_vertex_count();
 
 	if(!draw_scroll())
@@ -734,10 +812,17 @@ void option_menu_state::unfocus()
 	scroll_drag_y = -1;
 	scroll_thumb_click_offset = -1;
 
+	// all this does is make the buttons not hovered
+	// since if you close the menu while hovering a button,
+	// when you make the menu re-appear, and if you don't move
+	// the mouse, the button will stay "hot".
 	for(auto& button : buttons)
 	{
 		button.button.unfocus();
 	}
+	ok_button.unfocus();
+	revert_button.unfocus();
+	defaults_button.unfocus();
 }
 
 void option_menu_state::internal_scroll_y_to(float mouse_y)

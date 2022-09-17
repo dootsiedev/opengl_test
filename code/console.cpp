@@ -286,6 +286,9 @@ void console_state::resize_text_area()
 		60,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
 		static_cast<float>(cv_screen_height.data) / 2 - 60);
+	// TODO(dootsie): I don't like this, it should only move down when it already is at the
+	// bottom...
+	log_box.scroll_to_bottom();
 	prompt_cmd.set_bbox(
 		60,
 		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
@@ -431,6 +434,13 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 			case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 			}
 		}
+	}
+
+	if(!input_eaten && e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
+	{
+		// unfocus any selection left.
+		// not an eat because this is similar to clicking outside the element
+		unfocus();
 	}
 
 	return input_eaten ? CONSOLE_RESULT::EAT : CONSOLE_RESULT::CONTINUE;

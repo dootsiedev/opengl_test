@@ -147,17 +147,17 @@ static REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed", CVAR_
 
 // keybinds
 
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, "move forward", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, "move backward", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, "move left", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, "move right", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_open_console, SDLK_F1, "open console overlay", CVAR_T::RUNTIME);
-// TODO: I shouldn't need a options menu button, remove it
-static REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_open_options, SDLK_SLASH, "open option menu", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, KEYBIND_VIS::NORMAL, "move forward", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, KEYBIND_VIS::NORMAL, "move backward", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, KEYBIND_VIS::NORMAL, "move left", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, KEYBIND_VIS::NORMAL, "move right", CVAR_T::RUNTIME);
 static REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
-	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, "toggle fullscreen", CVAR_T::RUNTIME);
+	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, KEYBIND_VIS::NORMAL, "toggle fullscreen", CVAR_T::RUNTIME);
+
+static REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_open_console, SDLK_F1, KEYBIND_VIS::HIDDEN, "open console overlay", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_open_options, SDLK_SLASH, KEYBIND_VIS::HIDDEN, "open option menu", CVAR_T::RUNTIME);
 
 struct gl_point_vertex
 {
@@ -791,9 +791,50 @@ void demo_state::unfocus()
 bool demo_state::input(SDL_Event& e)
 {
 	// TIMER_U t1 = timer_now();
-
 	bool input_eaten = false;
-	if(show_console)
+	if(e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
+	{
+#ifdef __EMSCRIPTEN__
+		EmscriptenPointerlockChangeEvent plce;
+		EMSCRIPTEN_RESULT em_ret = emscripten_get_pointerlock_status(&plce);
+		if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+		{
+			slogf(
+				"%s returned %s.\n",
+				"emscripten_get_pointerlock_status",
+				emscripten_result_to_string(em_ret));
+		}
+		else if(plce.isActive)
+#else
+		if(SDL_GetRelativeMouseMode() == SDL_TRUE)
+#endif
+		{
+			if(e.type == SDL_MOUSEMOTION)
+			{
+				// int x;
+				// int y;
+				// SDL_GetRelativeMouseState(&x, &y);
+				camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data);
+				camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data);
+				camera_pitch = fmaxf(camera_pitch, -89.f);
+				camera_pitch = fminf(camera_pitch, 89.f);
+
+				glm::vec3 direction;
+				direction.x = cos(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
+				direction.y = sin(glm::radians(camera_pitch));
+				direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
+				camera_direction = glm::normalize(direction);
+			}
+            // pointerlock overrides all other input.
+			return true;
+		}
+	}
+
+	if(input_eaten)
+	{
+		g_console.unfocus();
+    }
+	else if(show_console)
 	{
 		CONSOLE_RESULT ret = g_console.input(e);
 		switch(ret)
@@ -814,7 +855,10 @@ bool demo_state::input(SDL_Event& e)
 		{
 		case OPTION_MENU_RESULT::CONTINUE: break;
 		case OPTION_MENU_RESULT::EAT: input_eaten = true; break;
-		case OPTION_MENU_RESULT::CLOSE: show_options = false; break;
+		case OPTION_MENU_RESULT::CLOSE:
+			input_eaten = true;
+			show_options = false;
+			break;
 		case OPTION_MENU_RESULT::ERROR: return false;
 		}
 	}
@@ -875,10 +919,6 @@ bool demo_state::input(SDL_Event& e)
 		{
 		case SDLK_ESCAPE:
 			unfocus();
-			if(show_console)
-			{
-				g_console.unfocus();
-			}
 			break;
 		case SDLK_F10: {
 			std::string msg;
@@ -913,37 +953,6 @@ bool demo_state::input(SDL_Event& e)
 				slogf("info: SDL_SetRelativeMouseMode failed: %s\n", SDL_GetError());
 			}
 #endif
-		}
-		break;
-	case SDL_MOUSEMOTION:
-#ifdef __EMSCRIPTEN__
-		EmscriptenPointerlockChangeEvent plce;
-		EMSCRIPTEN_RESULT em_ret = emscripten_get_pointerlock_status(&plce);
-		if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-		{
-			slogf(
-				"%s returned %s.\n",
-				"emscripten_get_pointerlock_status",
-				emscripten_result_to_string(em_ret));
-		}
-		else if(plce.isActive)
-#else
-		if(SDL_GetRelativeMouseMode() == SDL_TRUE)
-#endif
-		{
-			// int x;
-			// int y;
-			// SDL_GetRelativeMouseState(&x, &y);
-			camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data);
-			camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data);
-			camera_pitch = fmaxf(camera_pitch, -89.f);
-			camera_pitch = fminf(camera_pitch, 89.f);
-
-			glm::vec3 direction;
-			direction.x = cos(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
-			direction.y = sin(glm::radians(camera_pitch));
-			direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
-			camera_direction = glm::normalize(direction);
 		}
 		break;
 	}
@@ -1226,8 +1235,9 @@ DEMO_RESULT demo_state::process()
 			{
 				return DEMO_RESULT::ERROR;
 			}
-			// eat this event, but don't unfocus anything.
-			continue;
+            // this is not an eat because if I set LMB for fullscreen,
+            // I can't undo the change because it would be eaten!
+            // kind of annoying when you toggle while typing in a prompt...
 		}
 		if(!input(e))
 		{
