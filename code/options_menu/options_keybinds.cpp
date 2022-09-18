@@ -9,14 +9,16 @@
 // TODO(dootsie): each keybind should have it's own "revert to default".
 
 bool options_keybinds_state::init(
-	font_style_interface* font_, mono_2d_batcher* batcher_, shader_mono_state& mono_shader)
+	font_sprite_painter *font_painter_, GLuint vbo, GLuint vao)
 {
-	ASSERT(font_ != NULL);
-	ASSERT(batcher_ != NULL);
+	ASSERT(font_painter_ != NULL);
 
-	font_painter.init(batcher_, font_);
+    font_painter = font_painter_;
 
-	footer_height = font_->get_lineskip() + font_padding + element_padding*2;
+	footer_height = font_painter->state.font->get_lineskip() + font_padding + element_padding*2;
+
+    gl_options_interleave_vbo = vbo;
+    gl_options_vao_id = vao;
 
 	for(const auto& [key, value] : get_keybinds())
 	{
@@ -25,58 +27,37 @@ bool options_keybinds_state::init(
 		case KEYBIND_VIS::HIDDEN: break;
 		case KEYBIND_VIS::NORMAL:
 			buttons.emplace_back(value);
-			buttons.back().button.init(&font_painter);
+			buttons.back().button.init(font_painter);
 			buttons.back().button.text = value.cvar_write();
 			break;
 		}
 	}
 
-	revert_button.init(&font_painter);
+	revert_button.init(font_painter);
 	revert_button.text = "revert";
 	revert_button.disabled = true;
 
-	ok_button.init(&font_painter);
+	ok_button.init(font_painter);
 	ok_button.text = "ok";
 
-	defaults_button.init(&font_painter);
+	defaults_button.init(font_painter);
 	defaults_button.text = "reset defaults";
 
     //scrollbar
-    scroll_state.init(&font_painter);
+    scroll_state.init(font_painter);
     scroll_state.scrollbar_padding = element_padding;
 
     resize_view();
 
-	// create the buffer for the shader
-	ctx.glGenBuffers(1, &gl_options_interleave_vbo);
-	if(gl_options_interleave_vbo == 0)
-	{
-		serrf("%s error: glGenBuffers failed\n", __func__);
-		return false;
-	}
-
-	// VAO
-	ctx.glGenVertexArrays(1, &gl_options_vao_id);
-	if(gl_options_vao_id == 0)
-	{
-		serrf("%s error: glGenVertexArrays failed\n", __func__);
-		return false;
-	}
-	// vertex setup
-	ctx.glBindVertexArray(gl_options_vao_id);
-	ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_options_interleave_vbo);
-	gl_create_interleaved_mono_vertex_vao(mono_shader);
-	ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
-	ctx.glBindVertexArray(0);
-
-	return GL_CHECK(__func__) == GL_NO_ERROR;
+    return true;
 }
 
-bool options_keybinds_state::destroy()
+void options_keybinds_state::close()
 {
-	SAFE_GL_DELETE_VBO(gl_options_interleave_vbo);
-	SAFE_GL_DELETE_VAO(gl_options_vao_id);
-	return GL_CHECK(__func__) == GL_NO_ERROR;
+    history.clear();
+	revert_button.disabled = true;
+    // just in case?
+    unfocus();
 }
 
 OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
@@ -94,7 +75,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
     {
 		return OPTIONS_KEYBINDS_RESULT::EAT;
     }
-    
+
 	if(requested_button != NULL)
 	{
 		cvar_key_bind& keybind = requested_button->keybind;
@@ -232,8 +213,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
 			//slog("ok click\n");
-			history.clear();
-			revert_button.disabled = true;
+            close();
 			return OPTIONS_KEYBINDS_RESULT::CLOSE;
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
 		}
@@ -261,10 +241,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	if( //! input_eaten &&
 		e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
-		unfocus();
-        history.clear();
-        revert_button.disabled = true;
-        return OPTIONS_KEYBINDS_RESULT::CLOSE;
+        close();
         return OPTIONS_KEYBINDS_RESULT::CLOSE;
 	}
 
@@ -307,11 +284,11 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 
 bool options_keybinds_state::draw_base()
 {
-	mono_2d_batcher* batcher = font_painter.state.batcher;
-	auto white_uv = font_painter.state.font->get_font_atlas()->white_uv;
+	mono_2d_batcher* batcher = font_painter->state.batcher;
+	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 
-	float button_height = font_painter.state.font->get_lineskip() + font_padding;
+	float button_height = font_painter->state.font->get_lineskip() + font_padding;
 
 	// draw the backdrop bbox
 	{
@@ -332,7 +309,7 @@ bool options_keybinds_state::draw_base()
 	// the footer buttons
 	{
 		// for a 16px font I would want 60px
-		float button_width = 60 * (font_painter.state.font->get_lineskip() / 16.f);
+		float button_width = 60 * (font_painter->state.font->get_lineskip() / 16.f);
 
 		float x_cursor = box_xmax;
 		x_cursor -= button_width + element_padding;
@@ -365,8 +342,8 @@ bool options_keybinds_state::draw_base()
 bool options_keybinds_state::draw_scroll()
 {
     /*
-	mono_2d_batcher* batcher = font_painter.state.batcher;
-	auto white_uv = font_painter.state.font->get_font_atlas()->white_uv;
+	mono_2d_batcher* batcher = font_painter->state.batcher;
+	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
     */
 
@@ -375,7 +352,7 @@ bool options_keybinds_state::draw_scroll()
 	float scroll_ymin = scroll_state.box_ymin;
 	float scroll_ymax = scroll_state.box_ymax;
 
-	float button_height = font_painter.state.font->get_lineskip() + font_padding;
+	float button_height = font_painter->state.font->get_lineskip() + font_padding;
 
 	// set the buttons dimensions
 	{
@@ -420,30 +397,30 @@ bool options_keybinds_state::draw_scroll()
 			size_t len = strlen(button.keybind.cvar_comment);
 
 
-		    font_painter.begin();
+		    font_painter->begin();
 
 			// outline
-			font_painter.set_style(FONT_STYLE_OUTLINE);
-			font_painter.set_color(0, 0, 0, 255);
-			font_painter.set_anchor(TEXT_ANCHOR::CENTER_LEFT);
-			font_painter.set_xy(
+			font_painter->set_style(FONT_STYLE_OUTLINE);
+			font_painter->set_color(0, 0, 0, 255);
+			font_painter->set_anchor(TEXT_ANCHOR::CENTER_LEFT);
+			font_painter->set_xy(
 				scroll_xmin, scroll_ymin + y_pos + button_height / 2.f - scroll_state.scroll_y);
-			if(!font_painter.draw_text(button.keybind.cvar_comment, len))
+			if(!font_painter->draw_text(button.keybind.cvar_comment, len))
 			{
 				return false;
 			}
 
 			// outline inside
-			font_painter.set_style(FONT_STYLE_NORMAL);
-			font_painter.set_color(255, 255, 255, 255);
-			font_painter.set_xy(
+			font_painter->set_style(FONT_STYLE_NORMAL);
+			font_painter->set_color(255, 255, 255, 255);
+			font_painter->set_xy(
 				scroll_xmin, scroll_ymin + y_pos + button_height / 2.f - scroll_state.scroll_y);
 
-			if(!font_painter.draw_text(button.keybind.cvar_comment, len))
+			if(!font_painter->draw_text(button.keybind.cvar_comment, len))
 			{
 				return false;
 			}
-		    font_painter.end();
+		    font_painter->end();
 
 
             if(!button.button.draw_buffer())
@@ -481,7 +458,7 @@ bool options_keybinds_state::update(double delta_sec)
 
 bool options_keybinds_state::render()
 {
-	mono_2d_batcher* batcher = font_painter.state.batcher;
+	mono_2d_batcher* batcher = font_painter->state.batcher;
 	batcher->clear();
 
 

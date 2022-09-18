@@ -27,6 +27,10 @@ enum class OPTIONS_RESULT
 
 struct options_state
 {
+
+	// this puts the text on the screen using a style and batcher.
+	font_sprite_painter font_painter;
+
 	enum class MENU_FACTORY
 	{
 		MENU_SELECT,
@@ -46,6 +50,11 @@ struct options_state
 #ifdef AUDIO_SUPPORT
 	options_audio_state audio;
 #endif
+
+
+	// the buffer that contains the menu rects and text
+	GLuint gl_options_interleave_vbo = 0;
+	GLuint gl_options_vao_id = 0;
 
 	NDSERR bool init(
 		font_style_interface* font_, mono_2d_batcher* batcher_, shader_mono_state& mono_shader);

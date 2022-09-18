@@ -255,9 +255,6 @@ void mono_y_scrollable_area::draw_buffer()
     mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 
-    // TODO: draw_bbox
-    
-
     if(content_h > (box_ymax - box_ymin))
 	{
 		// draw the scrollbar bbox

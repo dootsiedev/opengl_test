@@ -20,11 +20,8 @@ enum class OPTIONS_KEYBINDS_RESULT
 
 struct options_keybinds_state
 {
-	// font_style_interface* options_font = NULL;
-	// mono_2d_batcher* options_batcher = NULL;
-
 	// this puts the text on the screen using a style and batcher.
-	font_sprite_painter font_painter;
+	font_sprite_painter *font_painter = NULL;
 
     mono_y_scrollable_area scroll_state;
 
@@ -57,6 +54,7 @@ struct options_keybinds_state
 	std::vector<edit_history> history;
 
 	// the buffer that contains the menu rects and text
+    // this is NOT owned by this state
 	GLuint gl_options_interleave_vbo = 0;
 	GLuint gl_options_vao_id = 0;
 
@@ -77,10 +75,10 @@ struct options_keybinds_state
 	float box_ymin = -1;
 	float box_ymax = -1;
 
-	NDSERR bool init(
-		font_style_interface* font_, mono_2d_batcher* batcher_, shader_mono_state& mono_shader);
+	NDSERR bool init(font_sprite_painter *font_painter_, GLuint vbo, GLuint vao);
 
-	NDSERR bool destroy();
+    // this clears the history
+    void close();
 
 	NDSERR OPTIONS_KEYBINDS_RESULT input(SDL_Event& e);
 

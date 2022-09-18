@@ -147,12 +147,21 @@ static REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed", CVAR_
 
 // keybinds
 
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, KEYBIND_VIS::NORMAL, "move forward", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, KEYBIND_VIS::NORMAL, "move backward", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, KEYBIND_VIS::NORMAL, "move left", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, KEYBIND_VIS::NORMAL, "move right", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_move_forward, SDLK_w, KEYBIND_VIS::NORMAL, "move forward", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_move_backward, SDLK_s, KEYBIND_VIS::NORMAL, "move backward", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_move_left, SDLK_a, KEYBIND_VIS::NORMAL, "move left", CVAR_T::RUNTIME);
+static REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_move_right, SDLK_d, KEYBIND_VIS::NORMAL, "move right", CVAR_T::RUNTIME);
 static REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
-	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, KEYBIND_VIS::NORMAL, "toggle fullscreen", CVAR_T::RUNTIME);
+	cv_bind_fullscreen,
+	SDLK_RETURN,
+	KMOD_ALT,
+	KEYBIND_VIS::NORMAL,
+	"toggle fullscreen",
+	CVAR_T::RUNTIME);
 
 static REGISTER_CVAR_KEY_BIND_KEY(
 	cv_bind_open_console, SDLK_F1, KEYBIND_VIS::HIDDEN, "open console overlay", CVAR_T::RUNTIME);
@@ -725,7 +734,6 @@ bool demo_state::destroy_gl_font()
 	success = font_style.destroy() && success;
 	success = font_rasterizer.destroy() && success;
 	success = font_manager.destroy() && success;
-	success = g_console.destroy() && success;
 
 	SAFE_GL_DELETE_VBO(gl_font_interleave_vbo);
 	SAFE_GL_DELETE_VAO(gl_font_vao_id);
@@ -792,41 +800,46 @@ bool demo_state::input(SDL_Event& e)
 {
 	// TIMER_U t1 = timer_now();
 	bool input_eaten = false;
-	if(e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
-	{
-        // is the mouse currently locked?
+	// is the mouse currently locked?
 #ifdef __EMSCRIPTEN__
-		EmscriptenPointerlockChangeEvent plce;
-		EMSCRIPTEN_RESULT em_ret = emscripten_get_pointerlock_status(&plce);
-		if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-		{
-			slogf(
-				"%s returned %s.\n",
-				"emscripten_get_pointerlock_status",
-				emscripten_result_to_string(em_ret));
-		}
-		else if(plce.isActive)
+	EmscriptenPointerlockChangeEvent plce;
+	EMSCRIPTEN_RESULT em_ret = emscripten_get_pointerlock_status(&plce);
+	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+	{
+		slogf(
+			"%s returned %s.\n",
+			"emscripten_get_pointerlock_status",
+			emscripten_result_to_string(em_ret));
+	}
+	else if(plce.isActive)
 #else
-		if(SDL_GetRelativeMouseMode() == SDL_TRUE)
+	if(SDL_GetRelativeMouseMode() == SDL_TRUE)
 #endif
+	{
+		if(e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
 		{
-			if(e.type == SDL_MOUSEMOTION)
-			{
-				// int x;
-				// int y;
-				// SDL_GetRelativeMouseState(&x, &y);
-				camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data);
-				camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data);
-				camera_pitch = fmaxf(camera_pitch, -89.f);
-				camera_pitch = fminf(camera_pitch, 89.f);
+			return true;
+		}
+		if(e.type == SDL_MOUSEMOTION)
+		{
+			// int x;
+			// int y;
+			// SDL_GetRelativeMouseState(&x, &y);
+			camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data);
+			camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data);
+			camera_pitch = fmaxf(camera_pitch, -89.f);
+			camera_pitch = fminf(camera_pitch, 89.f);
 
-				glm::vec3 direction;
-				direction.x = cos(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
-				direction.y = sin(glm::radians(camera_pitch));
-				direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
-				camera_direction = glm::normalize(direction);
-			}
-            // pointerlock overrides all other input.
+			glm::vec3 direction;
+			direction.x = cos(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
+			direction.y = sin(glm::radians(camera_pitch));
+			direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
+			camera_direction = glm::normalize(direction);
+			return true;
+		}
+		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
+		{
+			unfocus();
 			return true;
 		}
 	}
@@ -834,7 +847,7 @@ bool demo_state::input(SDL_Event& e)
 	if(input_eaten)
 	{
 		g_console.unfocus();
-    }
+	}
 	else if(show_console)
 	{
 		CONSOLE_RESULT ret = g_console.input(e);
@@ -889,7 +902,7 @@ bool demo_state::input(SDL_Event& e)
 		{
 			unfocus();
 			g_console.focus();
-            g_console.resize_text_area();
+			g_console.resize_text_area();
 			show_console = true;
 		}
 	}
@@ -918,9 +931,7 @@ bool demo_state::input(SDL_Event& e)
 
 		switch(e.key.keysym.sym)
 		{
-		case SDLK_ESCAPE:
-			unfocus();
-			break;
+		case SDLK_ESCAPE: unfocus(); break;
 		case SDLK_F10: {
 			std::string msg;
 			msg += "StackTrace (f10):\n";
@@ -934,7 +945,7 @@ bool demo_state::input(SDL_Event& e)
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
-            // TODO: should check if I button down wasn't eaten before I button up.
+			// TODO: should check if I button down wasn't eaten before I button up.
 #ifdef __EMSCRIPTEN__
 			// this ONLY works when called inside of a mouse button event that is inside a html5
 			// handler. the deferred option means if false (0), this will give an error and nothing
@@ -1146,7 +1157,6 @@ bool demo_state::render()
 
 	ctx.glUseProgram(0);
 
-
 	tick2 = timer_now();
 
 #ifndef __EMSCRIPTEN__
@@ -1238,9 +1248,9 @@ DEMO_RESULT demo_state::process()
 			{
 				return DEMO_RESULT::ERROR;
 			}
-            // this is not an eat because if I set LMB for fullscreen,
-            // I can't undo the change because it would be eaten!
-            // kind of annoying when you toggle while typing in a prompt...
+			// this is not an eat because if I set LMB for fullscreen,
+			// I can't undo the change because it would be eaten!
+			// kind of annoying when you toggle while typing in a prompt...
 		}
 		if(!input(e))
 		{
