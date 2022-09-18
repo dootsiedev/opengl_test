@@ -16,7 +16,7 @@ bool options_keybinds_state::init(
 
 	font_painter.init(batcher_, font_);
 
-	footer_height = font_->get_lineskip() + font_padding + element_padding;
+	footer_height = font_->get_lineskip() + font_padding + element_padding*2;
 
 	for(const auto& [key, value] : get_keybinds())
 	{
@@ -40,6 +40,10 @@ bool options_keybinds_state::init(
 
 	defaults_button.init(&font_painter);
 	defaults_button.text = "reset defaults";
+
+    //scrollbar
+    scroll_state.init(&font_painter);
+    scroll_state.scrollbar_padding = element_padding;
 
     resize_view();
 
@@ -86,86 +90,11 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		}
 	}
 
-	std::array<float, 4> scroll_view = internal_get_scrollbox_view();
-	float scroll_xmin = scroll_view[0];
-	float scroll_xmax = scroll_view[0] + scroll_view[2];
-	float scroll_ymin = scroll_view[1];
-	float scroll_ymax = scroll_view[1] + scroll_view[3];
-
-	// scrollbar input
-	if(scroll_h > scroll_view[3])
-	{
-		switch(e.type)
-		{
-		// lazy scroll
-		case SDL_MOUSEWHEEL: {
-			// only scroll when the mouse is currently hovering over the bounding box
-			int x;
-			int y;
-			SDL_GetMouseState(&x, &y);
-			float mouse_x = static_cast<float>(x);
-			float mouse_y = static_cast<float>(y);
-
-			if(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
-			   scroll_xmin <= mouse_x)
-			{
-				scroll_y -= static_cast<float>(e.wheel.y * cv_scroll_speed.data) *
-							font_painter.state.font->get_lineskip();
-				// clamp
-				scroll_y = std::max(0.f, std::min(scroll_h - scroll_view[3], scroll_y));
-			}
-		}
-		break;
-		case SDL_MOUSEMOTION: {
-			float mouse_y = static_cast<float>(e.motion.y);
-			if(y_scrollbar_held)
-			{
-				internal_scroll_y_to(mouse_y);
-			}
-		}
-		break;
-		case SDL_MOUSEBUTTONUP:
-			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
-			{
-				// float mouse_x = static_cast<float>(e.button.x);
-				float mouse_y = static_cast<float>(e.button.y);
-				if(y_scrollbar_held)
-				{
-					internal_scroll_y_to(mouse_y);
-					y_scrollbar_held = false;
-					scroll_thumb_click_offset = -1;
-					return OPTIONS_KEYBINDS_RESULT::EAT;
-				}
-
-				// helps unfocus other elements.
-				/*if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
-				box_xmin <= mouse_x)
-				{
-					return OPTION_MENU_RESULT::EAT;
-				}*/
-			}
-			break;
-		case SDL_MOUSEBUTTONDOWN:
-			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
-			{
-				float mouse_x = static_cast<float>(e.button.x);
-				float mouse_y = static_cast<float>(e.button.y);
-
-				if(internal_scroll_y_inside(mouse_x, mouse_y))
-				{
-					y_scrollbar_held = true;
-					internal_scroll_y_to(mouse_y);
-					return OPTIONS_KEYBINDS_RESULT::EAT;
-				}
-
-				y_scrollbar_held = false;
-				scroll_thumb_click_offset = -1;
-				// unfocus();
-			}
-			break;
-		}
-	}
-
+	if(scroll_state.input(e))
+    {
+		return OPTIONS_KEYBINDS_RESULT::EAT;
+    }
+    
 	if(requested_button != NULL)
 	{
 		cvar_key_bind& keybind = requested_button->keybind;
@@ -208,6 +137,12 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		}
 	}
 
+
+    float scroll_xmin = scroll_state.box_xmin;
+	float scroll_xmax = scroll_state.box_xmax;
+	float scroll_ymin = scroll_state.box_ymin;
+	float scroll_ymax = scroll_state.box_ymax;
+
 	// filter out mouse events that are clipped out of the scroll_view
 	bool in_scroll_bounds = true;
 	switch(e.type)
@@ -233,12 +168,14 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			{
 				in_scroll_bounds = false;
 			}
-			break;
 		}
+		break;
 	}
 
 	if(!in_scroll_bounds)
 	{
+        // need to unfocus or else it wont recieve the mouse event
+        // to unfocus itself.
 		for(auto& button : buttons)
 		{
 			button.button.unfocus();
@@ -378,10 +315,10 @@ bool options_keybinds_state::draw_base()
 
 	// draw the backdrop bbox
 	{
-		float xmin = box_xmin - element_padding;
-		float xmax = box_xmax + element_padding;
-		float ymin = box_ymin - element_padding;
-		float ymax = box_ymax + element_padding;
+		float xmin = box_xmin;
+		float xmax = box_xmax;
+		float ymin = box_ymin;
+		float ymax = box_ymax;
 
 		std::array<uint8_t, 4> fill_color = RGBA8_PREMULT(50, 50, 50, 200);
 
@@ -398,7 +335,7 @@ bool options_keybinds_state::draw_base()
 		float button_width = 60 * (font_painter.state.font->get_lineskip() / 16.f);
 
 		float x_cursor = box_xmax;
-		x_cursor -= button_width;
+		x_cursor -= button_width + element_padding;
 		ok_button.set_rect(
 			x_cursor, box_ymax - footer_height + element_padding, button_width, button_height);
 		if(!ok_button.draw_buffer())
@@ -412,6 +349,7 @@ bool options_keybinds_state::draw_base()
 		{
 			return false;
 		}
+        // note I double the width here
 		x_cursor -= (button_width * 2) + element_padding;
 		defaults_button.set_rect(
 			x_cursor, box_ymax - footer_height + element_padding, button_width * 2, button_height);
@@ -426,71 +364,39 @@ bool options_keybinds_state::draw_base()
 
 bool options_keybinds_state::draw_scroll()
 {
+    /*
 	mono_2d_batcher* batcher = font_painter.state.batcher;
 	auto white_uv = font_painter.state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
-	std::array<float, 4> scroll_view = internal_get_scrollbox_view();
-	// float scroll_xmin = scroll_view[0];
-	float scroll_xmax = scroll_view[0] + scroll_view[2];
-	float scroll_ymin = scroll_view[1];
-	float scroll_ymax = scroll_view[1] + scroll_view[3];
+    */
+
+    float scroll_xmin = scroll_state.box_xmin;
+	float scroll_xmax = scroll_state.box_inner_xmax;
+	float scroll_ymin = scroll_state.box_ymin;
+	float scroll_ymax = scroll_state.box_ymax;
 
 	float button_height = font_painter.state.font->get_lineskip() + font_padding;
 
 	// set the buttons dimensions
 	{
-		float x = (scroll_view[2] - element_padding) / 2 + element_padding;
-		float y = 0;
-		float width = scroll_view[2] - scrollbar_thickness - element_padding - x;
+        float y = 0;
+		float xmin = ((scroll_xmax - scroll_xmin) - element_padding) / 2;
+		float xmax = (scroll_xmax - scroll_xmin);
+        #if 0
+        #endif
+		//
+		//float width = (scroll_xmax - scroll_xmin);
 		for(auto& entry : buttons)
 		{
 			entry.button.set_rect(
-				scroll_view[0] + x, scroll_view[1] + y - scroll_y, width, button_height);
+				xmin + scroll_xmin, scroll_ymin + y - scroll_state.scroll_y, xmax - xmin, button_height);
 			y += button_height + element_padding;
 		}
 		// very important to do this before drawing the scrollbar.
-		scroll_h = y - element_padding;
+		scroll_state.content_h = y - element_padding;
 	}
 
-	if(scroll_h > scroll_view[3])
-	{
-		// draw the scrollbar bbox
-		{
-			float xmin = scroll_xmax - scrollbar_thickness;
-			float xmax = scroll_xmax;
-			float ymin = scroll_ymin;
-			float ymax = scroll_ymax;
-
-			batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
-			batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
-			batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
-			batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
-		}
-		// draw the scrollbar thumb
-		{
-			float scrollbar_max_height = scroll_view[3];
-
-			float thumb_height = scrollbar_max_height * (scroll_view[3] / scroll_h);
-			thumb_height = std::max(thumb_height, scrollbar_thumb_min_size);
-
-			float scroll_ratio =
-				(scrollbar_max_height - thumb_height) / (scroll_h - scroll_view[3]);
-			float thumb_offset = scroll_y * scroll_ratio;
-
-			float xmin = scroll_xmax - scrollbar_thickness;
-			float xmax = scroll_xmax;
-			float ymin = scroll_ymin + thumb_offset;
-			float ymax = scroll_ymin + thumb_offset + thumb_height;
-
-			std::array<uint8_t, 4> fill_color = RGBA8_PREMULT(50, 50, 50, 200);
-
-			batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, fill_color);
-			batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
-			batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
-			batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
-			batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
-		}
-	}
+    scroll_state.draw_buffer();
 
 	// draw the keybind description text
 	{
@@ -521,7 +427,7 @@ bool options_keybinds_state::draw_scroll()
 			font_painter.set_color(0, 0, 0, 255);
 			font_painter.set_anchor(TEXT_ANCHOR::CENTER_LEFT);
 			font_painter.set_xy(
-				box_xmin + element_padding, box_ymin + y_pos + button_height / 2.f - scroll_y);
+				scroll_xmin, scroll_ymin + y_pos + button_height / 2.f - scroll_state.scroll_y);
 			if(!font_painter.draw_text(button.keybind.cvar_comment, len))
 			{
 				return false;
@@ -531,7 +437,7 @@ bool options_keybinds_state::draw_scroll()
 			font_painter.set_style(FONT_STYLE_NORMAL);
 			font_painter.set_color(255, 255, 255, 255);
 			font_painter.set_xy(
-				box_xmin + element_padding, box_ymin + y_pos + button_height / 2.f - scroll_y);
+				scroll_xmin, scroll_ymin + y_pos + button_height / 2.f - scroll_state.scroll_y);
 
 			if(!font_painter.draw_text(button.keybind.cvar_comment, len))
 			{
@@ -578,8 +484,6 @@ bool options_keybinds_state::render()
 	mono_2d_batcher* batcher = font_painter.state.batcher;
 	batcher->clear();
 
-	// clamp the scroll (when the screen resizes)
-	scroll_y = std::max(0.f, std::min(scroll_h - internal_get_scrollbox_view()[3], scroll_y));
 
 	if(!draw_base())
 	{
@@ -610,11 +514,10 @@ bool options_keybinds_state::render()
 		ctx.glDrawArrays(GL_TRIANGLES, 0, base_vertex_count);
 
 		// the scroll box
-		std::array<float, 4> scroll_view = internal_get_scrollbox_view();
-		GLint scissor_x = static_cast<GLint>(scroll_view[0]);
-		GLint scissor_y = static_cast<GLint>(scroll_view[1]);
-		GLint scissor_w = static_cast<GLint>(scroll_view[2]);
-		GLint scissor_h = static_cast<GLint>(scroll_view[3]);
+		GLint scissor_x = static_cast<GLint>(scroll_state.box_xmin);
+		GLint scissor_y = static_cast<GLint>(scroll_state.box_ymin);
+		GLint scissor_w = static_cast<GLint>(scroll_state.box_xmax - scroll_state.box_xmin);
+		GLint scissor_h = static_cast<GLint>(scroll_state.box_ymax - scroll_state.box_ymin);
 		if(scissor_w > 0 && scissor_h > 0)
 		{
 			ctx.glEnable(GL_SCISSOR_TEST);
@@ -634,16 +537,22 @@ bool options_keybinds_state::render()
 
 void options_keybinds_state::resize_view()
 {
-    box_xmin = 60;
-    box_xmax = static_cast<float>(cv_screen_width.data) - 60;
-    box_ymin = 60;
-    box_ymax = static_cast<float>(cv_screen_height.data) - 60;
+	box_xmin = 60;
+	box_xmax = static_cast<float>(cv_screen_width.data) - 60;
+	box_ymin = 60;
+	box_ymax = static_cast<float>(cv_screen_height.data) - 60;
+	scroll_state.resize_view(
+		box_xmin + element_padding,
+		box_xmax - element_padding,
+		box_ymin + element_padding,
+		box_ymax - footer_height);
 }
 
 void options_keybinds_state::unfocus()
 {
-	y_scrollbar_held = false;
-	scroll_thumb_click_offset = -1;
+	// y_scrollbar_held = false;
+	// scroll_thumb_click_offset = -1;
+	scroll_state.unfocus();
 
 	// all this does is make the buttons not hovered
 	// since if you close the menu while hovering a button,
@@ -656,58 +565,4 @@ void options_keybinds_state::unfocus()
 	ok_button.unfocus();
 	revert_button.unfocus();
 	defaults_button.unfocus();
-}
-
-void options_keybinds_state::internal_scroll_y_to(float mouse_y)
-{
-	std::array<float, 4> pos = internal_get_scrollbox_view();
-	float scrollbar_max_height = pos[3];
-
-	float thumb_height = scrollbar_max_height * (pos[3] / scroll_h);
-	thumb_height = std::max(thumb_height, scrollbar_thumb_min_size);
-
-	float scroll_ratio = (scrollbar_max_height - thumb_height) / (scroll_h - pos[3]);
-	scroll_y = (mouse_y - scroll_thumb_click_offset) / scroll_ratio;
-
-	// clamp
-	scroll_y = std::max(0.f, std::min(scroll_h - pos[3], scroll_y));
-}
-
-bool options_keybinds_state::internal_scroll_y_inside(float mouse_x, float mouse_y)
-{
-	std::array<float, 4> pos = internal_get_scrollbox_view();
-	float scrollbar_max_height = pos[3];
-
-	float thumb_height = scrollbar_max_height * (pos[3] / scroll_h);
-	thumb_height = std::max(thumb_height, scrollbar_thumb_min_size);
-
-	float scroll_ratio = (scrollbar_max_height - thumb_height) / (scroll_h - pos[3]);
-	float thumb_offset = scroll_y * scroll_ratio;
-
-	float xmin = pos[0] + pos[2] - scrollbar_thickness;
-	float xmax = pos[0] + pos[2];
-	float ymin = pos[1] + thumb_offset;
-	float ymax = pos[1] + thumb_offset + thumb_height;
-
-	if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
-	{
-		scroll_thumb_click_offset = mouse_y - thumb_offset;
-		return true;
-	}
-
-	return false;
-}
-
-std::array<float, 4> options_keybinds_state::internal_get_scrollbox_view() const
-{
-	std::array<float, 4> out;
-	// x
-	out[0] = box_xmin;
-	// y
-	out[1] = box_ymin;
-	// w
-	out[2] = box_xmax - box_xmin;
-	// h
-	out[3] = box_ymax - box_ymin - footer_height;
-	return out;
 }

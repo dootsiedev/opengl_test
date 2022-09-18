@@ -794,6 +794,7 @@ bool demo_state::input(SDL_Event& e)
 	bool input_eaten = false;
 	if(e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
 	{
+        // is the mouse currently locked?
 #ifdef __EMSCRIPTEN__
 		EmscriptenPointerlockChangeEvent plce;
 		EMSCRIPTEN_RESULT em_ret = emscripten_get_pointerlock_status(&plce);
@@ -933,6 +934,7 @@ bool demo_state::input(SDL_Event& e)
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
+            // TODO: should check if I button down wasn't eaten before I button up.
 #ifdef __EMSCRIPTEN__
 			// this ONLY works when called inside of a mouse button event that is inside a html5
 			// handler. the deferred option means if false (0), this will give an error and nothing
@@ -1144,6 +1146,9 @@ bool demo_state::render()
 
 	ctx.glUseProgram(0);
 
+
+	tick2 = timer_now();
+
 #ifndef __EMSCRIPTEN__
 	if(cv_vsync.data == 0)
 	{
@@ -1151,8 +1156,6 @@ bool demo_state::render()
 		SDL_Delay(1);
 	}
 #endif
-
-	tick2 = timer_now();
 	perf_render.test(timer_delta_ms(tick1, tick2));
 	tick1 = tick2;
 

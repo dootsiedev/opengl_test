@@ -87,13 +87,13 @@ struct mono_y_scrollable_area
 	std::array<uint8_t, 4> fill_color{0, 0, 0, 255};
 
     // screen coords of the scrollbox and scroll bar
-    // to get the area of just the scrollbox, use
-    // get_scroll_width() and get_scroll_height(), 
-    // box_xmin and box_ymin is always the topleft of the scrollbox. 
+    // to get the area without the scrollbar, use box_inner_xmax
 	float box_xmin = -1;
 	float box_xmax = -1;
 	float box_ymin = -1;
 	float box_ymax = -1;
+    // without the scrollbar
+    float box_inner_xmax = -1;
 
 	// the size of the contents in the scroll box
 	float content_h = -1;
@@ -111,10 +111,6 @@ struct mono_y_scrollable_area
 
     bool y_scrollbar_held = false;
 
-    bool draw_bbox = false;
-    // fill in the area of the scrollbox or scrollbar.
-    // this will not fill in the gap between the scrollbox and scrollbar
-    bool draw_fill = false;
 
 	void init(font_sprite_painter* font_painter_)
     {
@@ -126,6 +122,23 @@ struct mono_y_scrollable_area
     bool input(SDL_Event& e);
 
 	void draw_buffer();
+
+    void unfocus()
+    {
+        y_scrollbar_held = false;
+	    scroll_thumb_click_offset = -1;
+    }
+    void resize_view(float xmin,float xmax,float ymin,float ymax)
+    {
+        box_xmin = xmin;
+        box_xmax = xmax;
+        box_ymin = ymin;
+        box_ymax = ymax;
+        // probably should use content_h > (ymax-ymin), but this feels more stable
+        box_inner_xmax = xmax - scrollbar_thickness - scrollbar_padding;
+        // clamp the scroll (when the screen resizes)
+        scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
+    }
 
 	bool internal_scroll_y_inside(float mouse_x, float mouse_y);
 	void internal_scroll_y_to(float mouse_y);

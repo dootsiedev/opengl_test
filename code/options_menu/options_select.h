@@ -2,6 +2,8 @@
 
 #include "../global.h"
 
+#include "../ui.h"
+
 enum class OPTIONS_SELECT_RESULT
 {
 	EAT,
@@ -17,5 +19,10 @@ enum class OPTIONS_SELECT_RESULT
 
 struct options_select_state
 {
-
+    // this is just a list of buttons, I will just associate the button with the enum.
+    struct select_entry{
+        mono_button_object button;
+        OPTIONS_SELECT_RESULT result;
+    };
+    std::vector<select_entry> select_entries;
 };

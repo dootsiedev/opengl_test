@@ -174,6 +174,7 @@ void mono_button_object::unfocus()
 bool mono_y_scrollable_area::input(SDL_Event& e)
 {
     ASSERT(font_painter != NULL);
+
     if(content_h > (box_ymax - box_ymin))
 	{
 		switch(e.type)
@@ -253,6 +254,9 @@ void mono_y_scrollable_area::draw_buffer()
     ASSERT(font_painter != NULL);
     mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
+
+    // TODO: draw_bbox
+    
 
     if(content_h > (box_ymax - box_ymin))
 	{
