@@ -21,9 +21,9 @@ enum class OPTIONS_KEYBINDS_RESULT
 struct options_keybinds_state
 {
 	// this puts the text on the screen using a style and batcher.
-	font_sprite_painter *font_painter = NULL;
+	font_sprite_painter* font_painter = NULL;
 
-    mono_y_scrollable_area scroll_state;
+	mono_y_scrollable_area scroll_state;
 
 	struct keybind_entry
 	{
@@ -54,7 +54,7 @@ struct options_keybinds_state
 	std::vector<edit_history> history;
 
 	// the buffer that contains the menu rects and text
-    // this is NOT owned by this state
+	// this is NOT owned by this state
 	GLuint gl_options_interleave_vbo = 0;
 	GLuint gl_options_vao_id = 0;
 
@@ -69,16 +69,16 @@ struct options_keybinds_state
 	// padding between elements (buttons, scrollbar, etc)
 	float element_padding = 10;
 
-    // the dimensions of the whole backdrop
+	// the dimensions of the whole backdrop
 	float box_xmin = -1;
 	float box_xmax = -1;
 	float box_ymin = -1;
 	float box_ymax = -1;
 
-	NDSERR bool init(font_sprite_painter *font_painter_, GLuint vbo, GLuint vao);
+	void init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao);
 
-    // this clears the history
-    void close();
+	// this clears the history
+	void close();
 
 	NDSERR OPTIONS_KEYBINDS_RESULT input(SDL_Event& e);
 
@@ -90,7 +90,7 @@ struct options_keybinds_state
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();
 
-    void resize_view();
+	void resize_view();
 
 	// call this when you need to unfocus, like for example if you press escape or something.
 	void unfocus();

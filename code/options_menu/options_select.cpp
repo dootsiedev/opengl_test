@@ -4,19 +4,45 @@
 
 #include "../app.h"
 
-// TODO(dootsie): make the escape button close the menu, 
+// TODO(dootsie): make the escape button close the menu,
 // and make a popup that asks if you want to keep the changes?
 // TODO(dootsie): each keybind should have it's own "revert to default".
 
-NDSERR bool options_select_state::init(font_sprite_painter *font_painter_, GLuint vbo, GLuint vao)
+void options_select_state::init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao)
 {
 	ASSERT(font_painter_ != NULL);
-    
-    font_painter = font_painter_;
 
-    resize_view();
+	font_painter = font_painter_;
+	gl_options_interleave_vbo = vbo;
+	gl_options_vao_id = vao;
 
-    return true;
+	{
+		select_entry& entry = select_entries.emplace_back();
+		entry.button.init(font_painter);
+		entry.button.text = "Video";
+		entry.result = OPTIONS_SELECT_RESULT::OPEN_VIDEO;
+	}
+	{
+		select_entry& entry = select_entries.emplace_back();
+		entry.button.init(font_painter);
+		entry.button.text = "Controls";
+		entry.result = OPTIONS_SELECT_RESULT::OPEN_CONTROLS;
+	}
+	{
+#ifdef AUDIO_SUPPORT
+		select_entry& entry = select_entries.emplace_back();
+		entry.button.init(font_painter);
+		entry.button.text = "Audio";
+		entry.result = OPTIONS_SELECT_RESULT::OPEN_AUDIO;
+#endif
+	}
+	{
+		select_entry& entry = select_entries.emplace_back();
+		entry.button.init(font_painter);
+		entry.button.text = "Done";
+		entry.result = OPTIONS_SELECT_RESULT::CLOSE;
+	}
+	resize_view();
 }
 
 OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
@@ -30,37 +56,21 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 		}
 	}
 
-	#if 0
-		for(auto& button : buttons)
+	for(auto& entry : select_entries)
+	{
+		switch(entry.button.input(e))
 		{
-			// too high
-			if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
-			{
-				continue;
-			}
-			// too low
-			if(scroll_ymax <= button.button.button_rect[1])
-			{
-				break;
-			}
-			switch(button.button.input(e))
-			{
-			case BUTTON_RESULT::CONTINUE: break;
-			case BUTTON_RESULT::TRIGGER:
-				requested_button = &button;
-				button.button.text = "[press button]";
-				button.button.color_state.text_color = {255, 255, 0, 255};
-				return OPTIONS_KEYBINDS_RESULT::EAT;
-			case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
-			}
+		case BUTTON_RESULT::CONTINUE: break;
+		case BUTTON_RESULT::TRIGGER: return entry.result;
+		case BUTTON_RESULT::ERROR: return OPTIONS_SELECT_RESULT::ERROR;
 		}
-	
+	}
 
 	if( //! input_eaten &&
 		e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
 		unfocus();
-        return OPTIONS_SELECT_RESULT::CLOSE;
+		return OPTIONS_SELECT_RESULT::CLOSE;
 	}
 
 	// backdrop
@@ -96,33 +106,53 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 		}
 		break;
 	}
-#endif
+
 	return OPTIONS_SELECT_RESULT::CONTINUE;
 }
 
 bool options_select_state::update(double delta_sec)
 {
-    #if 0
-	for(auto& button : buttons)
+	for(auto& entry : select_entries)
 	{
-		if(!button.button.update(delta_sec))
+		if(!entry.button.update(delta_sec))
 		{
 			return false;
 		}
 	}
-    #endif
 	return true;
 }
 
 bool options_select_state::render()
 {
 	mono_2d_batcher* batcher = font_painter->state.batcher;
-	batcher->clear();
-#if 0
+	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
+	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 
-	if(!draw_base())
+	batcher->clear();
+
+	// draw the backdrop bbox
 	{
-		return false;
+		float xmin = box_xmin;
+		float xmax = box_xmax;
+		float ymin = box_ymin;
+		float ymax = box_ymax;
+
+		std::array<uint8_t, 4> fill_color = RGBA8_PREMULT(50, 50, 50, 200);
+
+		batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, fill_color);
+		batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+	}
+
+	// draw buttons
+	for(auto& entry : select_entries)
+	{
+		if(!entry.button.draw_buffer())
+		{
+			return false;
+		}
 	}
 
 	if(batcher->get_quad_count() != 0)
@@ -133,29 +163,47 @@ bool options_select_state::render()
 		ctx.glBufferSubData(
 			GL_ARRAY_BUFFER, 0, batcher->get_current_vertex_size(), batcher->buffer);
 		ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+		// draw
+		ctx.glBindVertexArray(gl_options_vao_id);
+		ctx.glDrawArrays(GL_TRIANGLES, 0, batcher->get_current_vertex_count());
+		ctx.glBindVertexArray(0);
 	}
-    #endif
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 
 void options_select_state::resize_view()
 {
-	box_xmin = 60;
-	box_xmax = static_cast<float>(cv_screen_width.data) - 60;
-	box_ymin = 60;
-	box_ymax = static_cast<float>(cv_screen_height.data) - 60;
+	// for a 16px font I would want 200px
+	float button_width = 200 * (font_painter->state.font->get_lineskip() / 16.f);
+	float button_height = font_painter->state.font->get_lineskip() + font_padding;
+
+	float screen_width = static_cast<float>(cv_screen_width.data);
+	float screen_height = static_cast<float>(cv_screen_height.data);
+
+	float button_area_height = button_height * static_cast<float>(select_entries.size()) +
+							   element_padding * static_cast<float>(select_entries.size() - 1);
+
+	float x = std::floor((screen_width - button_width) / 2.f);
+	float y = std::floor((screen_height - button_area_height) / 2.f);
+
+	float cur_y = y;
+	for(auto& entry : select_entries)
+	{
+		entry.button.set_rect({x, cur_y, button_width, button_height});
+		cur_y += button_height + element_padding;
+	}
+
+	box_xmin = x - element_padding;
+	box_xmax = x + button_width + element_padding;
+	box_ymin = y - element_padding;
+	box_ymax = y + button_area_height + element_padding;
 }
 
 void options_select_state::unfocus()
 {
-    #if 0
-	// all this does is make the buttons not hovered
-	// since if you close the menu while hovering a button,
-	// when you make the menu re-appear, and if you don't move
-	// the mouse, the button will stay "hot".
-	for(auto& button : buttons)
+	for(auto& entry : select_entries)
 	{
-		button.button.unfocus();
+		entry.button.unfocus();
 	}
-    #endif
 }

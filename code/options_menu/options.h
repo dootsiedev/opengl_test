@@ -27,7 +27,6 @@ enum class OPTIONS_RESULT
 
 struct options_state
 {
-
 	// this puts the text on the screen using a style and batcher.
 	font_sprite_painter font_painter;
 
@@ -41,8 +40,8 @@ struct options_state
 		AUDIO
 #endif
 	};
-    // this isn't too great but it works.
-	MENU_FACTORY current_state = MENU_FACTORY::KEYBINDS;
+	// this isn't too great but it works.
+	MENU_FACTORY current_state = MENU_FACTORY::MENU_SELECT;
 	options_select_state select;
 	options_video_state video;
 	options_controls_state controls;
@@ -50,7 +49,6 @@ struct options_state
 #ifdef AUDIO_SUPPORT
 	options_audio_state audio;
 #endif
-
 
 	// the buffer that contains the menu rects and text
 	GLuint gl_options_interleave_vbo = 0;
@@ -68,7 +66,7 @@ struct options_state
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();
 
-    void resize_view();
+	void resize_view();
 
 	// call this when you need to unfocus, like for example if you press escape or something.
 	void unfocus();

@@ -4,21 +4,20 @@
 
 #include "../app.h"
 
-// TODO(dootsie): make the escape button close the menu, 
+// TODO(dootsie): make the escape button close the menu,
 // and make a popup that asks if you want to keep the changes?
 // TODO(dootsie): each keybind should have it's own "revert to default".
 
-bool options_keybinds_state::init(
-	font_sprite_painter *font_painter_, GLuint vbo, GLuint vao)
+void options_keybinds_state::init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao)
 {
 	ASSERT(font_painter_ != NULL);
 
-    font_painter = font_painter_;
+	font_painter = font_painter_;
 
-	footer_height = font_painter->state.font->get_lineskip() + font_padding + element_padding*2;
+	footer_height = font_painter->state.font->get_lineskip() + font_padding + element_padding * 2;
 
-    gl_options_interleave_vbo = vbo;
-    gl_options_vao_id = vao;
+	gl_options_interleave_vbo = vbo;
+	gl_options_vao_id = vao;
 
 	for(const auto& [key, value] : get_keybinds())
 	{
@@ -43,21 +42,19 @@ bool options_keybinds_state::init(
 	defaults_button.init(font_painter);
 	defaults_button.text = "reset defaults";
 
-    //scrollbar
-    scroll_state.init(font_painter);
-    scroll_state.scrollbar_padding = element_padding;
+	// scrollbar
+	scroll_state.init(font_painter);
+	scroll_state.scrollbar_padding = element_padding;
 
-    resize_view();
-
-    return true;
+	resize_view();
 }
 
 void options_keybinds_state::close()
 {
-    history.clear();
+	history.clear();
 	revert_button.disabled = true;
-    // just in case?
-    unfocus();
+	// just in case?
+	unfocus();
 }
 
 OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
@@ -72,9 +69,9 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	}
 
 	if(scroll_state.input(e))
-    {
+	{
 		return OPTIONS_KEYBINDS_RESULT::EAT;
-    }
+	}
 
 	if(requested_button != NULL)
 	{
@@ -96,7 +93,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			button.color_state.text_color = {255, 255, 255, 255};
 			requested_button = NULL;
 
-			//slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
+			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
 			return OPTIONS_KEYBINDS_RESULT::EAT;
 		}
 
@@ -113,18 +110,19 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			button.color_state.text_color = {255, 255, 255, 255};
 			requested_button = NULL;
 
-			//slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
+			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
 			return OPTIONS_KEYBINDS_RESULT::EAT;
 		}
 	}
 
-
-    float scroll_xmin = scroll_state.box_xmin;
+	float scroll_xmin = scroll_state.box_xmin;
 	float scroll_xmax = scroll_state.box_xmax;
 	float scroll_ymin = scroll_state.box_ymin;
 	float scroll_ymax = scroll_state.box_ymax;
 
 	// filter out mouse events that are clipped out of the scroll_view
+    // TODO: this is really bad, and I am having a similar problem with
+    // the console menu making buttons under the console be "hovered"....
 	bool in_scroll_bounds = true;
 	switch(e.type)
 	{
@@ -155,8 +153,8 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 
 	if(!in_scroll_bounds)
 	{
-        // need to unfocus or else it wont recieve the mouse event
-        // to unfocus itself.
+		// need to unfocus or else it wont recieve the mouse event
+		// to unfocus itself.
 		for(auto& button : buttons)
 		{
 			button.button.unfocus();
@@ -195,7 +193,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		{
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
-			//slog("revert click\n");
+			// slog("revert click\n");
 			for(auto rit = history.rbegin(); rit != history.rend(); ++rit)
 			{
 				rit->slot.keybind.key_binds = rit->value;
@@ -212,8 +210,8 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		{
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
-			//slog("ok click\n");
-            close();
+			// slog("ok click\n");
+			close();
 			return OPTIONS_KEYBINDS_RESULT::CLOSE;
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
 		}
@@ -222,7 +220,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		{
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
-			//slog("reset defaults click\n");
+			// slog("reset defaults click\n");
 			for(auto& button : buttons)
 			{
 				history.emplace_back(button.keybind.key_binds, button);
@@ -241,8 +239,8 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	if( //! input_eaten &&
 		e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
-        close();
-        return OPTIONS_KEYBINDS_RESULT::CLOSE;
+		close();
+		return OPTIONS_KEYBINDS_RESULT::CLOSE;
 	}
 
 	// backdrop
@@ -326,7 +324,7 @@ bool options_keybinds_state::draw_base()
 		{
 			return false;
 		}
-        // note I double the width here
+		// note I double the width here
 		x_cursor -= (button_width * 2) + element_padding;
 		defaults_button.set_rect(
 			x_cursor, box_ymax - footer_height + element_padding, button_width * 2, button_height);
@@ -341,13 +339,13 @@ bool options_keybinds_state::draw_base()
 
 bool options_keybinds_state::draw_scroll()
 {
-    /*
+	/*
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
-    */
+	*/
 
-    float scroll_xmin = scroll_state.box_xmin;
+	float scroll_xmin = scroll_state.box_xmin;
 	float scroll_xmax = scroll_state.box_inner_xmax;
 	float scroll_ymin = scroll_state.box_ymin;
 	float scroll_ymax = scroll_state.box_ymax;
@@ -356,24 +354,27 @@ bool options_keybinds_state::draw_scroll()
 
 	// set the buttons dimensions
 	{
-        float y = 0;
+		float y = 0;
 		float xmin = ((scroll_xmax - scroll_xmin) - element_padding) / 2;
 		float xmax = (scroll_xmax - scroll_xmin);
-        #if 0
-        #endif
+#if 0
+#endif
 		//
-		//float width = (scroll_xmax - scroll_xmin);
+		// float width = (scroll_xmax - scroll_xmin);
 		for(auto& entry : buttons)
 		{
 			entry.button.set_rect(
-				xmin + scroll_xmin, scroll_ymin + y - scroll_state.scroll_y, xmax - xmin, button_height);
+				xmin + scroll_xmin,
+				scroll_ymin + y - scroll_state.scroll_y,
+				xmax - xmin,
+				button_height);
 			y += button_height + element_padding;
 		}
 		// very important to do this before drawing the scrollbar.
 		scroll_state.content_h = y - element_padding;
 	}
 
-    scroll_state.draw_buffer();
+	scroll_state.draw_buffer();
 
 	// draw the keybind description text
 	{
@@ -396,8 +397,7 @@ bool options_keybinds_state::draw_scroll()
 
 			size_t len = strlen(button.keybind.cvar_comment);
 
-
-		    font_painter->begin();
+			font_painter->begin();
 
 			// outline
 			font_painter->set_style(FONT_STYLE_OUTLINE);
@@ -420,13 +420,12 @@ bool options_keybinds_state::draw_scroll()
 			{
 				return false;
 			}
-		    font_painter->end();
+			font_painter->end();
 
-
-            if(!button.button.draw_buffer())
-            {
-                return false;
-            }
+			if(!button.button.draw_buffer())
+			{
+				return false;
+			}
 		}
 	}
 	return true;
@@ -460,7 +459,6 @@ bool options_keybinds_state::render()
 {
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 	batcher->clear();
-
 
 	if(!draw_base())
 	{
