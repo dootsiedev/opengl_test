@@ -797,14 +797,14 @@ void demo_state::unfocus_demo()
 }
 bool demo_state::unfocus_all()
 {
-    SDL_Event e;
-    set_event_unfocus(e);
-    return input(e);
+	SDL_Event e;
+	set_event_unfocus(e);
+	return input(e);
 }
 
 bool demo_state::input(SDL_Event& e)
 {
-    switch(e.type)
+	switch(e.type)
 	{
 	case SDL_WINDOWEVENT:
 		switch(e.window.event)
@@ -818,7 +818,7 @@ bool demo_state::input(SDL_Event& e)
 		}
 	}
 	// TIMER_U t1 = timer_now();
-	//bool input_eaten = false;
+	// bool input_eaten = false;
 	// is the mouse currently locked?
 #ifdef __EMSCRIPTEN__
 	EmscriptenPointerlockChangeEvent plce;
@@ -880,13 +880,13 @@ bool demo_state::input(SDL_Event& e)
 		case OPTIONS_RESULT::CONTINUE: break;
 		case OPTIONS_RESULT::CLOSE:
 			show_options = false;
-            // eat
+			// eat
 			return true;
 		case OPTIONS_RESULT::ERROR: return false;
 		}
 	}
 
-    // start demo input
+	// start demo input
 
 	switch(e.type)
 	{

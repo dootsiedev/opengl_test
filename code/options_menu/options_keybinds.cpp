@@ -68,7 +68,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		}
 	}
 
-    // footer buttons
+	// footer buttons
 	{
 		switch(revert_button.input(e))
 		{
@@ -82,9 +82,9 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			}
 			history.clear();
 			revert_button.disabled = true;
-                // eat
-                set_event_unfocus(e);
-                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+			// eat
+			set_event_unfocus(e);
+			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
 		}
@@ -95,9 +95,9 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		case BUTTON_RESULT::TRIGGER:
 			// slog("ok click\n");
 			close();
-                // eat
-                set_event_unfocus(e);
-                return OPTIONS_KEYBINDS_RESULT::CLOSE;
+			// eat
+			set_event_unfocus(e);
+			return OPTIONS_KEYBINDS_RESULT::CLOSE;
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
 		}
 
@@ -116,14 +116,14 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 				button.button.text = button.keybind.cvar_write();
 			}
 			revert_button.disabled = false;
-                // eat
-                set_event_unfocus(e);
-                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+			// eat
+			set_event_unfocus(e);
+			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
 		}
 	}
 
-    // scroll
+	// scroll
 
 	scroll_state.input(e);
 
@@ -148,9 +148,9 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			requested_button = NULL;
 
 			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
-                // eat
-                set_event_unfocus(e);
-                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+			// eat
+			set_event_unfocus(e);
+			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 		}
 
 		keybind_state out;
@@ -167,9 +167,9 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			requested_button = NULL;
 
 			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
-            // eat
-                set_event_unfocus(e);
-                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+			// eat
+			set_event_unfocus(e);
+			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 		}
 	}
 
@@ -187,8 +187,8 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		if(!(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
 			 scroll_xmin <= mouse_x))
 		{
-            // un hover
-                set_event_leave(e);
+			// un hover
+			set_event_leave(e);
 		}
 	}
 	break;
@@ -201,48 +201,45 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			if(!(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
 				 scroll_xmin <= mouse_x))
 			{
-                // eat the mouse 
-                set_event_unfocus(e);
-                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+				// eat the mouse
+				set_event_unfocus(e);
+				return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 			}
 		}
 		break;
 	}
-    for(auto& button : buttons)
-    {
-        // too high
-        if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
-        {
-            continue;
-        }
-        // too low
-        if(scroll_ymax <= button.button.button_rect[1])
-        {
-            break;
-        }
-        switch(button.button.input(e))
-        {
-        case BUTTON_RESULT::CONTINUE: break;
-        case BUTTON_RESULT::TRIGGER:
-            requested_button = &button;
-            button.button.text = "[press button]";
-            button.button.color_state.text_color = {255, 255, 0, 255};
-        // eat
-            set_event_unfocus(e);
-            return OPTIONS_KEYBINDS_RESULT::CONTINUE;
-        case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
-        }
-    }
-	
-
-	
+	for(auto& button : buttons)
+	{
+		// too high
+		if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
+		{
+			continue;
+		}
+		// too low
+		if(scroll_ymax <= button.button.button_rect[1])
+		{
+			break;
+		}
+		switch(button.button.input(e))
+		{
+		case BUTTON_RESULT::CONTINUE: break;
+		case BUTTON_RESULT::TRIGGER:
+			requested_button = &button;
+			button.button.text = "[press button]";
+			button.button.color_state.text_color = {255, 255, 0, 255};
+			// eat
+			set_event_unfocus(e);
+			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
+		}
+	}
 
 	if( //! input_eaten &&
 		e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
-        close();
-        // eat
-            set_event_unfocus(e);
+		close();
+		// eat
+		set_event_unfocus(e);
 		return OPTIONS_KEYBINDS_RESULT::CLOSE;
 	}
 

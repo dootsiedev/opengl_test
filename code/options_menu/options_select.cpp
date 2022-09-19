@@ -85,8 +85,8 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
 			unfocus();
-        }
-        [[fallthrough]];
+		}
+		[[fallthrough]];
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
@@ -96,9 +96,9 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
 			   box_xmin <= mouse_x)
 			{
-                // eat
-                set_event_unfocus(e);
-                return OPTIONS_SELECT_RESULT::CONTINUE;
+				// eat
+				set_event_unfocus(e);
+				return OPTIONS_SELECT_RESULT::CONTINUE;
 			}
 		}
 		break;

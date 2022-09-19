@@ -38,7 +38,7 @@ bool options_state::init(
 
 	select.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
 	keybinds.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
-    
+
 	return true;
 }
 

@@ -6,14 +6,14 @@
 
 void set_event_leave(SDL_Event& e)
 {
-    e.type = SDL_WINDOWEVENT;
-    e.window.event = SDL_WINDOWEVENT_LEAVE;
+	e.type = SDL_WINDOWEVENT;
+	e.window.event = SDL_WINDOWEVENT_LEAVE;
 }
 
 void set_event_unfocus(SDL_Event& e)
 {
-    e.type = SDL_WINDOWEVENT;
-    e.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
+	e.type = SDL_WINDOWEVENT;
+	e.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
 }
 
 BUTTON_RESULT mono_button_object::input(SDL_Event& e)
@@ -40,7 +40,6 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		return BUTTON_RESULT::CONTINUE;
 	}
 
-
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
@@ -51,13 +50,13 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		float xmax = button_rect[0] + button_rect[2];
 		float ymin = button_rect[1];
 		float ymax = button_rect[1] + button_rect[3];
-        if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+		if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 		{
-		    hover_over = true;
-            // eat
-            set_event_leave(e);
-            return BUTTON_RESULT::CONTINUE;
-        }
+			hover_over = true;
+			// eat
+			set_event_leave(e);
+			return BUTTON_RESULT::CONTINUE;
+		}
 		hover_over = false;
 	}
 	break;
@@ -84,7 +83,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 	case SDL_MOUSEBUTTONUP: {
 		if(clicked_on)
 		{
-            clicked_on = false;
+			clicked_on = false;
 
 			float mouse_x = static_cast<float>(e.button.x);
 			float mouse_y = static_cast<float>(e.button.y);
@@ -97,8 +96,8 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 			{
 				// slog("click\n");
-                // eat
-                set_event_unfocus(e);
+				// eat
+				set_event_unfocus(e);
 				return BUTTON_RESULT::TRIGGER;
 			}
 		}
@@ -110,7 +109,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 }
 bool mono_button_object::update(double delta_sec)
 {
-    // NOTE: I wouldn't need this if I used a setter for disabling the button...
+	// NOTE: I wouldn't need this if I used a setter for disabling the button...
 	hover_over = !disabled && hover_over;
 
 	// add fade
@@ -192,13 +191,13 @@ bool mono_button_object::draw_buffer()
 
 	font_painter->end();
 
-    // there are not much gl calls here, but the text does modify the atlas.
+	// there are not much gl calls here, but the text does modify the atlas.
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 void mono_button_object::unfocus()
 {
-    fade = 0;
-    clicked_on = false;
+	fade = 0;
+	clicked_on = false;
 	hover_over = false;
 }
 
@@ -257,8 +256,8 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 			// helps unfocus other elements.
 			if(internal_scroll_y_inside(mouse_x, mouse_y))
 			{
-                // eat
-                set_event_leave(e);
+				// eat
+				set_event_leave(e);
 				return;
 			}
 		}
@@ -266,16 +265,16 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 		case SDL_MOUSEBUTTONUP:
 			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 			{
-				//float mouse_x = static_cast<float>(e.button.x);
+				// float mouse_x = static_cast<float>(e.button.x);
 				float mouse_y = static_cast<float>(e.button.y);
 				if(y_scrollbar_held)
 				{
 					internal_scroll_y_to(mouse_y);
 					y_scrollbar_held = false;
 					scroll_thumb_click_offset = -1;
-                    // eat
-                    set_event_unfocus(e);
-                    return;
+					// eat
+					set_event_unfocus(e);
+					return;
 				}
 			}
 			break;
@@ -288,9 +287,9 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 				if(internal_scroll_y_inside(mouse_x, mouse_y))
 				{
 					y_scrollbar_held = true;
-                    // eat
-                    set_event_unfocus(e);
-                    return;
+					// eat
+					set_event_unfocus(e);
+					return;
 				}
 
 				y_scrollbar_held = false;
@@ -304,11 +303,11 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 
 void mono_y_scrollable_area::draw_buffer()
 {
-    ASSERT(font_painter != NULL);
-    mono_2d_batcher* batcher = font_painter->state.batcher;
+	ASSERT(font_painter != NULL);
+	mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 
-    if(content_h > (box_ymax - box_ymin))
+	if(content_h > (box_ymax - box_ymin))
 	{
 		// draw the scrollbar bbox
 		{
@@ -338,7 +337,6 @@ void mono_y_scrollable_area::draw_buffer()
 			float ymin = box_ymin + thumb_offset;
 			float ymax = box_ymin + thumb_offset + thumb_height;
 
-
 			batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
 			batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
 			batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
@@ -355,7 +353,8 @@ bool mono_y_scrollable_area::internal_scroll_y_inside(float mouse_x, float mouse
 	float thumb_height = scrollbar_max_height * ((box_ymax - box_ymin) / content_h);
 	thumb_height = std::max(thumb_height, scrollbar_thumb_min_size);
 
-	float scroll_ratio = (scrollbar_max_height - thumb_height) / (content_h - (box_ymax - box_ymin));
+	float scroll_ratio =
+		(scrollbar_max_height - thumb_height) / (content_h - (box_ymax - box_ymin));
 	float thumb_offset = scroll_y * scroll_ratio;
 
 	float xmin = box_xmax - scrollbar_thickness;
@@ -379,7 +378,8 @@ void mono_y_scrollable_area::internal_scroll_y_to(float mouse_y)
 	float thumb_height = scrollbar_max_height * ((box_ymax - box_ymin) / content_h);
 	thumb_height = std::max(thumb_height, scrollbar_thumb_min_size);
 
-	float scroll_ratio = (scrollbar_max_height - thumb_height) / (content_h - (box_ymax - box_ymin));
+	float scroll_ratio =
+		(scrollbar_max_height - thumb_height) / (content_h - (box_ymax - box_ymin));
 	scroll_y = (mouse_y - scroll_thumb_click_offset) / scroll_ratio;
 
 	// clamp
