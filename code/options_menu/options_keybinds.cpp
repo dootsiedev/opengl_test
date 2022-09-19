@@ -68,10 +68,64 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		}
 	}
 
-	if(scroll_state.input(e))
+    // footer buttons
 	{
-		return OPTIONS_KEYBINDS_RESULT::EAT;
+		switch(revert_button.input(e))
+		{
+		case BUTTON_RESULT::CONTINUE: break;
+		case BUTTON_RESULT::TRIGGER:
+			// slog("revert click\n");
+			for(auto rit = history.rbegin(); rit != history.rend(); ++rit)
+			{
+				rit->slot.keybind.key_binds = rit->value;
+				rit->slot.button.text = rit->slot.keybind.cvar_write();
+			}
+			history.clear();
+			revert_button.disabled = true;
+                // eat
+                set_event_unfocus(e);
+                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+
+		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
+		}
+
+		switch(ok_button.input(e))
+		{
+		case BUTTON_RESULT::CONTINUE: break;
+		case BUTTON_RESULT::TRIGGER:
+			// slog("ok click\n");
+			close();
+                // eat
+                set_event_unfocus(e);
+                return OPTIONS_KEYBINDS_RESULT::CLOSE;
+		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
+		}
+
+		switch(defaults_button.input(e))
+		{
+		case BUTTON_RESULT::CONTINUE: break;
+		case BUTTON_RESULT::TRIGGER:
+			// slog("reset defaults click\n");
+			for(auto& button : buttons)
+			{
+				history.emplace_back(button.keybind.key_binds, button);
+				if(!button.keybind.cvar_read(button.keybind.cvar_default_value.c_str()))
+				{
+					return OPTIONS_KEYBINDS_RESULT::ERROR;
+				}
+				button.button.text = button.keybind.cvar_write();
+			}
+			revert_button.disabled = false;
+                // eat
+                set_event_unfocus(e);
+                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
+		}
 	}
+
+    // scroll
+
+	scroll_state.input(e);
 
 	if(requested_button != NULL)
 	{
@@ -94,7 +148,9 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			requested_button = NULL;
 
 			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
-			return OPTIONS_KEYBINDS_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 		}
 
 		keybind_state out;
@@ -111,7 +167,9 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			requested_button = NULL;
 
 			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
-			return OPTIONS_KEYBINDS_RESULT::EAT;
+            // eat
+                set_event_unfocus(e);
+                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 		}
 	}
 
@@ -121,9 +179,6 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	float scroll_ymax = scroll_state.box_ymax;
 
 	// filter out mouse events that are clipped out of the scroll_view
-    // TODO: this is really bad, and I am having a similar problem with
-    // the console menu making buttons under the console be "hovered"....
-	bool in_scroll_bounds = true;
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
@@ -132,7 +187,8 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		if(!(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
 			 scroll_xmin <= mouse_x))
 		{
-			in_scroll_bounds = false;
+            // un hover
+                set_event_leave(e);
 		}
 	}
 	break;
@@ -145,107 +201,60 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			if(!(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
 				 scroll_xmin <= mouse_x))
 			{
-				in_scroll_bounds = false;
+                // eat the mouse 
+                set_event_unfocus(e);
+                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 			}
 		}
 		break;
 	}
+    for(auto& button : buttons)
+    {
+        // too high
+        if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
+        {
+            continue;
+        }
+        // too low
+        if(scroll_ymax <= button.button.button_rect[1])
+        {
+            break;
+        }
+        switch(button.button.input(e))
+        {
+        case BUTTON_RESULT::CONTINUE: break;
+        case BUTTON_RESULT::TRIGGER:
+            requested_button = &button;
+            button.button.text = "[press button]";
+            button.button.color_state.text_color = {255, 255, 0, 255};
+        // eat
+            set_event_unfocus(e);
+            return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+        case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
+        }
+    }
+	
 
-	if(!in_scroll_bounds)
-	{
-		// need to unfocus or else it wont recieve the mouse event
-		// to unfocus itself.
-		for(auto& button : buttons)
-		{
-			button.button.unfocus();
-		}
-	}
-	else
-	{
-		for(auto& button : buttons)
-		{
-			// too high
-			if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
-			{
-				continue;
-			}
-			// too low
-			if(scroll_ymax <= button.button.button_rect[1])
-			{
-				break;
-			}
-			switch(button.button.input(e))
-			{
-			case BUTTON_RESULT::CONTINUE: break;
-			case BUTTON_RESULT::TRIGGER:
-				requested_button = &button;
-				button.button.text = "[press button]";
-				button.button.color_state.text_color = {255, 255, 0, 255};
-				return OPTIONS_KEYBINDS_RESULT::EAT;
-			case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
-			}
-		}
-	}
-
-	// footer buttons
-	{
-		switch(revert_button.input(e))
-		{
-		case BUTTON_RESULT::CONTINUE: break;
-		case BUTTON_RESULT::TRIGGER:
-			// slog("revert click\n");
-			for(auto rit = history.rbegin(); rit != history.rend(); ++rit)
-			{
-				rit->slot.keybind.key_binds = rit->value;
-				rit->slot.button.text = rit->slot.keybind.cvar_write();
-			}
-			history.clear();
-			revert_button.disabled = true;
-			return OPTIONS_KEYBINDS_RESULT::EAT;
-
-		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
-		}
-
-		switch(ok_button.input(e))
-		{
-		case BUTTON_RESULT::CONTINUE: break;
-		case BUTTON_RESULT::TRIGGER:
-			// slog("ok click\n");
-			close();
-			return OPTIONS_KEYBINDS_RESULT::CLOSE;
-		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
-		}
-
-		switch(defaults_button.input(e))
-		{
-		case BUTTON_RESULT::CONTINUE: break;
-		case BUTTON_RESULT::TRIGGER:
-			// slog("reset defaults click\n");
-			for(auto& button : buttons)
-			{
-				history.emplace_back(button.keybind.key_binds, button);
-				if(!button.keybind.cvar_read(button.keybind.cvar_default_value.c_str()))
-				{
-					return OPTIONS_KEYBINDS_RESULT::ERROR;
-				}
-				button.button.text = button.keybind.cvar_write();
-			}
-			revert_button.disabled = false;
-			return OPTIONS_KEYBINDS_RESULT::EAT;
-		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
-		}
-	}
+	
 
 	if( //! input_eaten &&
 		e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
-		close();
+        close();
+        // eat
+            set_event_unfocus(e);
 		return OPTIONS_KEYBINDS_RESULT::CLOSE;
 	}
 
 	// backdrop
 	switch(e.type)
 	{
+	case SDL_MOUSEBUTTONDOWN:
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		{
+			unfocus();
+		}
+		[[fallthrough]];
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
@@ -255,26 +264,11 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
 			   box_xmin <= mouse_x)
 			{
-				return OPTIONS_KEYBINDS_RESULT::EAT;
+				// eat
+				set_event_unfocus(e);
+				return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 			}
 		}
-		break;
-	case SDL_MOUSEBUTTONDOWN:
-		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
-		{
-			float mouse_x = static_cast<float>(e.button.x);
-			float mouse_y = static_cast<float>(e.button.y);
-
-			// helps unfocus other elements.
-			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
-			   box_xmin <= mouse_x)
-			{
-				return OPTIONS_KEYBINDS_RESULT::EAT;
-			}
-
-			unfocus();
-		}
-		break;
 	}
 
 	return OPTIONS_KEYBINDS_RESULT::CONTINUE;

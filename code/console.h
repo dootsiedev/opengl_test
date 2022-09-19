@@ -19,7 +19,6 @@
 
 enum class CONSOLE_RESULT
 {
-	EAT,
 	CONTINUE,
 	ERROR
 };

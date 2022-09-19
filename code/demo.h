@@ -156,7 +156,8 @@ struct demo_state
 	NDSERR bool destroy_gl_font();
     NDSERR bool update(double delta_sec);
 	NDSERR bool input(SDL_Event& e);
-	void unfocus();
+	void unfocus_demo();
+    bool unfocus_all();
 	NDSERR bool render();
 
 	NDSERR DEMO_RESULT process();

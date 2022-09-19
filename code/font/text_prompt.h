@@ -13,7 +13,6 @@
 
 enum class TEXT_PROMPT_RESULT
 {
-	EAT,
 	CONTINUE,
 	ERROR
 };

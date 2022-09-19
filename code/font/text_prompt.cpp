@@ -2,6 +2,7 @@
 #include "../app.h" // for the scroll cvar
 #include "text_prompt.h"
 #include "utf8_stuff.h"
+#include "../ui.h"
 
 // TODO(dootsie): add in double click selection?
 // TODO(dootsie): add in size limited option (in bytes)
@@ -1164,6 +1165,16 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 {
 	switch(e.type)
 	{
+	case SDL_WINDOWEVENT:
+		switch(e.window.event)
+		{
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			unfocus();
+			return TEXT_PROMPT_RESULT::CONTINUE;
+			// leave is only used for releasing "hover focus"
+			// case SDL_WINDOWEVENT_LEAVE:
+		}
+
 	// lazy scroll
 	case SDL_MOUSEWHEEL:
 		if(y_scrollable())
@@ -1185,6 +1196,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 							state.font->get_lineskip();
 				// the draw function will clamp it to keep the scroll area inside of the text.
 				update_buffer = true;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 		}
 		break;
@@ -1212,6 +1226,15 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			internal_scroll_x_to(mouse_x);
 			update_buffer = true;
 		}
+        // helps unfocus other elements.
+        // TODO(dootsie): probably should exclude the gap between the scrollbar....
+        if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
+            box_xmin <= mouse_x)
+        {
+            // eat
+            set_event_leave(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
+        }
 	}
 	break;
 	case SDL_MOUSEBUTTONUP:
@@ -1228,7 +1251,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				scroll_to_cursor = true;
 				stb_textedit_drag(this, &stb_state, mouse_x, mouse_y);
 				update_buffer = true;
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 
 			if(y_scrollable() && y_scrollbar_held)
@@ -1237,7 +1262,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				y_scrollbar_held = false;
 				internal_scroll_y_to(mouse_y);
 				update_buffer = true;
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			if(x_scrollable() && x_scrollbar_held)
 			{
@@ -1245,21 +1272,28 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				x_scrollbar_held = false;
 				internal_scroll_x_to(mouse_x);
 				update_buffer = true;
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 
 			// don't let this event leak if in focus because the only way to unfocus
 			// should be from a button down.
 			if(text_focus)
 			{
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 
 			// helps unfocus other elements.
+            // TODO(dootsie): probably should exclude the gap between the scrollbar....
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
 			   box_xmin <= mouse_x)
 			{
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 		}
 		break;
@@ -1274,7 +1308,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				y_scrollbar_held = true;
 				internal_scroll_y_to(mouse_y);
 				focus();
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 
 			if(!single_line() && x_scrollable() && internal_scroll_x_inside(mouse_x, mouse_y))
@@ -1282,7 +1318,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				x_scrollbar_held = true;
 				internal_scroll_x_to(mouse_x);
 				focus();
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 
 			// NOTE: I could make it so that if you click in the empty part of the scrollbar, it
@@ -1316,7 +1354,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				{
 					stb_textedit_click(this, &stb_state, mouse_x, mouse_y);
 				}
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			unfocus();
 		}
@@ -1367,7 +1407,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 
 		blink_timer = timer_now();
 		update_buffer = true;
-		return TEXT_PROMPT_RESULT::EAT;
+        // eat
+        set_event_unfocus(e);
+        return TEXT_PROMPT_RESULT::CONTINUE;
 	}
 
 	// this might just be a linux problem, but on version 2.0.0
@@ -1410,7 +1452,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 
 		blink_timer = timer_now();
 		update_buffer = true;
-		return TEXT_PROMPT_RESULT::EAT;
+        // eat
+        set_event_unfocus(e);
+        return TEXT_PROMPT_RESULT::CONTINUE;
 
 #ifdef IME_TEXTEDIT_EXT
 		// requires SDL_HINT_IME_SUPPORT_EXTENDED_TEXT
@@ -1458,7 +1502,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		blink_timer = timer_now();
 		update_buffer = true;
 
-		return TEXT_PROMPT_RESULT::EAT;
+        // eat
+        set_event_unfocus(e);
+        return TEXT_PROMPT_RESULT::CONTINUE;
 #endif
 	case SDL_KEYDOWN: {
 		if(!text_focus)
@@ -1484,7 +1530,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_BACKSPACE);
 			blink_timer = timer_now();
 			update_buffer = true;
-			return TEXT_PROMPT_RESULT::EAT;
+            // eat
+            set_event_unfocus(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
 		case SDLK_RETURN:
 			if(read_only())
 			{
@@ -1498,7 +1546,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			stb_textedit_key(this, &stb_state, '\n');
 			blink_timer = timer_now();
 			update_buffer = true;
-			return TEXT_PROMPT_RESULT::EAT;
+            // eat
+            set_event_unfocus(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
 		case SDLK_TAB:
 			if(read_only())
 			{
@@ -1508,7 +1558,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			stb_textedit_key(this, &stb_state, '\t');
 			blink_timer = timer_now();
 			update_buffer = true;
-			return TEXT_PROMPT_RESULT::EAT;
+            // eat
+            set_event_unfocus(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
 		// copy
 		case SDLK_c:
 			if((e.key.keysym.mod & KMOD_CTRL) != 0)
@@ -1532,7 +1584,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 						slogf("info: Failed to set clipboard! SDL Error: %s\n", SDL_GetError());
 					}
 				}
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			break;
 		// cut
@@ -1569,7 +1623,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 						slogf("info: Failed to set clipboard! SDL Error: %s\n", SDL_GetError());
 					}
 				}
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			break;
 		// Handle paste
@@ -1625,7 +1681,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 					//	slogf("info: %s failed to paste clipboard: `%s`\n", __func__, utext.get());
 				}
 				update_buffer = true;
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			break;
 		// arrows
@@ -1638,7 +1696,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_LEFT | key_shift_mod | key_ctrl_mod);
 			blink_timer = timer_now();
 			update_buffer = true;
-			return TEXT_PROMPT_RESULT::EAT;
+            // eat
+            set_event_unfocus(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
 		case SDLK_RIGHT:
 			if(read_only() && (e.key.keysym.mod & KMOD_SHIFT) == 0)
 			{
@@ -1648,7 +1708,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_RIGHT | key_shift_mod | key_ctrl_mod);
 			blink_timer = timer_now();
 			update_buffer = true;
-			return TEXT_PROMPT_RESULT::EAT;
+            // eat
+            set_event_unfocus(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
 		case SDLK_UP:
 			if(read_only() && (e.key.keysym.mod & KMOD_SHIFT) == 0)
 			{
@@ -1667,7 +1729,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			text_data.pop_back();
 			blink_timer = timer_now();
 			update_buffer = true;
-			return TEXT_PROMPT_RESULT::EAT;
+            // eat
+            set_event_unfocus(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
 		case SDLK_DOWN:
 			if(read_only() && (e.key.keysym.mod & KMOD_SHIFT) == 0)
 			{
@@ -1677,7 +1741,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_DOWN | key_shift_mod);
 			blink_timer = timer_now();
 			update_buffer = true;
-			return TEXT_PROMPT_RESULT::EAT;
+            // eat
+            set_event_unfocus(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
 		case SDLK_z:
 			if(read_only())
 			{
@@ -1691,7 +1757,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				stb_state.select_end = stb_state.select_start;
 				blink_timer = timer_now();
 				update_buffer = true;
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			break;
 		case SDLK_y:
@@ -1707,7 +1775,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				stb_state.select_end = stb_state.select_start;
 				blink_timer = timer_now();
 				update_buffer = true;
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			break;
 		case SDLK_a:
@@ -1717,7 +1787,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				stb_state.select_end = STB_TEXTEDIT_STRINGLEN(this);
 				blink_timer = timer_now();
 				update_buffer = true;
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			break;
 		default:
@@ -1728,7 +1800,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			// if this is a "printable key" eat the key.
 			if((e.key.keysym.sym & SDLK_SCANCODE_MASK) == 0)
 			{
-				return TEXT_PROMPT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 		}
 	}
@@ -1745,7 +1819,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		// if this is a "printable key" eat the key.
 		if((e.key.keysym.sym & SDLK_SCANCODE_MASK) == 0)
 		{
-			return TEXT_PROMPT_RESULT::EAT;
+            // eat
+            set_event_unfocus(e);
+            return TEXT_PROMPT_RESULT::CONTINUE;
 		}
 		break;
 	}

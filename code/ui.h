@@ -4,7 +4,44 @@
 
 #include "font/font_manager.h"
 
+#include <SDL2/SDL.h>
 #include <string>
+
+// to understand set_event_leave & set_event_unfocus,
+// you need to understand how I make elements focus and unfocus.
+// -elements can only set "input focus" internally from a LMB DOWN, 
+// because it is assumed that any elements that are rendered above
+// would have eaten the LMB DOWN (set_event_unfocus), and
+// if the above element was focused, it would unfocus itself because
+// the LMB DOWN was outside the collision area (otherwise it would eat it).
+// if a missed LMB DOWN collision didn't unfocus that would be bad behavior.
+// -if you want "input focus" for an element without LMB DOWN, 
+// you would need to force ALL elements to unfocus first
+// (this is done by recursively calling input() with a dummy SDL_event
+// set with set_event_unfocus)
+
+// set the event to SDL_WINDOWEVENT_LEAVE
+// I use this to remove "hover focus" from obscured elements, 
+// by eating the SDL_MOUSE_MOTION event.
+// for example your mouse hovering over a button causing glow.
+// NOTE: this only sets the type, so don't access any values.
+// NOTE: if you suddenly present a menu above a button with "hover focus"
+// like for example you were editing a map, and your mouse is 
+// hovering on a tile while you open up a menu with a hotkey,
+// the "hover focus" will not change until you move the mouse...
+// I need to figure out a clever way of handling that...
+void set_event_leave(SDL_Event& e);
+
+// set the event to SDL_WINDOWEVENT_FOCUS_LOST
+// I use this to remove "input focus" from elements,
+// this has one job, which is to prevent an event 
+// from being eaten multiple times
+// NOTE: this only sets the type, so don't access any values.
+// this is used when you want to eat an input,
+// and force other elements with text focus to lose focus.
+// this does require all elements to handle this event.
+void set_event_unfocus(SDL_Event& e);
+
 
 enum class BUTTON_RESULT
 {
@@ -35,8 +72,6 @@ struct mono_button_object
 	std::array<float, 4> button_rect{};
 	bool hover_over = false;
 	bool disabled = false;
-    // activate the button on button down instead of up..
-    bool mouse_button_down = false;
     // to make a click, you need to click down and up in the same area
     // if mouse_button_down = true, this does nothing.
     bool clicked_on = false;
@@ -118,8 +153,7 @@ struct mono_y_scrollable_area
         font_painter = font_painter_;
     }
 
-    // RETURNS TRUE FOR EAT, NO ERRORS
-    bool input(SDL_Event& e);
+    void input(SDL_Event& e);
 
 	void draw_buffer();
 

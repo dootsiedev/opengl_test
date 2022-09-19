@@ -773,7 +773,7 @@ bool demo_state::destroy()
 	return success;
 }
 
-void demo_state::unfocus()
+void demo_state::unfocus_demo()
 {
 	for(auto& val : keys_down)
 	{
@@ -795,11 +795,30 @@ void demo_state::unfocus()
 	}
 #endif
 }
+bool demo_state::unfocus_all()
+{
+    SDL_Event e;
+    set_event_unfocus(e);
+    return input(e);
+}
 
 bool demo_state::input(SDL_Event& e)
 {
+    switch(e.type)
+	{
+	case SDL_WINDOWEVENT:
+		switch(e.window.event)
+		{
+			// this unfocuses the pointerlock/relative mouse, and held keys.
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			unfocus_demo();
+			break;
+			// there is no "hover focus"
+			// case SDL_WINDOWEVENT_LEAVE:
+		}
+	}
 	// TIMER_U t1 = timer_now();
-	bool input_eaten = false;
+	//bool input_eaten = false;
 	// is the mouse currently locked?
 #ifdef __EMSCRIPTEN__
 	EmscriptenPointerlockChangeEvent plce;
@@ -839,87 +858,35 @@ bool demo_state::input(SDL_Event& e)
 		}
 		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 		{
-			unfocus();
+			unfocus_demo();
 			return true;
 		}
 	}
 
-	if(input_eaten)
-	{
-		g_console.unfocus();
-	}
-	else if(show_console)
+	if(show_console)
 	{
 		CONSOLE_RESULT ret = g_console.input(e);
 		switch(ret)
 		{
 		case CONSOLE_RESULT::CONTINUE: break;
-		case CONSOLE_RESULT::EAT: input_eaten = true; break;
 		case CONSOLE_RESULT::ERROR: return false;
 		}
 	}
 
-	if(input_eaten)
-	{
-		option_menu.unfocus();
-	}
-	else if(show_options)
+	if(show_options)
 	{
 		switch(option_menu.input(e))
 		{
 		case OPTIONS_RESULT::CONTINUE: break;
-		case OPTIONS_RESULT::EAT: input_eaten = true; break;
 		case OPTIONS_RESULT::CLOSE:
-			input_eaten = true;
 			show_options = false;
-			break;
+            // eat
+			return true;
 		case OPTIONS_RESULT::ERROR: return false;
 		}
 	}
 
-	// I need to use input_eaten to unfocus each UI element,
-	// because unfocus() would unfocus EVERY ui element, and
-	// if I did that the prompt that was in focus would unfocus,
-	// my solution is to let the UI element unfocus itself using lmb down,
-	// and if the event was eaten, unfocus each element after it, using this pattern:
-	// if(eaten){ui.unfocus()}else{switch(ui.input(e)){continue, eat, or error}}
-	// this of course depends on the draw order of the UI element,
-	// and this is fragile and technically it's possible for 2 elements to focus.
-	if(input_eaten)
-	{
-		unfocus();
-		return true;
-	}
-
-	if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-	{
-		if(show_console)
-		{
-			g_console.unfocus();
-			show_console = false;
-		}
-		else
-		{
-			unfocus();
-			g_console.focus();
-			g_console.resize_text_area();
-			show_console = true;
-		}
-	}
-
-	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-	{
-		if(show_options)
-		{
-			option_menu.unfocus();
-			show_options = false;
-		}
-		else
-		{
-			unfocus();
-			show_options = true;
-		}
-	}
+    // start demo input
 
 	switch(e.type)
 	{
@@ -931,7 +898,7 @@ bool demo_state::input(SDL_Event& e)
 
 		switch(e.key.keysym.sym)
 		{
-		case SDLK_ESCAPE: unfocus(); break;
+		case SDLK_ESCAPE: unfocus_demo(); break;
 		case SDLK_F10: {
 			std::string msg;
 			msg += "StackTrace (f10):\n";
@@ -968,6 +935,34 @@ bool demo_state::input(SDL_Event& e)
 #endif
 		}
 		break;
+	}
+
+	if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+		if(show_console)
+		{
+			g_console.unfocus();
+			show_console = false;
+		}
+		else
+		{
+			g_console.focus();
+			g_console.resize_text_area();
+			show_console = true;
+		}
+	}
+
+	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+		if(show_options)
+		{
+			option_menu.unfocus();
+			show_options = false;
+		}
+		else
+		{
+			show_options = true;
+		}
 	}
 
 	// movement.

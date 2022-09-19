@@ -19,7 +19,6 @@
 
 enum class OPTIONS_RESULT
 {
-	EAT,
 	CLOSE,
 	CONTINUE,
 	ERROR

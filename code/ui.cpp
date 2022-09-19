@@ -4,12 +4,43 @@
 
 #include "app.h"
 
+void set_event_leave(SDL_Event& e)
+{
+    e.type = SDL_WINDOWEVENT;
+    e.window.event = SDL_WINDOWEVENT_LEAVE;
+}
+
+void set_event_unfocus(SDL_Event& e)
+{
+    e.type = SDL_WINDOWEVENT;
+    e.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
+}
+
 BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 {
+	switch(e.type)
+	{
+	case SDL_WINDOWEVENT:
+		switch(e.window.event)
+		{
+			// release "hover focus"
+		case SDL_WINDOWEVENT_LEAVE:
+			unfocus();
+			return BUTTON_RESULT::CONTINUE;
+
+			// there is no "input focus".
+			// if you unfocused here, pressing keys in a prompt would
+			// make the mouse hover go away!
+			// case SDL_WINDOWEVENT_FOCUS_LOST:
+		}
+	}
+
 	if(disabled)
 	{
 		return BUTTON_RESULT::CONTINUE;
 	}
+
+
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
@@ -20,8 +51,14 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		float xmax = button_rect[0] + button_rect[2];
 		float ymin = button_rect[1];
 		float ymax = button_rect[1] + button_rect[3];
-
-		hover_over = ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x;
+        if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+		{
+		    hover_over = true;
+            // eat
+            set_event_leave(e);
+            return BUTTON_RESULT::CONTINUE;
+        }
+		hover_over = false;
 	}
 	break;
 	case SDL_MOUSEBUTTONDOWN: {
@@ -35,21 +72,17 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 
 		if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 		{
-			if(mouse_button_down)
-			{
-				// slog("click\n");
-				return BUTTON_RESULT::TRIGGER;
-			}
 			clicked_on = true;
+			// eat
+			set_event_leave(e);
+			return BUTTON_RESULT::CONTINUE;
 		}
-		else
-		{
-			clicked_on = false;
-		}
+
+		clicked_on = false;
 	}
 	break;
 	case SDL_MOUSEBUTTONUP: {
-		if(!mouse_button_down && clicked_on)
+		if(clicked_on)
 		{
             clicked_on = false;
 
@@ -64,6 +97,8 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 			{
 				// slog("click\n");
+                // eat
+                set_event_unfocus(e);
 				return BUTTON_RESULT::TRIGGER;
 			}
 		}
@@ -162,6 +197,7 @@ bool mono_button_object::draw_buffer()
 }
 void mono_button_object::unfocus()
 {
+    fade = 0;
     clicked_on = false;
 	hover_over = false;
 }
@@ -170,12 +206,25 @@ void mono_button_object::unfocus()
 // scrollable
 //
 
-
-bool mono_y_scrollable_area::input(SDL_Event& e)
+void mono_y_scrollable_area::input(SDL_Event& e)
 {
-    ASSERT(font_painter != NULL);
+	ASSERT(font_painter != NULL);
 
-    if(content_h > (box_ymax - box_ymin))
+	switch(e.type)
+	{
+	case SDL_WINDOWEVENT:
+		switch(e.window.event)
+		{
+			// release scrollbar focus.
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			unfocus();
+			return;
+			// leave is only used for releasing "hover focus"
+			// case SDL_WINDOWEVENT_LEAVE:
+		}
+	}
+
+	if(content_h > (box_ymax - box_ymin))
 	{
 		switch(e.type)
 		{
@@ -199,31 +248,34 @@ bool mono_y_scrollable_area::input(SDL_Event& e)
 		}
 		break;
 		case SDL_MOUSEMOTION: {
+			float mouse_x = static_cast<float>(e.motion.x);
 			float mouse_y = static_cast<float>(e.motion.y);
 			if(y_scrollbar_held)
 			{
 				internal_scroll_y_to(mouse_y);
+			}
+			// helps unfocus other elements.
+			if(internal_scroll_y_inside(mouse_x, mouse_y))
+			{
+                // eat
+                set_event_leave(e);
+				return;
 			}
 		}
 		break;
 		case SDL_MOUSEBUTTONUP:
 			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 			{
-				float mouse_x = static_cast<float>(e.button.x);
+				//float mouse_x = static_cast<float>(e.button.x);
 				float mouse_y = static_cast<float>(e.button.y);
 				if(y_scrollbar_held)
 				{
 					internal_scroll_y_to(mouse_y);
 					y_scrollbar_held = false;
 					scroll_thumb_click_offset = -1;
-					return true;
-				}
-
-				// helps unfocus other elements.
-				if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
-				   box_xmin <= mouse_x)
-				{
-					return true;
+                    // eat
+                    set_event_unfocus(e);
+                    return;
 				}
 			}
 			break;
@@ -236,7 +288,9 @@ bool mono_y_scrollable_area::input(SDL_Event& e)
 				if(internal_scroll_y_inside(mouse_x, mouse_y))
 				{
 					y_scrollbar_held = true;
-					return true;
+                    // eat
+                    set_event_unfocus(e);
+                    return;
 				}
 
 				y_scrollbar_held = false;
@@ -246,7 +300,6 @@ bool mono_y_scrollable_area::input(SDL_Event& e)
 			break;
 		}
 	}
-    return false;
 }
 
 void mono_y_scrollable_area::draw_buffer()

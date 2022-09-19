@@ -61,13 +61,18 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 		switch(entry.button.input(e))
 		{
 		case BUTTON_RESULT::CONTINUE: break;
-		case BUTTON_RESULT::TRIGGER: return entry.result;
+		case BUTTON_RESULT::TRIGGER:
+			if(entry.result == OPTIONS_SELECT_RESULT::CLOSE)
+			{
+				// eat
+				set_event_unfocus(e);
+			}
+			return entry.result;
 		case BUTTON_RESULT::ERROR: return OPTIONS_SELECT_RESULT::ERROR;
 		}
 	}
 
-	if( //! input_eaten &&
-		e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
+	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
 		unfocus();
 		return OPTIONS_SELECT_RESULT::CLOSE;
@@ -76,6 +81,12 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 	// backdrop
 	switch(e.type)
 	{
+	case SDL_MOUSEBUTTONDOWN:
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		{
+			unfocus();
+        }
+        [[fallthrough]];
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
@@ -85,24 +96,10 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
 			   box_xmin <= mouse_x)
 			{
-				return OPTIONS_SELECT_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return OPTIONS_SELECT_RESULT::CONTINUE;
 			}
-		}
-		break;
-	case SDL_MOUSEBUTTONDOWN:
-		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
-		{
-			float mouse_x = static_cast<float>(e.button.x);
-			float mouse_y = static_cast<float>(e.button.y);
-
-			// helps unfocus other elements.
-			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
-			   box_xmin <= mouse_x)
-			{
-				return OPTIONS_SELECT_RESULT::EAT;
-			}
-
-			unfocus();
 		}
 		break;
 	}

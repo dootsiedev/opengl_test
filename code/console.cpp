@@ -7,6 +7,7 @@
 #include "cvar.h"
 #include "BS_Archive/BS_json.h"
 #include "BS_Archive/BS_stream.h"
+#include "ui.h"
 
 #include <SDL2/SDL.h>
 
@@ -326,7 +327,9 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				{
 					return CONSOLE_RESULT::ERROR;
 				}
-				return CONSOLE_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return CONSOLE_RESULT::CONTINUE;
 			case SDLK_ESCAPE:
 				// this may be annoying since maybe you expected escape to unfocus.
 				// but you can still just undo.
@@ -334,7 +337,9 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				{
 					return CONSOLE_RESULT::ERROR;
 				}
-				return CONSOLE_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return CONSOLE_RESULT::CONTINUE;
 			case SDLK_UP:
 				if((e.key.keysym.mod & KMOD_SHIFT) != 0)
 				{
@@ -358,7 +363,9 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 						return CONSOLE_RESULT::ERROR;
 					}
 				}
-				return CONSOLE_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return CONSOLE_RESULT::CONTINUE;
 
 			case SDLK_DOWN:
 				if((e.key.keysym.mod & KMOD_SHIFT) != 0)
@@ -387,42 +394,25 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 						return CONSOLE_RESULT::ERROR;
 					}
 				}
-				return CONSOLE_RESULT::EAT;
+                // eat
+                set_event_unfocus(e);
+                return CONSOLE_RESULT::CONTINUE;
 			}
 			break;
 		}
 	}
 
-	// if we eat the input, unfocus the other elements
-	bool input_eaten = false;
-
 	switch(log_box.input(e))
 	{
 	case TEXT_PROMPT_RESULT::CONTINUE: break;
-	case TEXT_PROMPT_RESULT::EAT: input_eaten = true; break;
 	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 	}
 
-	if(input_eaten)
-	{
-		prompt_cmd.unfocus();
-	}
-	else
-	{
 		switch(prompt_cmd.input(e))
 		{
 		case TEXT_PROMPT_RESULT::CONTINUE: break;
-		case TEXT_PROMPT_RESULT::EAT: input_eaten = true; break;
 		case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 		}
-	}
-
-	if(input_eaten)
-	{
-		error_text.unfocus();
-	}
-	else
-	{
 		// Only parse input when there is actual content.
 		// possible because this is read only.
 		if(!error_text.text_data.empty())
@@ -430,20 +420,18 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 			switch(error_text.input(e))
 			{
 			case TEXT_PROMPT_RESULT::CONTINUE: break;
-			case TEXT_PROMPT_RESULT::EAT: input_eaten = true; break;
 			case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 			}
 		}
-	}
 
-	if(!input_eaten && e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
+	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
 		// unfocus any selection left.
 		// not an eat because this is similar to clicking outside the element
 		unfocus();
 	}
 
-	return input_eaten ? CONSOLE_RESULT::EAT : CONSOLE_RESULT::CONTINUE;
+	return CONSOLE_RESULT::CONTINUE;
 }
 
 bool console_state::parse_input()
