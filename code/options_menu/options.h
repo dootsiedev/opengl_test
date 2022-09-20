@@ -66,7 +66,4 @@ struct options_state
 	NDSERR bool render();
 
 	void resize_view();
-
-	// call this when you need to unfocus, like for example if you press escape or something.
-	void unfocus();
 };

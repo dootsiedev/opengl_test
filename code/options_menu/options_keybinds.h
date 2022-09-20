@@ -10,6 +10,8 @@
 
 #include <SDL2/SDL.h>
 
+// a simple modal prompt
+
 enum class OPTIONS_KEYBINDS_RESULT
 {
 	CLOSE,
@@ -77,6 +79,8 @@ struct options_keybinds_state
 	void init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao);
 
 	// this clears the history
+	void clear_history();
+
 	void close();
 
 	NDSERR OPTIONS_KEYBINDS_RESULT input(SDL_Event& e);
@@ -90,7 +94,4 @@ struct options_keybinds_state
 	NDSERR bool render();
 
 	void resize_view();
-
-	// call this when you need to unfocus, like for example if you press escape or something.
-	void unfocus();
 };

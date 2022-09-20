@@ -14,7 +14,7 @@ void options_keybinds_state::init(font_sprite_painter* font_painter_, GLuint vbo
 
 	font_painter = font_painter_;
 
-	footer_height = font_painter->state.font->get_lineskip() + font_padding + element_padding * 2;
+	footer_height = font_painter->state.font->get_point_size() + font_padding + element_padding * 2;
 
 	gl_options_interleave_vbo = vbo;
 	gl_options_vao_id = vao;
@@ -49,12 +49,18 @@ void options_keybinds_state::init(font_sprite_painter* font_painter_, GLuint vbo
 	resize_view();
 }
 
-void options_keybinds_state::close()
+void options_keybinds_state::clear_history()
 {
 	history.clear();
 	revert_button.disabled = true;
+}
+
+void options_keybinds_state::close()
+{
+	clear_history();
+	scroll_state.scroll_to_top();
 	// just in case?
-	unfocus();
+	// unfocus();
 }
 
 OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
@@ -64,7 +70,70 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	case SDL_WINDOWEVENT:
 		switch(e.window.event)
 		{
-		case SDL_WINDOWEVENT_SIZE_CHANGED: resize_view(); break;
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+			resize_view();
+			break;
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			// release requested_button focus.
+			if(requested_button != NULL)
+			{
+				cvar_key_bind& keybind = requested_button->keybind;
+				mono_button_object& button = requested_button->button;
+				button.text = keybind.cvar_write();
+				button.color_state.text_color = {255, 255, 255, 255};
+				requested_button = NULL;
+			}
+			break;
+		}
+	}
+
+	// button request
+	if(requested_button != NULL)
+	{
+        // TODO: make a popup prompt with a "cancel" button that is priority over the binding.
+        // maybe also mention "escape = NONE".
+
+		cvar_key_bind& keybind = requested_button->keybind;
+		mono_button_object& button = requested_button->button;
+
+		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
+		{
+			// insert into history
+			history.emplace_back(keybind.key_binds, *requested_button);
+			revert_button.disabled = false;
+
+			// set the button
+			if(!keybind.cvar_read("NONE"))
+			{
+				return OPTIONS_KEYBINDS_RESULT::ERROR;
+			}
+			button.text = keybind.cvar_write();
+			button.color_state.text_color = {255, 255, 255, 255};
+			requested_button = NULL;
+
+			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
+			// eat
+			set_event_unfocus(e);
+			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+		}
+
+		keybind_state out;
+		if(keybind.bind_sdl_event(e, &out))
+		{
+			// insert into history
+			history.emplace_back(keybind.key_binds, *requested_button);
+			revert_button.disabled = false;
+
+			// set the button
+			keybind.key_binds = out;
+			button.text = keybind.cvar_write();
+			button.color_state.text_color = {255, 255, 255, 255};
+			requested_button = NULL;
+
+			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
+			// eat
+			set_event_unfocus(e);
+			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 		}
 	}
 
@@ -80,8 +149,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 				rit->slot.keybind.key_binds = rit->value;
 				rit->slot.button.text = rit->slot.keybind.cvar_write();
 			}
-			history.clear();
-			revert_button.disabled = true;
+			clear_history();
 			// eat
 			set_event_unfocus(e);
 			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
@@ -127,51 +195,6 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 
 	scroll_state.input(e);
 
-	if(requested_button != NULL)
-	{
-		cvar_key_bind& keybind = requested_button->keybind;
-		mono_button_object& button = requested_button->button;
-
-		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
-		{
-			// insert into history
-			history.emplace_back(keybind.key_binds, *requested_button);
-			revert_button.disabled = false;
-
-			// set the button
-			if(!keybind.cvar_read("NONE"))
-			{
-				return OPTIONS_KEYBINDS_RESULT::ERROR;
-			}
-			button.text = keybind.cvar_write();
-			button.color_state.text_color = {255, 255, 255, 255};
-			requested_button = NULL;
-
-			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
-			// eat
-			set_event_unfocus(e);
-			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
-		}
-
-		keybind_state out;
-		if(keybind.bind_sdl_event(e, &out))
-		{
-			// insert into history
-			history.emplace_back(keybind.key_binds, *requested_button);
-			revert_button.disabled = false;
-
-			// set the button
-			keybind.key_binds = out;
-			button.text = keybind.cvar_write();
-			button.color_state.text_color = {255, 255, 255, 255};
-			requested_button = NULL;
-
-			// slogf("%s = %s\n", keybind.cvar_comment, keybind.cvar_write().c_str());
-			// eat
-			set_event_unfocus(e);
-			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
-		}
-	}
 
 	float scroll_xmin = scroll_state.box_xmin;
 	float scroll_xmax = scroll_state.box_xmax;
@@ -234,12 +257,12 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		}
 	}
 
-	if( //! input_eaten &&
-		e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
+	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
 		close();
 		// eat
 		set_event_unfocus(e);
+        scroll_state.scroll_to_top();
 		return OPTIONS_KEYBINDS_RESULT::CLOSE;
 	}
 
@@ -247,11 +270,12 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	switch(e.type)
 	{
 	case SDL_MOUSEBUTTONDOWN:
-		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		/*if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
 			unfocus();
 		}
 		[[fallthrough]];
+        */
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
@@ -277,7 +301,7 @@ bool options_keybinds_state::draw_base()
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 
-	float button_height = font_painter->state.font->get_lineskip() + font_padding;
+	float button_height = font_painter->state.font->get_point_size() + font_padding;
 
 	// draw the backdrop bbox
 	{
@@ -298,7 +322,7 @@ bool options_keybinds_state::draw_base()
 	// the footer buttons
 	{
 		// for a 16px font I would want 60px
-		float button_width = 60 * (font_painter->state.font->get_lineskip() / 16.f);
+		float button_width = 60 * (font_painter->state.font->get_point_size() / 16.f);
 
 		float x_cursor = box_xmax;
 		x_cursor -= button_width + element_padding;
@@ -341,7 +365,7 @@ bool options_keybinds_state::draw_scroll()
 	float scroll_ymin = scroll_state.box_ymin;
 	float scroll_ymax = scroll_state.box_ymax;
 
-	float button_height = font_painter->state.font->get_lineskip() + font_padding;
+	float button_height = font_painter->state.font->get_point_size() + font_padding;
 
 	// set the buttons dimensions
 	{
@@ -503,32 +527,26 @@ bool options_keybinds_state::render()
 
 void options_keybinds_state::resize_view()
 {
-	box_xmin = 60;
-	box_xmax = static_cast<float>(cv_screen_width.data) - 60;
-	box_ymin = 60;
-	box_ymax = static_cast<float>(cv_screen_height.data) - 60;
+	float screen_width = static_cast<float>(cv_screen_width.data);
+	float screen_height = static_cast<float>(cv_screen_height.data);
+
+	// for a 16px font I would want 400px
+	float max_width = 400 * (font_painter->state.font->get_point_size() / 16.f);
+    float menu_width = std::min(screen_width - 60*2, max_width);
+
+    // NOTE: I could also try to make the height have a max size too.
+    float menu_height = screen_height - 60*2;
+
+	float xmin = std::floor((screen_width - menu_width) / 2.f);
+	float ymin = std::floor((screen_height - menu_height) / 2.f);
+
+	box_xmin = xmin;
+	box_xmax = xmin + menu_width;
+	box_ymin = ymin;
+	box_ymax = ymin + menu_height;
 	scroll_state.resize_view(
 		box_xmin + element_padding,
 		box_xmax - element_padding,
 		box_ymin + element_padding,
 		box_ymax - footer_height);
-}
-
-void options_keybinds_state::unfocus()
-{
-	// y_scrollbar_held = false;
-	// scroll_thumb_click_offset = -1;
-	scroll_state.unfocus();
-
-	// all this does is make the buttons not hovered
-	// since if you close the menu while hovering a button,
-	// when you make the menu re-appear, and if you don't move
-	// the mouse, the button will stay "hot".
-	for(auto& button : buttons)
-	{
-		button.button.unfocus();
-	}
-	ok_button.unfocus();
-	revert_button.unfocus();
-	defaults_button.unfocus();
 }

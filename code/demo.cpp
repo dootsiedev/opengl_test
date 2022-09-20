@@ -939,30 +939,24 @@ bool demo_state::input(SDL_Event& e)
 
 	if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
 	{
+		// eat
+		set_event_unfocus(e);
+		// unfocus ALL
+		input(e);
+		show_console = !show_console;
 		if(show_console)
 		{
-			g_console.unfocus();
-			show_console = false;
-		}
-		else
-		{
 			g_console.focus();
-			g_console.resize_text_area();
-			show_console = true;
 		}
 	}
 
 	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
 	{
-		if(show_options)
-		{
-			option_menu.unfocus();
-			show_options = false;
-		}
-		else
-		{
-			show_options = true;
-		}
+		// eat
+		set_event_unfocus(e);
+        // unfocus ALL
+		input(e);
+		show_options = !show_options;
 	}
 
 	// movement.

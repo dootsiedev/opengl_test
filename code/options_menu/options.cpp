@@ -61,6 +61,11 @@ OPTIONS_RESULT options_state::input(SDL_Event& e)
 		case OPTIONS_SELECT_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
 		case OPTIONS_SELECT_RESULT::OPEN_CONTROLS:
 			current_state = MENU_FACTORY::KEYBINDS;
+
+            // fix screen resize...
+            SDL_Event e2;
+            set_event_resize(e2);
+            keybinds.input(e2);
 			return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_SELECT_RESULT::OPEN_VIDEO: return OPTIONS_RESULT::CLOSE;
 		}
@@ -70,6 +75,10 @@ OPTIONS_RESULT options_state::input(SDL_Event& e)
 		{
 		case OPTIONS_KEYBINDS_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_KEYBINDS_RESULT::CLOSE:
+            // fix screen resize...
+            SDL_Event e2;
+            set_event_resize(e2);
+            select.input(e2);
 			current_state = MENU_FACTORY::MENU_SELECT;
 			return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_KEYBINDS_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
@@ -112,18 +121,6 @@ void options_state::resize_view()
 	{
 	case MENU_FACTORY::MENU_SELECT: select.resize_view(); return;
 	case MENU_FACTORY::KEYBINDS: keybinds.resize_view();
-	}
-	ASSERT(false);
-	slogf("%s: unknown switch", __func__);
-}
-
-// call this when you need to unfocus, like for example if you press escape or something.
-void options_state::unfocus()
-{
-	switch(current_state)
-	{
-	case MENU_FACTORY::MENU_SELECT: select.unfocus(); return;
-	case MENU_FACTORY::KEYBINDS: keybinds.unfocus(); return;
 	}
 	ASSERT(false);
 	slogf("%s: unknown switch", __func__);
