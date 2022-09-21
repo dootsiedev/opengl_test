@@ -10,12 +10,17 @@
 #include "font/text_prompt.h"
 #include "console.h"
 #include "options_menu/options.h"
+#include "cvar.h"
 
 #include <SDL2/SDL.h>
 
 #include <glm/vec2.hpp> // vec2
 #include <glm/vec3.hpp> // vec3
 #include <limits>
+
+
+extern cvar_double cv_mouse_sensitivity;
+extern cvar_double cv_camera_speed;
 
 // This is absolutely not the best way of doing this...
 struct bench_data

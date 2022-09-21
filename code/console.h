@@ -122,7 +122,7 @@ struct console_state
 
 	// put the error on the error section.
 	// this is a nice place to put a non-fatal serr error
-	NDSERR bool post_error(std::string_view msg);
+	void post_error(std::string_view msg);
 
 	void serialize_history(BS_Archive& ar);
 };

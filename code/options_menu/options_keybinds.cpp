@@ -40,7 +40,7 @@ void options_keybinds_state::init(font_sprite_painter* font_painter_, GLuint vbo
 	ok_button.text = "ok";
 
 	defaults_button.init(font_painter);
-	defaults_button.text = "reset defaults";
+	defaults_button.text = "set defaults";
 
 	// scrollbar
 	scroll_state.init(font_painter);

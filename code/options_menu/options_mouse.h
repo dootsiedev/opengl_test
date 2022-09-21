@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ui.h"
+#include "../font/text_prompt.h"
 
 // TODO: move this into ui.h
 // a slider that takes a double from 0-1.
@@ -43,7 +44,9 @@ struct mono_normalized_slider_object
 		font_painter = font_painter_;
 	}
 
-	void input(SDL_Event& e);
+    // this does not return an error!!!
+    // this returns true if the value changed!
+	bool input(SDL_Event& e);
 
 	void draw_buffer();
 
@@ -79,9 +82,21 @@ struct options_mouse_state
 
 	std::string invert_text;
 	mono_button_object invert_button;
+    // 0 = false,  1 = true, -1 = not modified
+    int previous_invert_value = -1;
 
 	std::string mouse_sensitivity_text;
+    // I need the position because I am drawing raw text.
+    float mouse_sensitivty_text_x = -1;
+    float mouse_sensitivty_text_y = -1;
+    text_prompt_wrapper mouse_sensitivity_prompt;
 	mono_normalized_slider_object mouse_sensitivity_slider;
+    double previous_mouse_sensitivity_value = NAN;
+
+    //footer buttons
+	mono_button_object revert_button;
+	mono_button_object ok_button;
+	mono_button_object defaults_button;
 
 	// the buffer that contains the menu rects and text
 	// this is NOT owned by this state
@@ -99,7 +114,7 @@ struct options_mouse_state
 	float box_ymin = -1;
 	float box_ymax = -1;
 
-	void init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao);
+	NDSERR bool init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao);
 
 	NDSERR OPTIONS_MOUSE_RESULT input(SDL_Event& e);
 
@@ -109,4 +124,10 @@ struct options_mouse_state
 	NDSERR bool render();
 
 	void resize_view();
+
+    void undo_history();
+    void clear_history();
+    void set_defaults();
+    void close();
+
 };

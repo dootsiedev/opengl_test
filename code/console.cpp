@@ -168,10 +168,7 @@ bool console_state::init(
 		{
 			serrf("Failed to open: `%s`, reason: %s\n", history_path, strerror(errno));
 			// put the message into the console instead
-			if(!post_error(serr_get_error()))
-			{
-				return false;
-			}
+			post_error(serr_get_error());
 		}
 	}
 	else
@@ -187,17 +184,11 @@ bool console_state::init(
 		if(!ar.Finish(history_file.name()))
 		{
 			// put the message into the console instead
-			if(!post_error(serr_get_error()))
-			{
-				return false;
-			}
+			post_error(serr_get_error());
 		}
 		if(!history_file.close())
 		{
-			if(!post_error(serr_get_error()))
-			{
-				return false;
-			}
+			post_error(serr_get_error());
 		}
 	}
 #endif
@@ -333,10 +324,7 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 			case SDLK_ESCAPE:
 				// this may be annoying since maybe you expected escape to unfocus.
 				// but you can still just undo.
-				if(!prompt_cmd.replace_string(std::string_view(), false))
-				{
-					return CONSOLE_RESULT::ERROR;
-				}
+				prompt_cmd.replace_string(std::string_view(), false);
                 // eat
                 set_event_unfocus(e);
                 return CONSOLE_RESULT::CONTINUE;
@@ -350,18 +338,12 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				{
 					original_prompt = prompt_cmd.get_string();
 					history_index = 0;
-					if(!prompt_cmd.replace_string(command_history.at(0)))
-					{
-						return CONSOLE_RESULT::ERROR;
-					}
+					prompt_cmd.replace_string(command_history.at(0));
 				}
 				else if(static_cast<size_t>(history_index) < command_history.size() - 1)
 				{
 					history_index++;
-					if(!prompt_cmd.replace_string(command_history.at(history_index)))
-					{
-						return CONSOLE_RESULT::ERROR;
-					}
+					prompt_cmd.replace_string(command_history.at(history_index));
 				}
                 // eat
                 set_event_unfocus(e);
@@ -379,20 +361,14 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				}
 				if(history_index == 0)
 				{
-					if(!prompt_cmd.replace_string(original_prompt))
-					{
-						return CONSOLE_RESULT::ERROR;
-					}
+					prompt_cmd.replace_string(original_prompt);
 					original_prompt.clear();
 					history_index = -1;
 				}
 				else
 				{
 					history_index--;
-					if(!prompt_cmd.replace_string(command_history.at(history_index)))
-					{
-						return CONSOLE_RESULT::ERROR;
-					}
+					prompt_cmd.replace_string(command_history.at(history_index));
 				}
                 // eat
                 set_event_unfocus(e);
@@ -479,10 +455,7 @@ bool console_state::parse_input()
 			slog("note, you can type \"help\" for a list of cvars.\n");
 			// TODO: maybe instead of doing this here, I let all the errors
 			// get posted to the console, from outside console(demo)?
-			if(!post_error(serr_get_error()))
-			{
-				return false;
-			}
+			post_error(serr_get_error());
 		}
 	}
 
@@ -548,10 +521,7 @@ bool console_state::update()
 				{
 					serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
 					// put the message into the console instead
-					if(!post_error(serr_get_error()))
-					{
-						return false;
-					}
+					post_error(serr_get_error());
 					break;
 				}
 				if(char_count >= std::size(text_data) - 1)
@@ -619,10 +589,7 @@ bool console_state::render()
 		if(!log_box.draw())
 		{
 			// put the message into the console instead
-			if(!post_error(serr_get_error()))
-			{
-				return false;
-			}
+			post_error(serr_get_error());
 		}
 		log_vertex_count = console_batcher->get_current_vertex_count();
 		if(console_batcher->get_quad_count() != 0)
@@ -646,10 +613,7 @@ bool console_state::render()
 		if(!prompt_cmd.draw())
 		{
 			// put the message into the console instead
-			if(!post_error(serr_get_error()))
-			{
-				return false;
-			}
+			post_error(serr_get_error());
 		}
 		prompt_vertex_count = console_batcher->get_current_vertex_count();
 		if(console_batcher->get_quad_count() != 0)
@@ -672,10 +636,7 @@ bool console_state::render()
 		if(!error_text.draw())
 		{
 			// put the message into the console instead
-			if(!post_error(serr_get_error()))
-			{
-				return false;
-			}
+			post_error(serr_get_error());
 		}
 		error_vertex_count = console_batcher->get_current_vertex_count();
 		if(console_batcher->get_quad_count() != 0)
@@ -761,7 +722,7 @@ void console_state::focus()
 	prompt_cmd.focus();
 }
 
-bool console_state::post_error(std::string_view msg)
+void console_state::post_error(std::string_view msg)
 {
-	return error_text.replace_string(msg);
+	error_text.replace_string(msg);
 }

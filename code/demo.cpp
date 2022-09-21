@@ -119,6 +119,9 @@ static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, v
 }
 #endif
 
+REGISTER_CVAR_DOUBLE(cv_mouse_sensitivity, 0.4, "mouse move speed", CVAR_T::RUNTIME);
+REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed", CVAR_T::RUNTIME);
+
 static REGISTER_CVAR_STRING(
 	cv_string,
 	"test\n"
@@ -142,8 +145,6 @@ static REGISTER_CVAR_INT(
 	"0 = off, 1 = on, can't bold or italics, but looks different",
 	CVAR_T::STARTUP);
 
-static REGISTER_CVAR_DOUBLE(cv_mouse_sensitivity, 0.4, "mouse move speed", CVAR_T::RUNTIME);
-static REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed", CVAR_T::RUNTIME);
 
 // keybinds
 
@@ -1386,10 +1387,7 @@ bool demo_state::display_perf_text()
 		font_painter.set_anchor(TEXT_ANCHOR::TOP_LEFT);
 		if(!font_painter.draw_text(cv_string.data.c_str(), cv_string.data.size()))
 		{
-			if(!g_console.post_error(serr_get_error()))
-			{
-				return false;
-			}
+			g_console.post_error(serr_get_error());
 			test_string_success = false;
 		}
 	}

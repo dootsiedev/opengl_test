@@ -70,16 +70,13 @@ bool text_prompt_wrapper::init(
 	// does this need to be zero'd?
 	stb_textedit_initialize_state(&stb_state, single_line() ? 1 : 0);
 
-	if(!replace_string(contents))
-	{
-		return false;
-	}
+	replace_string(contents);
 
 	// space_advance_cache = painter->font->GetAdvance(' ');
 	return state.font->get_advance(' ', &space_advance_cache) == FONT_RESULT::SUCCESS;
 }
 
-bool text_prompt_wrapper::replace_string(std::string_view contents, bool clear_history)
+void text_prompt_wrapper::replace_string(std::string_view contents, bool clear_history)
 {
 	update_buffer = true;
 
@@ -139,7 +136,7 @@ bool text_prompt_wrapper::replace_string(std::string_view contents, bool clear_h
 		return false;
 	}*/
 
-	return true;
+	//return true;
 }
 void text_prompt_wrapper::clear_string()
 {
