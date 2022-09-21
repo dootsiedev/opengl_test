@@ -59,8 +59,6 @@ void options_keybinds_state::close()
 {
 	clear_history();
 	scroll_state.scroll_to_top();
-	// just in case?
-	// unfocus();
 }
 
 OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
@@ -70,10 +68,9 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	case SDL_WINDOWEVENT:
 		switch(e.window.event)
 		{
-		case SDL_WINDOWEVENT_SIZE_CHANGED:
-			resize_view();
-			break;
+		case SDL_WINDOWEVENT_SIZE_CHANGED: resize_view(); break;
 		case SDL_WINDOWEVENT_FOCUS_LOST:
+		case SDL_WINDOWEVENT_HIDDEN:
 			// release requested_button focus.
 			if(requested_button != NULL)
 			{
@@ -90,8 +87,8 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	// button request
 	if(requested_button != NULL)
 	{
-        // TODO: make a popup prompt with a "cancel" button that is priority over the binding.
-        // maybe also mention "escape = NONE".
+		// TODO: make a popup prompt with a "cancel" button that is priority over the binding.
+		// maybe also mention "escape = NONE".
 
 		cvar_key_bind& keybind = requested_button->keybind;
 		mono_button_object& button = requested_button->button;
@@ -143,6 +140,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		{
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
+			// trigger will eat
 			// slog("revert click\n");
 			for(auto rit = history.rbegin(); rit != history.rend(); ++rit)
 			{
@@ -150,8 +148,6 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 				rit->slot.button.text = rit->slot.keybind.cvar_write();
 			}
 			clear_history();
-			// eat
-			set_event_unfocus(e);
 			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
@@ -161,10 +157,10 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		{
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
+			// trigger will eat
 			// slog("ok click\n");
 			close();
-			// eat
-			set_event_unfocus(e);
+			// close acts like an eat
 			return OPTIONS_KEYBINDS_RESULT::CLOSE;
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
 		}
@@ -173,6 +169,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		{
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
+			// trigger will eat
 			// slog("reset defaults click\n");
 			for(auto& button : buttons)
 			{
@@ -184,8 +181,6 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 				button.button.text = button.keybind.cvar_write();
 			}
 			revert_button.disabled = false;
-			// eat
-			set_event_unfocus(e);
 			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
 		}
@@ -194,7 +189,6 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	// scroll
 
 	scroll_state.input(e);
-
 
 	float scroll_xmin = scroll_state.box_xmin;
 	float scroll_xmax = scroll_state.box_xmax;
@@ -247,11 +241,10 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		{
 		case BUTTON_RESULT::CONTINUE: break;
 		case BUTTON_RESULT::TRIGGER:
+			// trigger will eat
 			requested_button = &button;
 			button.button.text = "[press button]";
 			button.button.color_state.text_color = {255, 255, 0, 255};
-			// eat
-			set_event_unfocus(e);
 			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
 		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
 		}
@@ -260,9 +253,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
 		close();
-		// eat
-		set_event_unfocus(e);
-        scroll_state.scroll_to_top();
+		// close acts like an eat
 		return OPTIONS_KEYBINDS_RESULT::CLOSE;
 	}
 
@@ -270,12 +261,6 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	switch(e.type)
 	{
 	case SDL_MOUSEBUTTONDOWN:
-		/*if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
-		{
-			unfocus();
-		}
-		[[fallthrough]];
-        */
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
@@ -450,23 +435,11 @@ bool options_keybinds_state::update(double delta_sec)
 {
 	for(auto& button : buttons)
 	{
-		if(!button.button.update(delta_sec))
-		{
-			return false;
-		}
+		button.button.update(delta_sec);
 	}
-	if(!revert_button.update(delta_sec))
-	{
-		return false;
-	}
-	if(!ok_button.update(delta_sec))
-	{
-		return false;
-	}
-	if(!defaults_button.update(delta_sec))
-	{
-		return false;
-	}
+	revert_button.update(delta_sec);
+	ok_button.update(delta_sec);
+	defaults_button.update(delta_sec);
 	return true;
 }
 
@@ -532,10 +505,10 @@ void options_keybinds_state::resize_view()
 
 	// for a 16px font I would want 400px
 	float max_width = 400 * (font_painter->state.font->get_point_size() / 16.f);
-    float menu_width = std::min(screen_width - 60*2, max_width);
+	float menu_width = std::min(screen_width - 60 * 2, max_width);
 
-    // NOTE: I could also try to make the height have a max size too.
-    float menu_height = screen_height - 60*2;
+	// NOTE: I could also try to make the height have a max size too.
+	float menu_height = screen_height - 60 * 2;
 
 	float xmin = std::floor((screen_width - menu_width) / 2.f);
 	float ymin = std::floor((screen_height - menu_height) / 2.f);

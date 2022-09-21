@@ -12,7 +12,7 @@ enum class CVAR_T
 {
 	// requires the app to be restarted
 	STARTUP,
-	// the change is not immediatly made, but it requires some sort of re-loading.
+	// the change is not immediatly made, due to caching it requires some sort of re-loading.
 	DEFFERRED,
 	// you can modify this during runtime and changes should take effect
 	RUNTIME,

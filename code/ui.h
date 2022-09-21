@@ -41,7 +41,7 @@ void set_event_leave(SDL_Event& e);
 // set_event_unfocus
 // converts the event to SDL_WINDOWEVENT_FOCUS_LOST
 // I use this to remove "input focus" from elements,
-// this has one job, which is to prevent an event 
+// this has one job, which is to prevent an event
 // from being eaten multiple times
 // NOTE: this only sets the type, so don't access any values.
 // this is used when you want to eat an input,
@@ -53,11 +53,18 @@ void set_event_unfocus(SDL_Event& e);
 // converts the event to SDL_WINDOWEVENT_SIZE_CHANGED
 // you might need to call this if you present a UI element
 // that was not actively reading events to properly resize.
-// Normally you would use a separate SDL_event for this.
+// I like to think of this as a SDL_WINDOWEVENT_SHOWN
+// except I think SDL_WINDOWEVENT_SHOWN != resize
 // NOTE: this only sets the type, so don't access any values.
 // use cv_screen_width and cv_screen_height!
 void set_event_resize(SDL_Event& e);
 
+// set_event_hidden
+// converts the event to SDL_WINDOWEVENT_HIDDEN
+// you might need to call this if you hide a menu
+// this is basically set_event_leave + set_event_unfocus
+// NOTE: this only sets the type, so don't access any values.
+void set_event_hidden(SDL_Event& e);
 
 enum class BUTTON_RESULT
 {
@@ -75,7 +82,7 @@ struct button_color_state
 	std::array<uint8_t, 4> text_outline_color = {0, 0, 0, 255};
 	std::array<uint8_t, 4> disabled_text_color = {100, 100, 100, 255};
 	float fade_speed = 4;
-    bool show_outline = true;
+	bool show_outline = true;
 };
 
 struct mono_button_object
@@ -88,9 +95,9 @@ struct mono_button_object
 	std::array<float, 4> button_rect{};
 	bool hover_over = false;
 	bool disabled = false;
-    // to make a click, you need to click down and up in the same area
-    // if mouse_button_down = true, this does nothing.
-    bool clicked_on = false;
+	// to make a click, you need to click down and up in the same area
+	// if mouse_button_down = true, this does nothing.
+	bool clicked_on = false;
 
 	void init(font_sprite_painter* font_painter_, button_color_state* color_state_ = NULL)
 	{
@@ -114,9 +121,8 @@ struct mono_button_object
 
 	NDSERR BUTTON_RESULT input(SDL_Event& e);
 	// update requires the buffer to be bound.
-	NDSERR bool update(double delta_sec);
+	void update(double delta_sec);
 	NDSERR bool draw_buffer();
-	void unfocus();
 };
 
 // renders the scroll bar
@@ -125,66 +131,66 @@ struct mono_button_object
 // (because with text, you can use drag selection to move the screen)
 struct mono_y_scrollable_area
 {
-    // I don't need a font, but I use the lineskip for the scroll speed.............
-    // also contains the batcher, and white_uv I need.
-    // YOU CAN NOT USE THE FONT BECAUSE I DONT BIND THE ATLAS!
+	// I don't need a font, but I use the lineskip for the scroll speed.............
+	// also contains the batcher, and white_uv I need.
+	// YOU CAN NOT USE THE FONT BECAUSE I DONT BIND THE ATLAS!
 	font_sprite_painter* font_painter = NULL;
 
-    // fill color of the thumb
+	// fill color of the thumb
 	std::array<uint8_t, 4> scrollbar_color = RGBA8_PREMULT(80, 80, 80, 200);
-    // the outlines
+	// the outlines
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
-    // optional fill
+	// optional fill
 	std::array<uint8_t, 4> fill_color{0, 0, 0, 255};
 
-    // screen coords of the scrollbox and scroll bar
-    // to get the area without the scrollbar, use box_inner_xmax
+	// screen coords of the scrollbox and scroll bar
+	// to get the area without the scrollbar, use box_inner_xmax
 	float box_xmin = -1;
 	float box_xmax = -1;
 	float box_ymin = -1;
 	float box_ymax = -1;
-    // without the scrollbar
-    float box_inner_xmax = -1;
+	// without the scrollbar
+	float box_inner_xmax = -1;
 
 	// the size of the contents in the scroll box
 	float content_h = -1;
 
 	float scrollbar_thickness = 20;
 	float scrollbar_thumb_min_size = 20;
-    // space between the scroll area and the scrollbar.
+	// space between the scroll area and the scrollbar.
 	float scrollbar_padding = 10;
 
-    // the offset of the contents in the scroll box
+	// the offset of the contents in the scroll box
 	float scroll_y = 0;
 
 	// this is the offset that you clicked into the scroll thumb.
 	float scroll_thumb_click_offset = -1;
 
-    bool y_scrollbar_held = false;
-
+	bool y_scrollbar_held = false;
 
 	void init(font_sprite_painter* font_painter_)
-    {
-        ASSERT(font_painter_ != NULL);
-        font_painter = font_painter_;
-    }
+	{
+		ASSERT(font_painter_ != NULL);
+		font_painter = font_painter_;
+	}
 
-    void input(SDL_Event& e);
+	// warning, this will only eat the scrollbar thumb being clicked,
+	// the area set with resize_view will not eat click events (clicks go through)
+	// so remember to catch backdrop clicks yourself.
+	void input(SDL_Event& e);
 
 	void draw_buffer();
 
+	void scroll_to_top()
+	{
+		scroll_y = 0;
+	}
 
-    void scroll_to_top()
-    {
-        scroll_y = 0;
-    }
-
-    void unfocus();
-    void resize_view(float xmin,float xmax,float ymin,float ymax);
+	void unfocus();
+	void resize_view(float xmin, float xmax, float ymin, float ymax);
 
 	bool internal_scroll_y_inside(float mouse_x, float mouse_y);
 	void internal_scroll_y_to(float mouse_y);
-
 };
 
 // simple prompt.
@@ -197,13 +203,13 @@ struct simple_prompt_state
 	struct select_entry
 	{
 		mono_button_object button;
-        // -1 is reserved for errors.
-        int result;
+		// -1 is reserved for errors.
+		int result;
 	};
 	std::vector<select_entry> select_entries;
 
-    std::string info_text;
-    float menu_width = -1;
+	std::string info_text;
+	float menu_width = -1;
 
 	// the buffer that contains the menu rects and text
 	// this is NOT owned by this state
@@ -215,17 +221,16 @@ struct simple_prompt_state
 	// padding between elements (buttons, scrollbar, etc)
 	float element_padding = 10;
 
-
 	// the dimensions of the whole backdrop
 	float box_xmin = -1;
 	float box_xmax = -1;
 	float box_ymin = -1;
 	float box_ymax = -1;
 
-    // instead of being horizontal, list the buttons vertically.
-    bool vertical_mode = false;
+	// instead of being horizontal, list the buttons vertically.
+	bool vertical_mode = false;
 
-    // info is the message, width should be scaled by the pointsize of the font.
+	// info is the message, width should be scaled by the pointsize of the font.
 	void init(
 		std::string info, float width, font_sprite_painter* font_painter_, GLuint vbo, GLuint vao);
 

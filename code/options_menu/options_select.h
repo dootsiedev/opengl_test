@@ -7,7 +7,8 @@
 enum class OPTIONS_SELECT_RESULT
 {
 	OPEN_VIDEO,
-	OPEN_CONTROLS,
+	OPEN_MOUSE,
+	OPEN_KEYBINDS,
 #ifdef AUDIO_SUPPORT
 	OPEN_AUDIO,
 #endif
@@ -55,7 +56,4 @@ struct options_select_state
 	NDSERR bool render();
 
 	void resize_view();
-
-	// call this when you need to unfocus, like for example if you press escape or something.
-	void unfocus();
 };

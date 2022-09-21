@@ -811,6 +811,7 @@ bool demo_state::input(SDL_Event& e)
 		{
 			// this unfocuses the pointerlock/relative mouse, and held keys.
 		case SDL_WINDOWEVENT_FOCUS_LOST:
+		case SDL_WINDOWEVENT_HIDDEN:
 			unfocus_demo();
 			break;
 			// there is no "hover focus"
@@ -910,9 +911,9 @@ bool demo_state::input(SDL_Event& e)
 		}
 		break;
 	case SDL_MOUSEBUTTONUP:
+		// TODO: should check if I button down wasn't eaten before I button up.
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
-			// TODO: should check if I button down wasn't eaten before I button up.
 #ifdef __EMSCRIPTEN__
 			// this ONLY works when called inside of a mouse button event that is inside a html5
 			// handler. the deferred option means if false (0), this will give an error and nothing
@@ -947,6 +948,10 @@ bool demo_state::input(SDL_Event& e)
 		if(show_console)
 		{
 			g_console.focus();
+			// force the console to resize itself.
+			SDL_Event e2;
+			set_event_resize(e2);
+			g_console.input(e2);
 		}
 	}
 
@@ -954,9 +959,14 @@ bool demo_state::input(SDL_Event& e)
 	{
 		// eat
 		set_event_unfocus(e);
-        // unfocus ALL
+		// unfocus ALL
 		input(e);
-		show_options = !show_options;
+		// this isn't a toggle. only open, press escape or click close.
+		show_options = true;
+		// force resize.
+		SDL_Event e2;
+		set_event_resize(e2);
+		option_menu.input(e2);
 	}
 
 	// movement.

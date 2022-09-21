@@ -1169,11 +1169,13 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		switch(e.window.event)
 		{
 		case SDL_WINDOWEVENT_FOCUS_LOST:
+		case SDL_WINDOWEVENT_HIDDEN:
 			unfocus();
 			return TEXT_PROMPT_RESULT::CONTINUE;
 			// leave is only used for releasing "hover focus"
 			// case SDL_WINDOWEVENT_LEAVE:
 		}
+        break;
 
 	// lazy scroll
 	case SDL_MOUSEWHEEL:

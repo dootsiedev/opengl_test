@@ -16,11 +16,16 @@ void set_event_unfocus(SDL_Event& e)
 	e.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
 }
 
-
 void set_event_resize(SDL_Event& e)
 {
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_SIZE_CHANGED;
+}
+
+void set_event_hidden(SDL_Event& e)
+{
+	e.type = SDL_WINDOWEVENT;
+	e.window.event = SDL_WINDOWEVENT_HIDDEN;
 }
 
 BUTTON_RESULT mono_button_object::input(SDL_Event& e)
@@ -32,7 +37,14 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		{
 			// release "hover focus"
 		case SDL_WINDOWEVENT_LEAVE:
-			unfocus();
+			clicked_on = false;
+			hover_over = false;
+			return BUTTON_RESULT::CONTINUE;
+		case SDL_WINDOWEVENT_HIDDEN:
+			// TODO: if a UI element dissapears, use this.
+			clicked_on = false;
+			hover_over = false;
+			fade = 0;
 			return BUTTON_RESULT::CONTINUE;
 
 			// there is no "input focus".
@@ -114,7 +126,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 
 	return BUTTON_RESULT::CONTINUE;
 }
-bool mono_button_object::update(double delta_sec)
+void mono_button_object::update(double delta_sec)
 {
 	// NOTE: I wouldn't need this if I used a setter for disabling the button...
 	hover_over = !disabled && hover_over;
@@ -125,8 +137,6 @@ bool mono_button_object::update(double delta_sec)
 	// clamp
 	fade = std::min(fade, 1.f);
 	fade = std::max(fade, 0.f);
-
-	return true;
 }
 bool mono_button_object::draw_buffer()
 {
@@ -201,31 +211,24 @@ bool mono_button_object::draw_buffer()
 	// there are not much gl calls here, but the text does modify the atlas.
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
-void mono_button_object::unfocus()
-{
-	fade = 0;
-	clicked_on = false;
-	hover_over = false;
-}
-
 //
 // scrollable
 //
 void mono_y_scrollable_area::unfocus()
 {
-    y_scrollbar_held = false;
-    scroll_thumb_click_offset = -1;
+	y_scrollbar_held = false;
+	scroll_thumb_click_offset = -1;
 }
-void mono_y_scrollable_area::resize_view(float xmin,float xmax,float ymin,float ymax)
+void mono_y_scrollable_area::resize_view(float xmin, float xmax, float ymin, float ymax)
 {
-    box_xmin = xmin;
-    box_xmax = xmax;
-    box_ymin = ymin;
-    box_ymax = ymax;
-    // probably should use content_h > (ymax-ymin), but this feels more stable
-    box_inner_xmax = xmax - scrollbar_thickness - scrollbar_padding;
-    // clamp the scroll (when the screen resizes)
-    scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
+	box_xmin = xmin;
+	box_xmax = xmax;
+	box_ymin = ymin;
+	box_ymax = ymax;
+	// probably should use content_h > (ymax-ymin), but this feels more stable
+	box_inner_xmax = xmax - scrollbar_thickness - scrollbar_padding;
+	// clamp the scroll (when the screen resizes)
+	scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
 }
 
 void mono_y_scrollable_area::input(SDL_Event& e)
@@ -239,6 +242,7 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 		{
 			// release scrollbar focus.
 		case SDL_WINDOWEVENT_FOCUS_LOST:
+		case SDL_WINDOWEVENT_HIDDEN:
 			unfocus();
 			return;
 			// leave is only used for releasing "hover focus"

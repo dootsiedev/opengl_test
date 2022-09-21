@@ -390,8 +390,8 @@ add_executable(${PROJECT_NAME}
     code/options_menu/options_select.cpp
     code/options_menu/options_keybinds.h
     code/options_menu/options_keybinds.cpp
-    code/options_menu/options_controls.h
-    code/options_menu/options_controls.cpp
+    code/options_menu/options_mouse.h
+    code/options_menu/options_mouse.cpp
     code/options_menu/options_video.h
     code/options_menu/options_video.cpp
     code/options_menu/options_audio.h

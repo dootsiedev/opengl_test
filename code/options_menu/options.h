@@ -9,7 +9,7 @@
 
 #include "options_select.h"
 #include "options_video.h"
-#include "options_controls.h"
+#include "options_mouse.h"
 #include "options_keybinds.h"
 #ifdef AUDIO_SUPPORT
 #include "options_audio.h"
@@ -33,8 +33,8 @@ struct options_state
 	{
 		MENU_SELECT,
 		VIDEO,
-		CONTROLS,
 		KEYBINDS,
+		MOUSE,
 #ifdef AUDIO_SUPPORT
 		AUDIO
 #endif
@@ -43,7 +43,7 @@ struct options_state
 	MENU_FACTORY current_state = MENU_FACTORY::MENU_SELECT;
 	options_select_state select;
 	options_video_state video;
-	options_controls_state controls;
+	options_mouse_state mouse;
 	options_keybinds_state keybinds;
 #ifdef AUDIO_SUPPORT
 	options_audio_state audio;
@@ -65,5 +65,5 @@ struct options_state
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();
 
-	void resize_view();
+	void internal_refresh();
 };

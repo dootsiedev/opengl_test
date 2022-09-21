@@ -1,14 +1,9 @@
 #include "../global.h"
 
-#include "options_select.h"
-
+#include "options_mouse.h"
 #include "../app.h"
 
-// TODO(dootsie): make the escape button close the menu,
-// and make a popup that asks if you want to keep the changes?
-// TODO(dootsie): each keybind should have it's own "revert to default".
-
-void options_select_state::init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao)
+void options_mouse_state::init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao)
 {
 	ASSERT(font_painter_ != NULL);
 
@@ -16,42 +11,17 @@ void options_select_state::init(font_sprite_painter* font_painter_, GLuint vbo, 
 	gl_options_interleave_vbo = vbo;
 	gl_options_vao_id = vao;
 
-	{
-		select_entry& entry = select_entries.emplace_back();
-		entry.button.init(font_painter);
-		entry.button.text = "Video";
-		entry.result = OPTIONS_SELECT_RESULT::OPEN_VIDEO;
-	}
-	{
-		select_entry& entry = select_entries.emplace_back();
-		entry.button.init(font_painter);
-		entry.button.text = "Keybinds";
-		entry.result = OPTIONS_SELECT_RESULT::OPEN_KEYBINDS;
-	}
-	{
-		select_entry& entry = select_entries.emplace_back();
-		entry.button.init(font_painter);
-		entry.button.text = "Mouse";
-		entry.result = OPTIONS_SELECT_RESULT::OPEN_MOUSE;
-	}
-	{
-#ifdef AUDIO_SUPPORT
-		select_entry& entry = select_entries.emplace_back();
-		entry.button.init(font_painter);
-		entry.button.text = "Audio";
-		entry.result = OPTIONS_SELECT_RESULT::OPEN_AUDIO;
-#endif
-	}
-	{
-		select_entry& entry = select_entries.emplace_back();
-		entry.button.init(font_painter);
-		entry.button.text = "Done";
-		entry.result = OPTIONS_SELECT_RESULT::CLOSE;
-	}
+	invert_text = "invert mouse";
+	invert_button.init(font_painter);
+	invert_button.text = "off";
+
+	// mouse_sensitivity_text;
+	// mouse_sensitivity_slider;
+
 	resize_view();
 }
 
-OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
+OPTIONS_MOUSE_RESULT options_mouse_state::input(SDL_Event& e)
 {
 	switch(e.type)
 	{
@@ -62,22 +32,19 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 		}
 	}
 
-	for(auto& entry : select_entries)
+	switch(invert_button.input(e))
 	{
-		switch(entry.button.input(e))
-		{
-		case BUTTON_RESULT::CONTINUE: break;
-		case BUTTON_RESULT::TRIGGER:
-			// trigger will eat
-			return entry.result;
-		case BUTTON_RESULT::ERROR: return OPTIONS_SELECT_RESULT::ERROR;
-		}
+	case BUTTON_RESULT::CONTINUE: break;
+	case BUTTON_RESULT::TRIGGER:
+		// trigger will eat
+		break;
+	case BUTTON_RESULT::ERROR: return OPTIONS_MOUSE_RESULT::ERROR;
 	}
 
 	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
 		// close counts as an eat.
-		return OPTIONS_SELECT_RESULT::CLOSE;
+		return OPTIONS_MOUSE_RESULT::CLOSE;
 	}
 
 	// backdrop
@@ -95,25 +62,23 @@ OPTIONS_SELECT_RESULT options_select_state::input(SDL_Event& e)
 			{
 				// eat
 				set_event_unfocus(e);
-				return OPTIONS_SELECT_RESULT::CONTINUE;
+				return OPTIONS_MOUSE_RESULT::CONTINUE;
 			}
 		}
 		break;
 	}
 
-	return OPTIONS_SELECT_RESULT::CONTINUE;
+	return OPTIONS_MOUSE_RESULT::CONTINUE;
 }
 
-bool options_select_state::update(double delta_sec)
+bool options_mouse_state::update(double delta_sec)
 {
-	for(auto& entry : select_entries)
-	{
-		entry.button.update(delta_sec);
-	}
+	invert_button.update(delta_sec);
 	return true;
 }
 
-bool options_select_state::render()
+// this requires the atlas texture to be bound with 1 byte packing
+bool options_mouse_state::render()
 {
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
@@ -138,12 +103,9 @@ bool options_select_state::render()
 	}
 
 	// draw buttons
-	for(auto& entry : select_entries)
+	if(!invert_button.draw_buffer())
 	{
-		if(!entry.button.draw_buffer())
-		{
-			return false;
-		}
+		return false;
 	}
 
 	if(batcher->get_quad_count() != 0)
@@ -163,7 +125,7 @@ bool options_select_state::render()
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 
-void options_select_state::resize_view()
+void options_mouse_state::resize_view()
 {
 	// for a 16px font I would want 200px
 	float button_width = 200 * (font_painter->state.font->get_point_size() / 16.f);
@@ -172,18 +134,16 @@ void options_select_state::resize_view()
 	float screen_width = static_cast<float>(cv_screen_width.data);
 	float screen_height = static_cast<float>(cv_screen_height.data);
 
-	float button_area_height = button_height * static_cast<float>(select_entries.size()) +
-							   element_padding * static_cast<float>(select_entries.size() - 1);
+	float button_area_height = button_height * static_cast<float>(OPTION_COUNT) +
+							   element_padding * static_cast<float>(OPTION_COUNT - 1);
 
 	float x = std::floor((screen_width - button_width) / 2.f);
 	float y = std::floor((screen_height - button_area_height) / 2.f);
 
 	float cur_y = y;
-	for(auto& entry : select_entries)
-	{
-		entry.button.set_rect(x, cur_y, button_width, button_height);
-		cur_y += button_height + element_padding;
-	}
+
+	invert_button.set_rect(x, cur_y, button_width, button_height);
+	cur_y += button_height + element_padding;
 
 	box_xmin = x - element_padding;
 	box_xmax = x + button_width + element_padding;

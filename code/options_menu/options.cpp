@@ -38,6 +38,7 @@ bool options_state::init(
 
 	select.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
 	keybinds.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
+	mouse.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
 
 	return true;
 }
@@ -57,17 +58,17 @@ OPTIONS_RESULT options_state::input(SDL_Event& e)
 		switch(select.input(e))
 		{
 		case OPTIONS_SELECT_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
-		case OPTIONS_SELECT_RESULT::CLOSE: return OPTIONS_RESULT::CLOSE;
+		case OPTIONS_SELECT_RESULT::CLOSE: internal_refresh(); return OPTIONS_RESULT::CLOSE;
 		case OPTIONS_SELECT_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
-		case OPTIONS_SELECT_RESULT::OPEN_CONTROLS:
-			current_state = MENU_FACTORY::KEYBINDS;
-
-            // fix screen resize...
-            SDL_Event e2;
-            set_event_resize(e2);
-            keybinds.input(e2);
+		case OPTIONS_SELECT_RESULT::OPEN_MOUSE:
+			internal_refresh();
+			current_state = MENU_FACTORY::MOUSE;
 			return OPTIONS_RESULT::CONTINUE;
-		case OPTIONS_SELECT_RESULT::OPEN_VIDEO: return OPTIONS_RESULT::CLOSE;
+		case OPTIONS_SELECT_RESULT::OPEN_KEYBINDS:
+			internal_refresh();
+			current_state = MENU_FACTORY::KEYBINDS;
+			return OPTIONS_RESULT::CONTINUE;
+		case OPTIONS_SELECT_RESULT::OPEN_VIDEO: internal_refresh(); return OPTIONS_RESULT::CLOSE;
 		}
 		break;
 	case MENU_FACTORY::KEYBINDS:
@@ -75,13 +76,21 @@ OPTIONS_RESULT options_state::input(SDL_Event& e)
 		{
 		case OPTIONS_KEYBINDS_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_KEYBINDS_RESULT::CLOSE:
-            // fix screen resize...
-            SDL_Event e2;
-            set_event_resize(e2);
-            select.input(e2);
+			internal_refresh();
 			current_state = MENU_FACTORY::MENU_SELECT;
 			return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_KEYBINDS_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
+		}
+		break;
+	case MENU_FACTORY::MOUSE:
+		switch(mouse.input(e))
+		{
+		case OPTIONS_MOUSE_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
+		case OPTIONS_MOUSE_RESULT::CLOSE:
+			internal_refresh();
+			current_state = MENU_FACTORY::MENU_SELECT;
+			return OPTIONS_RESULT::CONTINUE;
+		case OPTIONS_MOUSE_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
 		}
 		break;
 	}
@@ -96,6 +105,7 @@ bool options_state::update(double delta_sec)
 	{
 	case MENU_FACTORY::MENU_SELECT: return select.update(delta_sec);
 	case MENU_FACTORY::KEYBINDS: return keybinds.update(delta_sec);
+	case MENU_FACTORY::MOUSE: return mouse.update(delta_sec);
 	}
 	ASSERT(false);
 	serrf("%s: unknown switch", __func__);
@@ -109,19 +119,27 @@ bool options_state::render()
 	{
 	case MENU_FACTORY::MENU_SELECT: return select.render();
 	case MENU_FACTORY::KEYBINDS: return keybinds.render();
+	case MENU_FACTORY::MOUSE: return mouse.render();
 	}
 	ASSERT(false);
 	serrf("%s: unknown switch", __func__);
 	return false;
 }
 
-void options_state::resize_view()
+void options_state::internal_refresh()
 {
-	switch(current_state)
-	{
-	case MENU_FACTORY::MENU_SELECT: select.resize_view(); return;
-	case MENU_FACTORY::KEYBINDS: keybinds.resize_view();
-	}
-	ASSERT(false);
-	slogf("%s: unknown switch", __func__);
+	// pretty lazy, but this happens infreqently
+	SDL_Event e;
+
+	set_event_hidden(e);
+
+	select.input(e);
+	keybinds.input(e);
+	mouse.input(e);
+
+	set_event_resize(e);
+
+	select.input(e);
+	keybinds.input(e);
+	mouse.input(e);
 }
