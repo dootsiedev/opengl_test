@@ -14,7 +14,7 @@ void options_keybinds_state::init(font_sprite_painter* font_painter_, GLuint vbo
 
 	font_painter = font_painter_;
 
-	footer_height = font_painter->state.font->get_point_size() + font_padding + element_padding * 2;
+	footer_height = font_painter->state.font->get_lineskip() + font_padding + element_padding * 2;
 
 	gl_options_interleave_vbo = vbo;
 	gl_options_vao_id = vao;
@@ -286,7 +286,7 @@ bool options_keybinds_state::draw_base()
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 
-	float button_height = font_painter->state.font->get_point_size() + font_padding;
+	float button_height = font_painter->state.font->get_lineskip() + font_padding;
 
 	// draw the backdrop bbox
 	{
@@ -307,7 +307,7 @@ bool options_keybinds_state::draw_base()
 	// the footer buttons
 	{
 		// for a 16px font I would want 60px
-		float button_width = 60 * (font_painter->state.font->get_point_size() / 16.f);
+		float button_width = 60 * (font_painter->state.font->get_lineskip() / 16.f);
 
 		float x_cursor = box_xmax;
 		x_cursor -= button_width + element_padding;
@@ -350,7 +350,7 @@ bool options_keybinds_state::draw_scroll()
 	float scroll_ymin = scroll_state.box_ymin;
 	float scroll_ymax = scroll_state.box_ymax;
 
-	float button_height = font_painter->state.font->get_point_size() + font_padding;
+	float button_height = font_painter->state.font->get_lineskip() + font_padding;
 
 	// set the buttons dimensions
 	{
@@ -364,7 +364,7 @@ bool options_keybinds_state::draw_scroll()
 		for(auto& entry : buttons)
 		{
 			entry.button.set_rect(
-				xmin + scroll_xmin,
+				xmin + scroll_xmin + font_padding / 2,
 				scroll_ymin + y - scroll_state.scroll_y,
 				xmax - xmin,
 				button_height);
@@ -504,7 +504,7 @@ void options_keybinds_state::resize_view()
 	float screen_height = static_cast<float>(cv_screen_height.data);
 
 	// for a 16px font I would want 400px
-	float max_width = 400 * (font_painter->state.font->get_point_size() / 16.f);
+	float max_width = 400 * (font_painter->state.font->get_lineskip() / 16.f);
 	float menu_width = std::min(screen_width - 60 * 2, max_width);
 
 	// NOTE: I could also try to make the height have a max size too.

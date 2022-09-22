@@ -1100,7 +1100,7 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 }
 
 void font_bitmap_cache::init(
-	font_manager_state* font_manager, font_ttf_rasterizer* rasterizer, float scale_)
+	font_manager_state* font_manager, font_ttf_rasterizer* rasterizer)
 {
 	ASSERT(font_manager != NULL);
 	ASSERT(rasterizer != NULL);
@@ -1110,21 +1110,6 @@ void font_bitmap_cache::init(
 	fallback = &font_manager->hex_font;
 
 	FT_Bitmap_Init(&convert_bitmap);
-	/*
-		FT_Face face = current_rasterizer->face;
-		const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
-		if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
-		{
-			int bitmap_height = FT_CEIL(face->size->metrics.height);
-			float bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
-			// combine the bitmap scale with the custom scale.
-			font_scale = scale_ * bitmap_scale;
-		}
-		else
-		*/
-	{
-		font_scale = scale_;
-	}
 }
 
 bool font_bitmap_cache::destroy()
@@ -1291,8 +1276,10 @@ float font_bitmap_cache::get_ascent()
 }
 float font_bitmap_cache::get_lineskip()
 {
-	FT_Face face = current_rasterizer->face;
 	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
+	return std::ceil(face_settings->point_size) * font_scale;
+    /*
+	FT_Face face = current_rasterizer->face;
 	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
 	{
 		return std::ceil(face_settings->point_size) * font_scale;
@@ -1301,6 +1288,7 @@ float font_bitmap_cache::get_lineskip()
 
 	// NOLINTNEXTLINE(bugprone-integer-division)
 	return FT_CEIL(FT_MulFix(face->height, scale)) * font_scale;
+    */
 }
 float font_bitmap_cache::get_bitmap_size()
 {

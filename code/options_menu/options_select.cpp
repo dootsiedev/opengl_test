@@ -166,8 +166,8 @@ bool options_select_state::render()
 void options_select_state::resize_view()
 {
 	// for a 16px font I would want 200px
-	float button_width = 200 * (font_painter->state.font->get_point_size() / 16.f);
-	float button_height = font_painter->state.font->get_point_size() + font_padding;
+	float button_width = 200 * (font_painter->state.font->get_lineskip() / 16.f);
+	float button_height = font_painter->state.font->get_lineskip() + font_padding;
 
 	float screen_width = static_cast<float>(cv_screen_width.data);
 	float screen_height = static_cast<float>(cv_screen_height.data);

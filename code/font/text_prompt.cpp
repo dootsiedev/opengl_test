@@ -7,6 +7,7 @@
 // TODO(dootsie): add in double click selection?
 // TODO(dootsie): add in size limited option (in bytes)
 // TODO(dootsie): the text is too close to the bbox, should add in a padding.
+// TODO(dootsie): add in a MODIFY result to have a way to check if the text was modified
 
 #define STB_TEXTEDIT_KEYTYPE SDL_Keycode
 #define STB_TEXTEDIT_STRING text_prompt_wrapper

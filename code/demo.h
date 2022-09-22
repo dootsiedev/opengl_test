@@ -21,6 +21,7 @@
 
 extern cvar_double cv_mouse_sensitivity;
 extern cvar_double cv_camera_speed;
+extern cvar_int cv_mouse_invert;
 
 // This is absolutely not the best way of doing this...
 struct bench_data

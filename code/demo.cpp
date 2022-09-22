@@ -119,8 +119,9 @@ static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, v
 }
 #endif
 
-REGISTER_CVAR_DOUBLE(cv_mouse_sensitivity, 0.4, "mouse move speed", CVAR_T::RUNTIME);
-REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed", CVAR_T::RUNTIME);
+REGISTER_CVAR_DOUBLE(cv_mouse_sensitivity, 0.4, "mouse move speed while in first person", CVAR_T::RUNTIME);
+REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed while in first person", CVAR_T::RUNTIME);
+REGISTER_CVAR_INT(cv_mouse_invert, 0, "invert while in first person, 0 = off, 1 = invert", CVAR_T::RUNTIME);
 
 static REGISTER_CVAR_STRING(
 	cv_string,
@@ -660,7 +661,8 @@ bool demo_state::init_gl_font()
 			return false;
 		}
 
-		font_style.init(&font_manager, &font_rasterizer, 1);
+		font_style.init(&font_manager, &font_rasterizer);
+        font_style.font_scale = 2;
 		// font_settings.point_size = 32;
 		current_font = &font_style;
 	}
@@ -757,9 +759,6 @@ bool demo_state::destroy()
 
 #ifdef __EMSCRIPTEN__
 
-	// just in case???
-	unfocus();
-
 	EMSCRIPTEN_RESULT em_ret = emscripten_set_mouseup_callback("#canvas", NULL, 0, NULL);
 	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
 	{
@@ -846,8 +845,9 @@ bool demo_state::input(SDL_Event& e)
 			// int x;
 			// int y;
 			// SDL_GetRelativeMouseState(&x, &y);
-			camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data);
-			camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data);
+            float inverse = (cv_mouse_invert.data == 1) ? -1 : 1;
+			camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data) * inverse;
+			camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data) * inverse;
 			camera_pitch = fmaxf(camera_pitch, -89.f);
 			camera_pitch = fminf(camera_pitch, 89.f);
 

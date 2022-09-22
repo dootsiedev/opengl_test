@@ -86,9 +86,6 @@ struct options_mouse_state
     int previous_invert_value = -1;
 
 	std::string mouse_sensitivity_text;
-    // I need the position because I am drawing raw text.
-    float mouse_sensitivty_text_x = -1;
-    float mouse_sensitivty_text_y = -1;
     text_prompt_wrapper mouse_sensitivity_prompt;
 	mono_normalized_slider_object mouse_sensitivity_slider;
     double previous_mouse_sensitivity_value = NAN;
@@ -120,14 +117,16 @@ struct options_mouse_state
 
 	NDSERR bool update(double delta_sec);
 
+    NDSERR bool draw_text();
+
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();
 
 	void resize_view();
 
-    void undo_history();
+    NDSERR bool undo_history();
     void clear_history();
-    void set_defaults();
+    NDSERR bool set_defaults();
     void close();
 
 };

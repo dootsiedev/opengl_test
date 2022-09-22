@@ -8,7 +8,7 @@
 
 bool mono_normalized_slider_object::input(SDL_Event& e)
 {
-    ASSERT(font_painter != NULL);
+	ASSERT(font_painter != NULL);
 
 	switch(e.type)
 	{
@@ -25,115 +25,111 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 		}
 	}
 
-    switch(e.type)
-    {
-    // I don't want a scroll because if the silder is inside a scrollable area
-    // I accidentally modify the silder when I just want to scroll (which is stupid)
-    /*case SDL_MOUSEWHEEL: {
-        // only scroll when the mouse is currently hovering over the bounding box
-        int x;
-        int y;
-        SDL_GetMouseState(&x, &y);
-        float mouse_x = static_cast<float>(x);
-        float mouse_y = static_cast<float>(y);
+	switch(e.type)
+	{
+	// I don't want a scroll because if the silder is inside a scrollable area (its not)
+	// I accidentally modify the silder when I just want to scroll (which is stupid)
+	// case SDL_MOUSEWHEEL:
+	case SDL_MOUSEMOTION: {
+		float mouse_x = static_cast<float>(e.motion.x);
+		float mouse_y = static_cast<float>(e.motion.y);
+		if(slider_held)
+		{
+			internal_move_to(mouse_x);
+			// VALUE HAS CHANGED
+			return true;
+		}
+		// helps unfocus other elements.
+		if(internal_slider_inside(mouse_x, mouse_y))
+		{
+			// eat
+			set_event_leave(e);
+			return false;
+		}
+	}
+	break;
+	case SDL_MOUSEBUTTONUP:
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		{
+			float mouse_x = static_cast<float>(e.button.x);
+			// float mouse_y = static_cast<float>(e.button.y);
+			if(slider_held)
+			{
+				internal_move_to(mouse_x);
+				unfocus();
+				// eat
+				set_event_unfocus(e);
+				// VALUE HAS CHANGED
+				return true;
+			}
+		}
+		break;
+	case SDL_MOUSEBUTTONDOWN:
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		{
+			float mouse_x = static_cast<float>(e.button.x);
+			float mouse_y = static_cast<float>(e.button.y);
 
-        if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
-            box_xmin <= mouse_x)
-        {
-            scroll_y -= static_cast<float>(e.wheel.y * cv_scroll_speed.data) *
-                        font_painter->state.font->get_lineskip();
-            // clamp
-            scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
-        }
-    }
-    break;
-    */
-    case SDL_MOUSEMOTION: {
-        float mouse_x = static_cast<float>(e.motion.x);
-        float mouse_y = static_cast<float>(e.motion.y);
-        if(slider_held)
-        {
-            internal_move_to(mouse_x);
-            return true;
-        }
-        // helps unfocus other elements.
-        if(internal_slider_inside(mouse_x, mouse_y))
-        {
-            // eat
-            set_event_leave(e);
-            return true;
-        }
-    }
-    break;
-    case SDL_MOUSEBUTTONUP:
-        if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
-        {
-            float mouse_x = static_cast<float>(e.button.x);
-            //float mouse_y = static_cast<float>(e.button.y);
-            if(slider_held)
-            {
-                internal_move_to(mouse_x);
-                unfocus();
-                // eat
-                set_event_unfocus(e);
-                return true;
-            }
-        }
-        break;
-    case SDL_MOUSEBUTTONDOWN:
-        if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
-        {
-            float mouse_x = static_cast<float>(e.button.x);
-            float mouse_y = static_cast<float>(e.button.y);
-
-            if(internal_slider_inside(mouse_x, mouse_y))
-            {
-                slider_held = true;
-                // eat
-                set_event_unfocus(e);
-			    return false;
-            }
-            unfocus();
-        }
-        break;
-    }
+			if(internal_slider_inside(mouse_x, mouse_y))
+			{
+				slider_held = true;
+				// eat
+				set_event_unfocus(e);
+				return false;
+			}
+			// snap the slider to the location clicked.
+			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
+			   box_xmin <= mouse_x)
+			{
+				slider_thumb_click_offset = box_xmin + slider_thumb_size / 2;
+				internal_move_to(mouse_x);
+				slider_held = true;
+				// eat
+				set_event_unfocus(e);
+				// VALUE HAS CHANGED
+				return true;
+			}
+			unfocus();
+		}
+		break;
+	}
 	return false;
 }
 
 void mono_normalized_slider_object::draw_buffer()
 {
-    ASSERT(font_painter != NULL);
+	ASSERT(font_painter != NULL);
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 
-    // draw the scrollbar bbox
-    {
-        float xmin = box_xmin;
-        float xmax = box_xmax;
-        float ymin = box_ymin;
-        float ymax = box_ymax;
+	// draw the scrollbar bbox
+	{
+		float xmin = box_xmin;
+		float xmax = box_xmax;
+		float ymin = box_ymin;
+		float ymax = box_ymax;
 
-        batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
-        batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
-        batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
-        batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
-    }
-    // draw the scrollbar thumb
-    {
-        float thumb_offset = static_cast<float>(slider_value) * ((box_xmax - box_xmin) - slider_thumb_size);
+		batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+	}
+	// draw the scrollbar thumb
+	{
+		float thumb_offset =
+			static_cast<float>(slider_value) * ((box_xmax - box_xmin) - slider_thumb_size);
 
-        float xmin = box_xmin + thumb_offset;
-        float xmax = box_xmin + thumb_offset + slider_thumb_size;
-        float ymin = box_ymin;
-        float ymax = box_ymax;
+		float xmin = box_xmin + thumb_offset;
+		float xmax = box_xmin + thumb_offset + slider_thumb_size;
+		float ymin = box_ymin;
+		float ymax = box_ymax;
 
-        batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
-        batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
-        batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
-        batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
-        batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
-    }
-	
+		batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
+		batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+	}
 }
 void mono_normalized_slider_object::unfocus()
 {
@@ -149,11 +145,12 @@ void mono_normalized_slider_object::resize_view(float xmin, float xmax, float ym
 }
 bool mono_normalized_slider_object::internal_slider_inside(float mouse_x, float mouse_y)
 {
-    float thumb_offset = static_cast<float>(slider_value) * ((box_xmax - box_xmin) - slider_thumb_size);
-    float xmin = box_xmin + thumb_offset;
-    float xmax = box_xmin + thumb_offset + slider_thumb_size;
-    float ymin = box_ymin;
-    float ymax = box_ymax;
+	float thumb_offset =
+		static_cast<float>(slider_value) * ((box_xmax - box_xmin) - slider_thumb_size);
+	float xmin = box_xmin + thumb_offset;
+	float xmax = box_xmin + thumb_offset + slider_thumb_size;
+	float ymin = box_ymin;
+	float ymax = box_ymax;
 
 	if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 	{
@@ -165,8 +162,9 @@ bool mono_normalized_slider_object::internal_slider_inside(float mouse_x, float 
 }
 void mono_normalized_slider_object::internal_move_to(float mouse_x)
 {
-    // NOTE: I am not sure if float -> double is bad, I know it is, but how bad is it?
-    slider_value = (mouse_x - slider_thumb_click_offset) / ((box_xmax - box_xmin) - slider_thumb_size);
+	// NOTE: I am not sure if float -> double is bad, I know it is, but how bad is it?
+	slider_value =
+		(mouse_x - slider_thumb_click_offset) / ((box_xmax - box_xmin) - slider_thumb_size);
 
 	// clamp
 	slider_value = std::max(0.0, std::min(1.0, slider_value));
@@ -182,7 +180,7 @@ bool options_mouse_state::init(font_sprite_painter* font_painter_, GLuint vbo, G
 
 	invert_text = "invert mouse";
 	invert_button.init(font_painter);
-	invert_button.text = "off";
+	invert_button.text = cv_mouse_invert.data == 1 ? "on" : "off";
 
 	mouse_sensitivity_text = "mouse speed";
 	mouse_sensitivity_slider.init(font_painter, cv_mouse_sensitivity.data);
@@ -209,7 +207,7 @@ bool options_mouse_state::init(font_sprite_painter* font_painter_, GLuint vbo, G
 
 	resize_view();
 
-    return true;
+	return true;
 }
 
 OPTIONS_MOUSE_RESULT options_mouse_state::input(SDL_Event& e)
@@ -227,21 +225,66 @@ OPTIONS_MOUSE_RESULT options_mouse_state::input(SDL_Event& e)
 	{
 	case BUTTON_RESULT::CONTINUE: break;
 	case BUTTON_RESULT::TRIGGER:
-		// trigger will eat
-		slog("click!\n");
+		if(previous_invert_value == -1)
+		{
+			previous_invert_value = cv_mouse_invert.data;
+			revert_button.disabled = false;
+		}
+		cv_mouse_invert.data = (cv_mouse_invert.data == 1) ? 0 : 1;
+		invert_button.text = cv_mouse_invert.data == 1 ? "on" : "off";
 		break;
 	case BUTTON_RESULT::ERROR: return OPTIONS_MOUSE_RESULT::ERROR;
 	}
 
-	if(mouse_sensitivity_slider.input(e))
+	// mouse speed
 	{
-		mouse_sensitivity_prompt.replace_string(
-			std::to_string(mouse_sensitivity_slider.slider_value));
-	}
-	switch(mouse_sensitivity_prompt.input(e))
-	{
-	case TEXT_PROMPT_RESULT::CONTINUE: break;
-	case TEXT_PROMPT_RESULT::ERROR: return OPTIONS_MOUSE_RESULT::ERROR;
+		double prev_value = mouse_sensitivity_slider.slider_value;
+		if(mouse_sensitivity_slider.input(e))
+		{
+			if(isnan(previous_mouse_sensitivity_value))
+			{
+				previous_mouse_sensitivity_value = prev_value;
+				revert_button.disabled = false;
+			}
+			// TODO: convert range
+			cv_mouse_sensitivity.data = mouse_sensitivity_slider.slider_value;
+			mouse_sensitivity_prompt.replace_string(
+				std::to_string(mouse_sensitivity_slider.slider_value));
+		}
+		switch(mouse_sensitivity_prompt.input(e))
+		{
+		case TEXT_PROMPT_RESULT::CONTINUE: break;
+		case TEXT_PROMPT_RESULT::ERROR: return OPTIONS_MOUSE_RESULT::ERROR;
+		}
+		if(mouse_sensitivity_prompt.text_focus)
+		{
+			if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN)
+			{
+				std::istringstream iss(mouse_sensitivity_prompt.get_string());
+				double out;
+				if(!(iss >> out))
+				{
+					slog("info: failed to convert number.\n");
+					mouse_sensitivity_prompt.replace_string(
+						std::to_string(cv_mouse_sensitivity.data));
+				}
+				else
+				{
+					if(isnan(previous_mouse_sensitivity_value))
+					{
+						previous_mouse_sensitivity_value = mouse_sensitivity_slider.slider_value;
+						revert_button.disabled = false;
+					}
+					// TODO: convert range (actually just fix the damn copy paste)
+					cv_mouse_sensitivity.data = out;
+					mouse_sensitivity_slider.slider_value = out;
+					mouse_sensitivity_prompt.replace_string(std::to_string(out));
+				}
+				// eat
+				set_event_unfocus(e);
+				return OPTIONS_MOUSE_RESULT::CONTINUE;
+			}
+		}
 	}
 
 	// footer buttons
@@ -324,6 +367,33 @@ bool options_mouse_state::update(double delta_sec)
 	return true;
 }
 
+bool options_mouse_state::draw_text()
+{
+	float cur_x = box_xmin + element_padding;
+	float cur_y = box_ymin + element_padding;
+
+	float button_height = font_painter->state.font->get_lineskip() + font_padding;
+
+	// invert mouse
+	font_painter->set_xy(cur_x, cur_y);
+	if(!font_painter->draw_text(invert_text.c_str(), invert_text.size()))
+	{
+		return false;
+	}
+	cur_y += button_height + element_padding;
+
+	// mouse speed
+	font_painter->set_xy(cur_x, cur_y);
+	if(!font_painter->draw_text(mouse_sensitivity_text.c_str(), mouse_sensitivity_text.size()))
+	{
+		// NOLINTNEXTLINE(readability-simplify-boolean-expr)
+		return false;
+	}
+	cur_y += button_height + element_padding;
+
+	return true;
+}
+
 // this requires the atlas texture to be bound with 1 byte packing
 bool options_mouse_state::render()
 {
@@ -349,6 +419,25 @@ bool options_mouse_state::render()
 		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 	}
 
+	// draw the text.
+	{
+		font_painter->set_anchor(TEXT_ANCHOR::TOP_LEFT);
+		font_painter->begin();
+		font_painter->set_style(FONT_STYLE_OUTLINE);
+		font_painter->set_color(0, 0, 0, 255);
+		if(!draw_text())
+		{
+			return false;
+		}
+		font_painter->set_style(FONT_STYLE_NORMAL);
+		font_painter->set_color(255, 255, 255, 255);
+		if(!draw_text())
+		{
+			return false;
+		}
+		font_painter->end();
+	}
+
 	// draw buttons
 	if(!invert_button.draw_buffer())
 	{
@@ -357,28 +446,11 @@ bool options_mouse_state::render()
 
 	// mouse speed
 	{
-		font_painter->set_anchor(TEXT_ANCHOR::TOP_LEFT);
-		font_painter->begin();
-		font_painter->set_xy(mouse_sensitivty_text_x, mouse_sensitivty_text_y);
-		font_painter->set_style(FONT_STYLE_OUTLINE);
-		font_painter->set_color(0,0,0,255);
-		if(!font_painter->draw_text(mouse_sensitivity_text.c_str(), mouse_sensitivity_text.size()))
-		{
-			return false;
-		}
-		font_painter->set_xy(mouse_sensitivty_text_x, mouse_sensitivty_text_y);
-		font_painter->set_style(FONT_STYLE_NORMAL);
-		font_painter->set_color(255,255,255,255);
-		if(!font_painter->draw_text(mouse_sensitivity_text.c_str(), mouse_sensitivity_text.size()))
-		{
-			return false;
-		}
-		font_painter->end();
 		if(!mouse_sensitivity_prompt.draw())
-        {
-            return false;
-        }
-        mouse_sensitivity_slider.draw_buffer();
+		{
+			return false;
+		}
+		mouse_sensitivity_slider.draw_buffer();
 	}
 
 	// footer buttons
@@ -416,12 +488,11 @@ bool options_mouse_state::render()
 
 void options_mouse_state::resize_view()
 {
-	float footer_height =
-		font_painter->state.font->get_point_size() + font_padding + element_padding;
+	float footer_height = font_painter->state.font->get_lineskip() + font_padding + element_padding;
 
 	// for a 16px font I would want 400px
-	float menu_width = 400 * (font_painter->state.font->get_point_size() / 16.f);
-	float button_height = font_painter->state.font->get_point_size() + font_padding;
+	float menu_width = 400 * (font_painter->state.font->get_lineskip() / 16.f);
+	float button_height = font_painter->state.font->get_lineskip() + font_padding;
 
 	float screen_width = static_cast<float>(cv_screen_width.data);
 	float screen_height = static_cast<float>(cv_screen_height.data);
@@ -436,22 +507,23 @@ void options_mouse_state::resize_view()
 	// option objects
 	{
 		float cur_y = y;
-        // invert
+		// invert
 		{
-            invert_button.set_rect(x, cur_y, menu_width, button_height);
-		cur_y += button_height + element_padding;
-        }
+			float xmin = (menu_width + element_padding) / 2;
+			float xmax = menu_width;
+			invert_button.set_rect(x + xmin, cur_y, xmax - xmin, button_height);
+			cur_y += button_height + element_padding;
+		}
 
 		// mouse speed
 		{
 			float xmin = (menu_width + element_padding) / 2;
 			float xmax = menu_width;
-			float prompt_width = 60 * (font_painter->state.font->get_point_size() / 16.f);
-			mouse_sensitivty_text_y = cur_y + font_padding / 2;
-            mouse_sensitivty_text_x = x;
+			float prompt_width = 60 * (font_painter->state.font->get_lineskip() / 16.f);
 			mouse_sensitivity_prompt.set_bbox(
 				x + xmin - element_padding - prompt_width,
-				mouse_sensitivty_text_y,
+				cur_y + font_padding / 2,
+				// yuck
 				(x + xmin - element_padding) - (x + xmin - element_padding - prompt_width),
 				font_painter->state.font->get_lineskip());
 			mouse_sensitivity_slider.resize_view(x + xmin, x + xmax, cur_y, cur_y + button_height);
@@ -462,7 +534,7 @@ void options_mouse_state::resize_view()
 	// footer buttons
 	{
 		// for a 16px font I would want 60px
-		float button_width = 60 * (font_painter->state.font->get_point_size() / 16.f);
+		float button_width = 60 * (font_painter->state.font->get_lineskip() / 16.f);
 
 		float x_cursor = x + menu_width;
 		x_cursor -= button_width + element_padding;
@@ -492,23 +564,62 @@ void options_mouse_state::resize_view()
 	box_ymax = y + button_area_height + element_padding;
 }
 
-void options_mouse_state::undo_history()
+bool options_mouse_state::undo_history()
 {
-	if(previous_mouse_sensitivity_value != HUGE_VAL)
+	if(previous_invert_value != -1)
 	{
-		// mouse_sensitivity_text = ...
+		cv_mouse_invert.data = previous_invert_value;
+		invert_button.text = cv_mouse_invert.data == 1 ? "on" : "off";
+	}
+	if(!isnan(previous_mouse_sensitivity_value))
+	{
+		cv_mouse_sensitivity.data = previous_mouse_sensitivity_value;
+		// TODO convert to range.
+		mouse_sensitivity_slider.slider_value = previous_mouse_sensitivity_value;
+		mouse_sensitivity_prompt.replace_string(std::to_string(cv_mouse_sensitivity.data));
 	}
 	clear_history();
+	return true;
 }
 
 void options_mouse_state::clear_history()
 {
 	previous_invert_value = -1;
-	previous_mouse_sensitivity_value = -1;
+	previous_mouse_sensitivity_value = NAN;
 	revert_button.disabled = true;
 }
 
-void options_mouse_state::set_defaults() {}
+bool options_mouse_state::set_defaults()
+{
+	// invert
+	if(previous_invert_value == -1)
+	{
+		previous_invert_value = cv_mouse_invert.data;
+	}
+	if(!cv_mouse_invert.cvar_read(cv_mouse_invert.cvar_default_value.c_str()))
+	{
+		return false;
+	}
+	invert_button.text = cv_mouse_invert.data == 1 ? "on" : "off";
+
+	// mouse speed
+	if(isnan(previous_mouse_sensitivity_value))
+	{
+		previous_mouse_sensitivity_value = mouse_sensitivity_slider.slider_value;
+	}
+	if(!cv_mouse_sensitivity.cvar_read(cv_mouse_sensitivity.cvar_default_value.c_str()))
+	{
+		return false;
+	}
+	// TODO convert to range.
+	mouse_sensitivity_slider.slider_value = cv_mouse_sensitivity.data;
+	mouse_sensitivity_prompt.replace_string(std::to_string(cv_mouse_sensitivity.data));
+
+	// allow revert
+	revert_button.disabled = false;
+
+	return true;
+}
 
 void options_mouse_state::close()
 {

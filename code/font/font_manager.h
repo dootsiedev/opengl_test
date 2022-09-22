@@ -483,7 +483,7 @@ struct font_bitmap_cache : public font_style_interface
     //warning, this will override 
     float font_scale = 1.f;
 
-	void init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer, float scale_ = 1.f);
+	void init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer);
 	NDSERR bool destroy();
 	~font_bitmap_cache() override;
 
