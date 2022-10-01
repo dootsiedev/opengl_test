@@ -30,6 +30,8 @@ void set_event_hidden(SDL_Event& e)
 
 BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 {
+	ASSERT(font_painter != NULL);
+    
 	switch(e.type)
 	{
 	case SDL_WINDOWEVENT:
@@ -41,9 +43,13 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			hover_over = false;
 			return BUTTON_RESULT::CONTINUE;
 		case SDL_WINDOWEVENT_HIDDEN:
-			// TODO: if a UI element dissapears, use this.
+			// if a UI element dissapears, use this.
 			clicked_on = false;
 			hover_over = false;
+            // note this is neccessary because
+            // I treat set_event_hidden as "close this menu in a state it can be reopened"
+            // which means any fade effects would appear when you reopen the menu
+            // because all update()'s would stop after the menu is closed.
 			fade = 0;
 			return BUTTON_RESULT::CONTINUE;
 
@@ -115,7 +121,9 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 			{
 				// slog("click\n");
-				// eat
+				// reset the fade  to .5 for an effect
+                fade = 0.5;
+                // eat
 				set_event_unfocus(e);
 				return BUTTON_RESULT::TRIGGER;
 			}
@@ -128,8 +136,14 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 }
 void mono_button_object::update(double delta_sec)
 {
-	// NOTE: I wouldn't need this if I used a setter for disabling the button...
-	hover_over = !disabled && hover_over;
+	ASSERT(font_painter != NULL);
+
+    if(display_click_frame)
+    {
+        update_buffer = true;
+    }
+
+	auto prev_fade = fade;
 
 	// add fade
 	fade += static_cast<float>(hover_over ? delta_sec : -delta_sec) * color_state.fade_speed;
@@ -137,31 +151,48 @@ void mono_button_object::update(double delta_sec)
 	// clamp
 	fade = std::min(fade, 1.f);
 	fade = std::max(fade, 0.f);
+
+	if(fade != prev_fade)
+	{
+		update_buffer = true;
+	}
 }
-bool mono_button_object::draw_buffer()
+bool mono_button_object::draw_buffer(const char* button_text, size_t button_text_len)
 {
+	ASSERT(font_painter != NULL);
+
+    update_buffer = false;
+
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 
-	// normalize the colors 0-1
-	float hot_fill[4] = {
-		static_cast<float>(color_state.hot_fill_color[0]) / 255.f,
-		static_cast<float>(color_state.hot_fill_color[1]) / 255.f,
-		static_cast<float>(color_state.hot_fill_color[2]) / 255.f,
-		static_cast<float>(color_state.hot_fill_color[3]) / 255.f};
-	float idle_fill[4] = {
-		static_cast<float>(color_state.idle_fill_color[0]) / 255.f,
-		static_cast<float>(color_state.idle_fill_color[1]) / 255.f,
-		static_cast<float>(color_state.idle_fill_color[2]) / 255.f,
-		static_cast<float>(color_state.idle_fill_color[3]) / 255.f};
+	std::array<uint8_t, 4> fill_color;
 
-	// blend the colors.
-	std::array<uint8_t, 4> fill_color = {
-		static_cast<uint8_t>((hot_fill[0] * fade + idle_fill[0] * (1.f - fade)) * 255.f),
-		static_cast<uint8_t>((hot_fill[1] * fade + idle_fill[1] * (1.f - fade)) * 255.f),
-		static_cast<uint8_t>((hot_fill[2] * fade + idle_fill[2] * (1.f - fade)) * 255.f),
-		static_cast<uint8_t>((hot_fill[3] * fade + idle_fill[3] * (1.f - fade)) * 255.f),
-	};
+	if(display_click_frame)
+	{
+		fill_color = color_state.click_pop_fill_color;
+		display_click_frame = false;
+	}
+	else
+	{
+		// normalize the colors 0-1
+		float hot_fill[4] = {
+			static_cast<float>(color_state.hot_fill_color[0]) / 255.f,
+			static_cast<float>(color_state.hot_fill_color[1]) / 255.f,
+			static_cast<float>(color_state.hot_fill_color[2]) / 255.f,
+			static_cast<float>(color_state.hot_fill_color[3]) / 255.f};
+		float idle_fill[4] = {
+			static_cast<float>(color_state.idle_fill_color[0]) / 255.f,
+			static_cast<float>(color_state.idle_fill_color[1]) / 255.f,
+			static_cast<float>(color_state.idle_fill_color[2]) / 255.f,
+			static_cast<float>(color_state.idle_fill_color[3]) / 255.f};
+	    // blend the colors.
+		fill_color = {
+			static_cast<uint8_t>((hot_fill[0] * fade + idle_fill[0] * (1.f - fade)) * 255.f),
+			static_cast<uint8_t>((hot_fill[1] * fade + idle_fill[1] * (1.f - fade)) * 255.f),
+			static_cast<uint8_t>((hot_fill[2] * fade + idle_fill[2] * (1.f - fade)) * 255.f),
+			static_cast<uint8_t>((hot_fill[3] * fade + idle_fill[3] * (1.f - fade)) * 255.f)};
+	}
 
 	// backdrop
 	{
@@ -183,7 +214,7 @@ bool mono_button_object::draw_buffer()
 	// font
 	font_painter->begin();
 
-	if(color_state.show_outline)
+	if(color_state.text_outline)
 	{
 		// outline
 		font_painter->set_style(FONT_STYLE_OUTLINE);
@@ -191,7 +222,7 @@ bool mono_button_object::draw_buffer()
 		font_painter->set_anchor(TEXT_ANCHOR::CENTER_PERFECT);
 		font_painter->set_xy(
 			button_rect[0] + (button_rect[2] / 2.f), button_rect[1] + (button_rect[3] / 2.f));
-		if(!font_painter->draw_text(text.c_str(), text.size()))
+		if(!font_painter->draw_text(button_text, button_text_len))
 		{
 			return false;
 		}
@@ -201,7 +232,7 @@ bool mono_button_object::draw_buffer()
 	font_painter->set_color(disabled ? color_state.disabled_text_color : color_state.text_color);
 	font_painter->set_xy(
 		button_rect[0] + (button_rect[2] / 2.f), button_rect[1] + (button_rect[3] / 2.f));
-	if(!font_painter->draw_text(text.c_str(), text.size()))
+	if(!font_painter->draw_text(button_text, button_text_len))
 	{
 		return false;
 	}
@@ -267,7 +298,7 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 			   box_xmin <= mouse_x)
 			{
 				scroll_y -= static_cast<float>(e.wheel.y * cv_scroll_speed.data) *
-							font_painter->state.font->get_lineskip();
+							font_painter->get_lineskip();
 				// clamp
 				scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
 			}
@@ -412,6 +443,180 @@ void mono_y_scrollable_area::internal_scroll_y_to(float mouse_y)
 	// clamp
 	scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
 }
+
+
+bool mono_normalized_slider_object::input(SDL_Event& e)
+{
+	ASSERT(font_painter != NULL);
+
+	switch(e.type)
+	{
+	case SDL_WINDOWEVENT:
+		switch(e.window.event)
+		{
+			// release scrollbar focus.
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+		case SDL_WINDOWEVENT_HIDDEN:
+			unfocus();
+			return false;
+			// leave is only used for releasing "hover focus"
+			// case SDL_WINDOWEVENT_LEAVE:
+		}
+	}
+
+	switch(e.type)
+	{
+	// I don't want a scroll because if the silder is inside a scrollable area (its not)
+	// I accidentally modify the silder when I just want to scroll (which is stupid)
+	// case SDL_MOUSEWHEEL:
+	case SDL_MOUSEMOTION: {
+		float mouse_x = static_cast<float>(e.motion.x);
+		float mouse_y = static_cast<float>(e.motion.y);
+        // TODO: one of the problems is that if I hover over a button that has a higher priority
+        // it will eat the motion event (slider wont move), but I actually want the slider to keep on sliding...
+        // it's fine, but it means you should sort your elements so all sliders are above all buttons.
+		if(slider_held)
+		{
+			internal_move_to(mouse_x);
+			// VALUE HAS CHANGED
+			return true;
+		}
+		// helps unfocus other elements.
+		if(internal_slider_inside(mouse_x, mouse_y))
+		{
+			// eat
+			set_event_leave(e);
+			return false;
+		}
+	}
+	break;
+	case SDL_MOUSEBUTTONUP:
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		{
+			float mouse_x = static_cast<float>(e.button.x);
+			// float mouse_y = static_cast<float>(e.button.y);
+			if(slider_held)
+			{
+				internal_move_to(mouse_x);
+				unfocus();
+				// eat
+				set_event_unfocus(e);
+				// VALUE HAS CHANGED
+				return true;
+			}
+		}
+		break;
+	case SDL_MOUSEBUTTONDOWN:
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		{
+			float mouse_x = static_cast<float>(e.button.x);
+			float mouse_y = static_cast<float>(e.button.y);
+
+			if(internal_slider_inside(mouse_x, mouse_y))
+			{
+				slider_held = true;
+				// eat
+				set_event_unfocus(e);
+				return false;
+			}
+			// snap the slider to the location clicked.
+			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
+			   box_xmin <= mouse_x)
+			{
+				slider_thumb_click_offset = box_xmin + slider_thumb_size / 2;
+				internal_move_to(mouse_x);
+				slider_held = true;
+				// eat
+				set_event_unfocus(e);
+				// VALUE HAS CHANGED
+				return true;
+			}
+			unfocus();
+		}
+		break;
+	}
+	return false;
+}
+
+void mono_normalized_slider_object::draw_buffer()
+{
+	ASSERT(font_painter != NULL);
+
+    update_buffer = false;
+
+	mono_2d_batcher* batcher = font_painter->state.batcher;
+	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
+
+	// draw the scrollbar bbox
+	{
+		float xmin = box_xmin;
+		float xmax = box_xmax;
+		float ymin = box_ymin;
+		float ymax = box_ymax;
+
+		batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+	}
+	// draw the scrollbar thumb
+	{
+		float thumb_offset =
+			static_cast<float>(get_slider_normalized()) * ((box_xmax - box_xmin) - slider_thumb_size);
+
+		float xmin = box_xmin + thumb_offset;
+		float xmax = box_xmin + thumb_offset + slider_thumb_size;
+		float ymin = box_ymin;
+		float ymax = box_ymax;
+
+		batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
+		batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+	}
+}
+void mono_normalized_slider_object::unfocus()
+{
+	slider_held = false;
+	slider_thumb_click_offset = -1;
+}
+void mono_normalized_slider_object::resize_view(float xmin, float xmax, float ymin, float ymax)
+{
+	box_xmin = xmin;
+	box_xmax = xmax;
+	box_ymin = ymin;
+	box_ymax = ymax;
+}
+bool mono_normalized_slider_object::internal_slider_inside(float mouse_x, float mouse_y)
+{
+	float thumb_offset =
+		static_cast<float>(get_slider_normalized()) * ((box_xmax - box_xmin) - slider_thumb_size);
+	float xmin = box_xmin + thumb_offset;
+	float xmax = box_xmin + thumb_offset + slider_thumb_size;
+	float ymin = box_ymin;
+	float ymax = box_ymax;
+
+	if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+	{
+		slider_thumb_click_offset = mouse_x - thumb_offset;
+		return true;
+	}
+
+	return false;
+}
+void mono_normalized_slider_object::internal_move_to(float mouse_x)
+{
+	// NOTE: I am not sure if float -> double is bad, I know it is, but how bad is it?
+	slider_value =
+		(mouse_x - slider_thumb_click_offset) / ((box_xmax - box_xmin) - slider_thumb_size);
+
+	// clamp
+	slider_value = std::max(slider_min, std::min(slider_max, slider_value));
+
+    update_buffer = true;
+}
+
 
 //
 // prompt

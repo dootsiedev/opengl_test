@@ -662,7 +662,7 @@ bool demo_state::init_gl_font()
 		}
 
 		font_style.init(&font_manager, &font_rasterizer);
-        font_style.font_scale = 2;
+        //font_style.font_scale = 2;
 		// font_settings.point_size = 32;
 		current_font = &font_style;
 	}
@@ -702,6 +702,7 @@ bool demo_state::init_gl_font()
 	font_batcher.init(font_batcher_buffer.get(), max_quads);
 
 	font_painter.init(&font_batcher, current_font);
+    //font_painter.state.font_scale = 2;
 
 	if(!g_console.init(current_font, &font_batcher, mono_shader))
 	{
@@ -970,7 +971,7 @@ bool demo_state::input(SDL_Event& e)
 		option_menu.input(e2);
 	}
 
-	// movement.
+	// movement. note that you can't bind these to mouse buttons because they get eaten.
 	keybind_compare_type ret;
 	ret = cv_bind_move_forward.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
 	if(ret != KEYBIND_NULL)
@@ -1002,7 +1003,7 @@ bool demo_state::update(double delta_sec)
 	// this will not actually draw, this will just modify the atlas and buffer data.
 	if(show_console)
 	{
-		if(!g_console.update())
+		if(!g_console.update(delta_sec))
 		{
 			return false;
 		}

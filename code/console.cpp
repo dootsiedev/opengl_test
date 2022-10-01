@@ -75,6 +75,10 @@ bool console_state::init(
 	{
 		return false;
 	}
+    if(!log_box.set_scale(2))
+    {
+        return false;
+    }
 	// set the color table so we can print errors with a different color
 	log_box.color_table = log_color_table.data();
 	log_box.color_table_size = log_color_table.size();
@@ -285,7 +289,7 @@ void console_state::resize_text_area()
 		60,
 		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_font->get_lineskip() + 1);
+		console_font->get_lineskip(1) + 1);
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
 	// but if it's too big it could potentially block UI elements in an annoying way
@@ -293,7 +297,7 @@ void console_state::resize_text_area()
 		60,
 		prompt_cmd.box_ymax + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_font->get_lineskip() * 10);
+		console_font->get_lineskip(1) * 10);
 }
 
 CONSOLE_RESULT console_state::input(SDL_Event& e)
@@ -318,16 +322,16 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				{
 					return CONSOLE_RESULT::ERROR;
 				}
-                // eat
-                set_event_unfocus(e);
-                return CONSOLE_RESULT::CONTINUE;
+				// eat
+				set_event_unfocus(e);
+				return CONSOLE_RESULT::CONTINUE;
 			case SDLK_ESCAPE:
 				// this may be annoying since maybe you expected escape to unfocus.
 				// but you can still just undo.
 				prompt_cmd.replace_string(std::string_view(), false);
-                // eat
-                set_event_unfocus(e);
-                return CONSOLE_RESULT::CONTINUE;
+				// eat
+				set_event_unfocus(e);
+				return CONSOLE_RESULT::CONTINUE;
 			case SDLK_UP:
 				if((e.key.keysym.mod & KMOD_SHIFT) != 0)
 				{
@@ -345,9 +349,9 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 					history_index++;
 					prompt_cmd.replace_string(command_history.at(history_index));
 				}
-                // eat
-                set_event_unfocus(e);
-                return CONSOLE_RESULT::CONTINUE;
+				// eat
+				set_event_unfocus(e);
+				return CONSOLE_RESULT::CONTINUE;
 
 			case SDLK_DOWN:
 				if((e.key.keysym.mod & KMOD_SHIFT) != 0)
@@ -370,9 +374,9 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 					history_index--;
 					prompt_cmd.replace_string(command_history.at(history_index));
 				}
-                // eat
-                set_event_unfocus(e);
-                return CONSOLE_RESULT::CONTINUE;
+				// eat
+				set_event_unfocus(e);
+				return CONSOLE_RESULT::CONTINUE;
 			}
 			break;
 		}
@@ -380,25 +384,31 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 
 	switch(log_box.input(e))
 	{
-	case TEXT_PROMPT_RESULT::CONTINUE: break;
+	case TEXT_PROMPT_RESULT::CONTINUE:
+	case TEXT_PROMPT_RESULT::MODIFIED:
+	case TEXT_PROMPT_RESULT::UNFOCUS: break;
 	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 	}
 
-		switch(prompt_cmd.input(e))
+	switch(prompt_cmd.input(e))
+	{
+	case TEXT_PROMPT_RESULT::CONTINUE:
+	case TEXT_PROMPT_RESULT::MODIFIED:
+	case TEXT_PROMPT_RESULT::UNFOCUS: break;
+	case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
+	}
+	// Only parse input when there is actual content.
+	// possible because this is read only.
+	if(!error_text.text_data.empty())
+	{
+		switch(error_text.input(e))
 		{
-		case TEXT_PROMPT_RESULT::CONTINUE: break;
+		case TEXT_PROMPT_RESULT::CONTINUE:
+		case TEXT_PROMPT_RESULT::MODIFIED:
+		case TEXT_PROMPT_RESULT::UNFOCUS: break;
 		case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 		}
-		// Only parse input when there is actual content.
-		// possible because this is read only.
-		if(!error_text.text_data.empty())
-		{
-			switch(error_text.input(e))
-			{
-			case TEXT_PROMPT_RESULT::CONTINUE: break;
-			case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
-			}
-		}
+	}
 
 	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
@@ -464,7 +474,7 @@ bool console_state::parse_input()
 	return true;
 }
 
-bool console_state::update()
+bool console_state::update(double delta_sec)
 {
 	log_message message_buffer[100];
 	size_t message_count = 0;
@@ -576,6 +586,9 @@ bool console_state::update()
 			log_box.set_readonly(true);
 		}
 	}
+	log_box.update(delta_sec);
+	prompt_cmd.update(delta_sec);
+	error_text.update(delta_sec);
 
 	return true;
 }

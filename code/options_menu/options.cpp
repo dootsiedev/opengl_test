@@ -134,6 +134,7 @@ void options_state::internal_refresh()
 	select.input(e);
 	keybinds.input(e);
 	mouse.input(e);
+    
 
 	set_event_resize(e);
 

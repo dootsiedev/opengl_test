@@ -386,6 +386,8 @@ add_executable(${PROJECT_NAME}
 
     code/options_menu/options.h
     code/options_menu/options.cpp
+    code/options_menu/options_cvar_template.h
+    code/options_menu/options_cvar_template.cpp
     code/options_menu/options_select.h
     code/options_menu/options_select.cpp
     code/options_menu/options_keybinds.h

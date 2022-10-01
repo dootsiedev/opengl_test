@@ -14,6 +14,14 @@
 enum class TEXT_PROMPT_RESULT
 {
 	CONTINUE,
+	// the text has been modified.
+	// this will probably not activate when you use replace_string() or clear_string()
+	MODIFIED,
+	// UNFOCUS is used for when you have a single line prompt for a number,
+	// and you want to convert the string to a number when you unfocus
+	// (and usually I would also make pressing return or escape do the same).
+	// If you want to check if the prompt is IN focus, just use text_focus.
+	UNFOCUS,
 	ERROR
 };
 typedef uint16_t TEXTP_FLAG;
@@ -21,12 +29,12 @@ enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 {
 	TEXTP_NONE = 0,
 	// word wrap based on the box width.
-	// don't mix with single_line or y_scrollable
-	// if this is disabled, wrapping could still happen.
+	// don't mix with TEXTP_SINGLE_LINE or TEXTP_X_SCROLL
+	// letter based wrapping will be used if this is disabled.
 	TEXTP_WORD_WRAP = (1 << 1),
-	// don't mix with single_line
+	// don't mix with TEXTP_SINGLE_LINE
 	TEXTP_Y_SCROLL = (1 << 2),
-	// don't mix with word_wrap
+	// don't mix with TEXTP_WORD_WRAP
 	TEXTP_X_SCROLL = (1 << 3),
 	TEXTP_READ_ONLY = (1 << 4),
 	// don't mix with TEXTP_Y_SCROLL or TEXTP_WORD_WRAP
@@ -38,8 +46,8 @@ enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 	// without it the scrollbar thumb will still draw (if you have one)
 	TEXTP_DRAW_BBOX = (1 << 6),
 	// this will make all the text render
-	// this will disable line wrapping if TEXTP_WORD_WRAP is false
-	// if the text is outside the box, the mouse events wont work.
+	// this will disable naive line wrapping if TEXTP_WORD_WRAP is false
+	// if the text is outside the box, but mouse intraction wont work out of bounds.
 	TEXTP_DISABLE_CULL = (1 << 7),
 	// fill the back of each letter of text with a backdrop
 	// if you want a full backdrop, just draw it yourself.
@@ -49,10 +57,10 @@ enum TEXT_PROMPT_FLAGS : TEXTP_FLAG
 struct text_prompt_wrapper
 {
 	// this is a very poor structure for a text editor
-	// 
+	//
 
-	// this is a tad bit large, really should modify the undo/redo system 
-    // to use dynamic allocation.
+	// this is a tad bit large, really should modify the undo/redo system
+	// to use dynamic allocation.
 	STB_TexteditState stb_state;
 
 	struct prompt_char
@@ -62,10 +70,10 @@ struct text_prompt_wrapper
 		// it's harder to limit the prompt text to a utf8 length...
 		char32_t codepoint;
 		float advance;
-        // index 0 uses text_color
-        // index 1 uses index 0 of the optional color_table
-        uint8_t color_index;
-        font_style_type style;
+		// index 0 uses text_color
+		// index 1 uses index 0 of the optional color_table
+		uint8_t color_index;
+		font_style_type style;
 	};
 
 	std::deque<prompt_char> text_data;
@@ -121,20 +129,20 @@ struct text_prompt_wrapper
 	// this is padding to help show the cursor at the right side of the screen
 	float horizontal_padding = 30;
 
-    struct color_pair
-    {
-        // foreground color (the text)
-        std::array<uint8_t, 4> fore;
-        // background color (backdrop, if available)
-        std::array<uint8_t, 4> back;
-    };
+	struct color_pair
+	{
+		// foreground color (the text)
+		std::array<uint8_t, 4> fore;
+		// background color (backdrop, if available)
+		std::array<uint8_t, 4> back;
+	};
 
-    // index 0 always uses text_color+backdrop_color
-    // index 1-255 uses this array (which means the max size is 256-1)
-    // this is more of a hack than anything actually usable.
-    // probably should use some sort of parser like how quake 3 does it.
-    color_pair *color_table = NULL;
-    size_t color_table_size = 0;
+	// index 0 always uses text_color+backdrop_color
+	// index 1-255 uses this array (which means the max size is 256-1)
+	// this is more of a hack than anything actually usable.
+	// probably should use some sort of parser like how quake 3 does it.
+	color_pair* color_table = NULL;
+	size_t color_table_size = 0;
 
 	std::array<uint8_t, 4> text_color{0, 0, 0, 255};
 	std::array<uint8_t, 4> select_text_color{255, 255, 255, 255};
@@ -146,8 +154,8 @@ struct text_prompt_wrapper
 	// also used for the backdrop of the IME text.
 	std::array<uint8_t, 4> backdrop_color = RGBA8_PREMULT(255, 255, 255, 200);
 
-    uint8_t current_color_index = 0;
-    font_style_type current_style = FONT_STYLE_NORMAL;
+	uint8_t current_color_index = 0;
+	font_style_type current_style = FONT_STYLE_NORMAL;
 
 	// I could use the bitfield trick to compress the size of bools,
 	// but if I am only saving 4 bytes, it isn't worth it because it's ugly.
@@ -175,12 +183,14 @@ struct text_prompt_wrapper
 		font_style_interface* font_,
 		TEXTP_FLAG flags_);
 
-	// this will also check blink_timer and blink the cursor.
-	// NOTE: but blink_timer should be in a logic() function...
-	bool draw_requested();
+	// if you only want to update when needed, you can use this.
+	bool draw_requested() const
+	{
+		return update_buffer;
+	}
 
 	void replace_string(std::string_view contents, bool clear_history = true);
-    // this will ALWAYS clear history
+	// this will ALWAYS clear history
 	void clear_string();
 
 	// this is an expensive operation
@@ -188,10 +198,26 @@ struct text_prompt_wrapper
 
 	TEXT_PROMPT_RESULT input(SDL_Event& e);
 
+	// the parameter is delta_sec, I don't use it, but maybe in the future I might???
+	void update(double);
+
 	// this draws into the batcher
 	// this requires the atlas texture to be bound with 1 byte packing
-    // you should check draw_requested() before binding 
+	// you should check draw_requested() before binding
 	NDSERR bool draw();
+
+    float get_lineskip() const
+    {
+        return state.font->get_lineskip(state.font_scale);
+    }
+
+    NDSERR bool set_scale(float font_scale);
+
+	void clear_selection()
+	{
+		stb_state.select_start = stb_state.cursor;
+		stb_state.select_end = stb_state.cursor;
+	}
 
 	void scroll_to_top()
 	{
@@ -334,7 +360,7 @@ struct text_prompt_wrapper
 		has_vertical =
 			(y_scrollable() &&
 			 scroll_h + (has_horizontal ? scrollbar_thickness : 0) > (box_ymax - box_ymin));
-             // TODO: horizontal_padding should be included in scroll_w
+		// TODO: horizontal_padding should be included in scroll_w
 		return scroll_w + (has_vertical ? scrollbar_thickness : 0) + horizontal_padding;
 	}
 	// scroll_h will not account for the padding for the scrollbar

@@ -24,6 +24,7 @@
 
 // TODO(dootsie): I need to make error messages more informational, like print the codepoint into
 // utf8.
+// TODO: I could add in a lineskip scale (also font_scale advance should really be floor/ceil'd...)
 
 #define FT_CEIL(X) ((((X) + 63) & -64) / 64)
 #define FT_FLOOR(X) (((X) & -64) / 64)
@@ -124,6 +125,23 @@ RAII_FT_Bitmap::~RAII_FT_Bitmap()
 	}
 }
 #endif
+
+static void convert_glyph_format(
+	font_style_interface* font, font_glyph_entry* in, font_style_result* out, float font_scale)
+{
+	float atlas_size = static_cast<float>(font->get_font_atlas()->atlas_size);
+	out->atlas_xmin = static_cast<float>(in->rect_x) / atlas_size;
+	out->atlas_ymin = static_cast<float>(in->rect_y) / atlas_size;
+	out->atlas_xmax = static_cast<float>(in->rect_x + in->rect_w) / atlas_size;
+	out->atlas_ymax = static_cast<float>(in->rect_y + in->rect_h) / atlas_size;
+
+	out->glyph_xmin = static_cast<float>(in->xmin) * font_scale;
+	out->glyph_ymin = font->get_ascent(font_scale) - (static_cast<float>(in->ymin) * font_scale);
+	out->glyph_xmax = out->glyph_xmin + static_cast<float>(in->rect_w) * font_scale;
+	out->glyph_ymax = out->glyph_ymin + (static_cast<float>(in->rect_h) * font_scale);
+	out->advance = static_cast<float>(in->advance) * font_scale;
+}
+
 bool font_manager_state::create()
 {
 	FT_Error error;
@@ -701,7 +719,8 @@ bool hex_font_data::destroy()
 }
 
 FONT_RESULT
-hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_entry* glyph)
+hex_font_data::get_glyph(
+	char32_t codepoint, font_style_type style, font_style_result* glyph, float font_scale)
 {
 	ASSERT(atlas != NULL);
 	ASSERT(glyph != NULL);
@@ -718,8 +737,19 @@ hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_e
 		return FONT_RESULT::NOT_FOUND;
 	}
 
-	// I probably should set the rect to 0,0,0,0 to avoid rendering, but I am too lazy.
-	// if(codepoint == ' ')
+    // there isn't any flag in hex that says this is a blank glyph.
+    // I could try to check if the glyph is just zeros, but too lazy.
+    // there might be more space characters, but only these really matter.
+	if(codepoint == ' ')
+	{
+		glyph->advance = HEX_HALF_WIDTH;
+		return FONT_RESULT::SPACE;
+	}
+	if(codepoint == 0x3000)
+	{
+		glyph->advance = HEX_FULL_WIDTH;
+		return FONT_RESULT::SPACE;
+	}
 
 	size_t block_index = codepoint / HEX_CHUNK_GLYPHS;
 	if(block_index >= hex_block_chunks.size())
@@ -747,7 +777,10 @@ hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_e
 
 	if(current.hex_init)
 	{
-		*glyph = (outline ? current.u.hex_glyph.outline : current.u.hex_glyph.normal);
+		//*glyph = (outline ? current.u.hex_glyph.outline : current.u.hex_glyph.normal);
+		font_glyph_entry* input =
+			(outline ? &current.u.hex_glyph.outline : &current.u.hex_glyph.normal);
+		convert_glyph_format(this, input, glyph, font_scale);
 		return FONT_RESULT::SUCCESS;
 	}
 
@@ -860,7 +893,7 @@ hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_e
 	}
 
 	current.u.hex_glyph.normal = font_glyph_entry(
-		FONT_ENTRY::HEXFONT,
+		FONT_ENTRY::GLYPH,
 		x_out,
 		y_out,
 		width,
@@ -871,7 +904,7 @@ hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_e
 	);
 
 	current.u.hex_glyph.outline = font_glyph_entry(
-		FONT_ENTRY::HEXFONT,
+		FONT_ENTRY::GLYPH,
 		outline_x_out,
 		outline_y_out,
 		width + 2,
@@ -881,13 +914,16 @@ hex_font_data::get_glyph(char32_t codepoint, font_style_type style, font_glyph_e
 		height + 1 // ymin //NOLINT(bugprone-narrowing-conversions)
 	);
 
-	*glyph = (outline ? current.u.hex_glyph.outline : current.u.hex_glyph.normal);
+	//*glyph = (outline ? current.u.hex_glyph.outline : current.u.hex_glyph.normal);
+	font_glyph_entry* input =
+		(outline ? &current.u.hex_glyph.outline : &current.u.hex_glyph.normal);
+	convert_glyph_format(this, input, glyph, font_scale);
 
 	current.hex_init = true;
 
 	return FONT_RESULT::SUCCESS;
 }
-FONT_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance)
+FONT_BASIC_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance, float font_scale)
 {
 	// this is 100% copy pasted from get_glyph
 	ASSERT(atlas);
@@ -895,12 +931,13 @@ FONT_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance)
 
 	if(!hex_font_file)
 	{
-		return FONT_RESULT::NOT_FOUND;
+		// TODO: make this an error
+		return FONT_BASIC_RESULT::NOT_FOUND;
 	}
 
 	if(hex_block_chunks.empty())
 	{
-		return FONT_RESULT::NOT_FOUND;
+		return FONT_BASIC_RESULT::NOT_FOUND;
 	}
 
 	// I probably should set the rect to 0,0,0,0 to avoid rendering, but I am too lazy.
@@ -910,7 +947,7 @@ FONT_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance)
 	if(block_index >= hex_block_chunks.size())
 	{
 		// serrf("%s codepoint out of bounds: U+%X\n", __func__, codepoint);
-		return FONT_RESULT::NOT_FOUND;
+		return FONT_BASIC_RESULT::NOT_FOUND;
 	}
 	hex_block_chunk* current_chunk = &hex_block_chunks[block_index];
 
@@ -924,7 +961,7 @@ FONT_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance)
 			sizeof(decltype(current_chunk->glyphs)::element_type) * HEX_CHUNK_GLYPHS);
 		if(!load_hex_block(current_chunk))
 		{
-			return FONT_RESULT::ERROR;
+			return FONT_BASIC_RESULT::ERROR;
 		}
 	}
 
@@ -932,24 +969,24 @@ FONT_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance)
 
 	if(current.hex_init)
 	{
-		*advance = current.u.hex_glyph.normal.advance;
-		return FONT_RESULT::SUCCESS;
+		*advance = static_cast<float>(current.u.hex_glyph.normal.advance) * font_scale;
+		return FONT_BASIC_RESULT::SUCCESS;
 	}
 
 	if(!current.hex_found)
 	{
-		return FONT_RESULT::NOT_FOUND;
+		return FONT_BASIC_RESULT::NOT_FOUND;
 	}
 
 	if(current.hex_full)
 	{
-		*advance = HEX_FULL_WIDTH;
+		*advance = HEX_FULL_WIDTH * font_scale;
 	}
 	else
 	{
-		*advance = HEX_HALF_WIDTH;
+		*advance = HEX_HALF_WIDTH * font_scale;
 	}
-	return FONT_RESULT::SUCCESS;
+	return FONT_BASIC_RESULT::SUCCESS;
 }
 
 bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
@@ -1099,8 +1136,7 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 	// return true;
 }
 
-void font_bitmap_cache::init(
-	font_manager_state* font_manager, font_ttf_rasterizer* rasterizer)
+void font_bitmap_cache::init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer)
 {
 	ASSERT(font_manager != NULL);
 	ASSERT(rasterizer != NULL);
@@ -1108,6 +1144,15 @@ void font_bitmap_cache::init(
 	atlas = &font_manager->atlas;
 	current_rasterizer = rasterizer;
 	fallback = &font_manager->hex_font;
+
+/*
+	FT_Face face = current_rasterizer->face;
+    const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
+	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
+	{
+		int bitmap_height = FT_CEIL(face->size->metrics.height);
+		//bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
+	}*/
 
 	FT_Bitmap_Init(&convert_bitmap);
 }
@@ -1253,32 +1298,28 @@ FT_Bitmap* font_bitmap_cache::render_tf_glyph(
 	return bitmap;
 }
 
-float font_bitmap_cache::get_point_size()
-{
-	return current_rasterizer->face_settings->point_size;
-}
-float font_bitmap_cache::get_ascent()
+float font_bitmap_cache::get_ascent(float font_scale)
 {
 	FT_Face face = current_rasterizer->face;
 	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
 	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
 	{
-		int bitmap_height = FT_CEIL(face->size->metrics.height);
+		// int bitmap_height = FT_CEIL(face->size->metrics.height);
 		int bitmap_ascent = FT_CEIL(face->size->metrics.ascender);
-		float bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
-		// Get the font metrics for this font, for the selected size
-		return std::ceil(static_cast<float>(bitmap_ascent) * bitmap_scale * font_scale);
+		return std::ceil(static_cast<float>(bitmap_ascent) * font_scale);
 	}
 	// Get the scalable font metrics for this font
 	FT_Fixed scale = face->size->metrics.y_scale;
 	// NOLINTNEXTLINE(bugprone-integer-division
 	return FT_CEIL(FT_MulFix(face->ascender, scale)) * font_scale;
 }
-float font_bitmap_cache::get_lineskip()
+float font_bitmap_cache::get_lineskip(float font_scale)
 {
 	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
 	return std::ceil(face_settings->point_size) * font_scale;
-    /*
+// the problem with using the "real" lineskip is that for certain fonts, it's excessive.
+// this might be useful if you were aiming for your lineskip look like a ms word document.
+#if 0
 	FT_Face face = current_rasterizer->face;
 	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
 	{
@@ -1288,19 +1329,10 @@ float font_bitmap_cache::get_lineskip()
 
 	// NOLINTNEXTLINE(bugprone-integer-division)
 	return FT_CEIL(FT_MulFix(face->height, scale)) * font_scale;
-    */
+#endif
 }
-float font_bitmap_cache::get_bitmap_size()
-{
-	// NOLINTNEXTLINE(bugprone-integer-division
-	return FT_CEIL(current_rasterizer->face->size->metrics.height);
-}
-float font_bitmap_cache::get_scale()
-{
-	return font_scale;
-}
-
-FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
+FONT_BASIC_RESULT
+font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_scale)
 {
 	ASSERT(atlas != NULL);
 	ASSERT(current_rasterizer != NULL);
@@ -1318,7 +1350,7 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 			codepoint,
 			unicode_end);
 #endif
-		return FONT_RESULT::NOT_FOUND;
+		return FONT_BASIC_RESULT::NOT_FOUND;
 	}
 
 	size_t block_chunk = codepoint / FONT_CACHE_CHUNK_GLYPHS;
@@ -1332,24 +1364,17 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 
 	font_cache_block& block = font_cache_blocks[block_chunk];
 
-	bool use_bitmap = current_rasterizer->face->num_fixed_sizes != 0 &&
-					  (current_rasterizer->face_settings->force_bitmap ||
-					   !FT_IS_SCALABLE(current_rasterizer->face));
-
 	// fast path for cached glyphs.
 	if(block.glyphs[FONT_STYLE_NORMAL])
 	{
 		font_glyph_entry& glyph = block.glyphs[FONT_STYLE_NORMAL][block_index];
-		if(glyph.type != FONT_ENTRY::UNDEFINED)
+		switch(glyph.type)
 		{
-			if(use_bitmap)
-			{
-				float bitmap_scale = (get_point_size() * font_scale) / get_bitmap_size();
-				*advance = std::ceil(static_cast<float>(glyph.advance) * bitmap_scale);
-				return FONT_RESULT::SUCCESS;
-			}
-			*advance = std::ceil(static_cast<float>(glyph.advance) * get_scale());
-			return FONT_RESULT::SUCCESS;
+		case FONT_ENTRY::UNDEFINED: break;
+		case FONT_ENTRY::GLYPH:
+		case FONT_ENTRY::SPACE:
+			*advance = std::ceil(static_cast<float>(glyph.advance) * font_scale);
+			return FONT_BASIC_RESULT::SUCCESS;
 		}
 	}
 
@@ -1362,7 +1387,9 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 			if(cv_font_fallback_warning.data != 0)
 			{
 				slogf(
-					"info: %s fallback not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+					"info: %s fallback not found: U+%X\n",
+					current_rasterizer->font_file->name(),
+					codepoint);
 			}
 			block.bad_indexes.set(block_index);
 		}
@@ -1370,10 +1397,8 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 
 	if(glyph_index == 0)
 	{
-		float hex_scale = (get_point_size() * get_scale()) / static_cast<float>(HEX_HEIGHT);
-		FONT_RESULT ret = fallback->get_advance(codepoint, advance);
-		*advance *= hex_scale;
-		return ret;
+		float fallback_scale = (get_lineskip(font_scale)) / fallback->get_lineskip(1);
+		return fallback->get_advance(codepoint, advance, fallback_scale);
 	}
 
 #if 0
@@ -1388,31 +1413,22 @@ FONT_RESULT font_bitmap_cache::get_advance(char32_t codepoint, float* advance)
 	if((error = FT_Load_Glyph(current_rasterizer->face, glyph_index, FT_LOAD_ADVANCE_ONLY)) != 0)
 	{
 		TTF_SetFTError(current_rasterizer->font_file->name(), error);
-		return FONT_RESULT::ERROR;
+		return FONT_BASIC_RESULT::ERROR;
 	}
 #if 0
 	tick2 = timer_now();
 	slogf("advance time = %f\n", timer_delta_ms(tick1, tick2));
 #endif
-	if(use_bitmap)
-	{
-		float bitmap_scale = (get_point_size() * font_scale) / get_bitmap_size();
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		*advance = std::ceil(
-			static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) * bitmap_scale);
-	}
-	else
-	{
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		*advance = std::ceil(
-			static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) * font_scale);
-	}
 
-	return FONT_RESULT::SUCCESS;
+	*advance = std::ceil(
+		static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) *
+		font_scale);
+
+	return FONT_BASIC_RESULT::SUCCESS;
 }
 
 FONT_RESULT font_bitmap_cache::get_glyph(
-	char32_t codepoint, font_style_type style, font_glyph_entry* glyph_out)
+	char32_t codepoint, font_style_type style, font_style_result* glyph_out, float font_scale)
 {
 	ASSERT(atlas != NULL);
 	ASSERT(current_rasterizer != NULL);
@@ -1447,11 +1463,16 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 	// fast path for cached glyphs.
 	if(block.glyphs[style])
 	{
-		font_glyph_entry& glyph = block.glyphs[style][block_index];
-		if(glyph.type != FONT_ENTRY::UNDEFINED)
+		font_glyph_entry* glyph_in = &block.glyphs[style][block_index];
+		switch(glyph_in->type)
 		{
-			*glyph_out = glyph;
+		case FONT_ENTRY::UNDEFINED: break;
+		case FONT_ENTRY::GLYPH:
+			convert_glyph_format(this, glyph_in, glyph_out, font_scale);
 			return FONT_RESULT::SUCCESS;
+		case FONT_ENTRY::SPACE:
+			glyph_out->advance = static_cast<float>(glyph_in->advance) * font_scale;
+			return FONT_RESULT::SPACE;
 		}
 	}
 
@@ -1464,7 +1485,9 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 			if(cv_font_fallback_warning.data != 0)
 			{
 				slogf(
-					"info: %s fallback not found: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+					"info: %s fallback not found: U+%X\n",
+					current_rasterizer->font_file->name(),
+					codepoint);
 			}
 			block.bad_indexes.set(block_index);
 		}
@@ -1472,7 +1495,8 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 
 	if(glyph_index == 0)
 	{
-		return fallback->get_glyph(codepoint, style, glyph_out);
+		float fallback_scale = (get_lineskip(font_scale)) / fallback->get_lineskip(1);
+		return fallback->get_glyph(codepoint, style, glyph_out, fallback_scale);
 		// font_manager->hex_font.load_hex_glyph(
 		//	&font_manager->atlas, codepoint, (style & FONT_STYLE_OUTLINE) != 0, glyph_out);
 	}
@@ -1495,99 +1519,6 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 		return FONT_RESULT::ERROR;
 	}
 
-	bool use_bitmap = current_rasterizer->face->num_fixed_sizes != 0 &&
-					  (current_rasterizer->face_settings->force_bitmap ||
-					   !FT_IS_SCALABLE(current_rasterizer->face));
-
-	// this is a space character.
-	if(bitmap->width == 0)
-	{
-		// use this to signal this is a space
-		glyph_out->type = FONT_ENTRY::SPACE;
-		glyph_out->rect_w = 0;
-		glyph_out->rect_h = 0;
-		if(use_bitmap)
-		{
-			float bitmap_scale = (get_point_size() * font_scale) / get_bitmap_size();
-			glyph_out->advance =
-			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-				std::ceil(static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6)) *
-				bitmap_scale;
-		}
-		else
-		{
-			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			glyph_out->advance = (current_rasterizer->face->glyph->advance.x >> 6) * font_scale;
-		}
-	}
-	else
-	{
-		unsigned int x_out;
-		unsigned int y_out;
-		if(!atlas->find_atlas_slot(bitmap->pitch, bitmap->rows, &x_out, &y_out))
-		{
-			// I could use the fallback, but I want to only use it to show the glyph
-			// isn't found.
-			serrf(
-				"%s atlas out of space: U+%X\n", current_rasterizer->font_file->name(), codepoint);
-			// it->second[raster_mask] = font_manager.error_glyph;
-			//*glyph = it->second[raster_mask];
-			// next time just load the fallback
-			block.bad_indexes.set(block_index);
-			return FONT_RESULT::ERROR;
-		}
-#if 0
-        if(cv_has_EXT_disjoint_timer_query.data == 1)
-        {
-            static GLuint query = 0;
-            if(query == 0)
-            {
-                ctx.glGenQueriesEXT(1, &query);
-            }
-            ctx.glBeginQueryEXT(GL_TIME_ELAPSED_EXT,query);
-            TIMER_U t1 = timer_now();
-        }
-#endif
-		ctx.glTexSubImage2D(
-			GL_TEXTURE_2D,
-			0,
-			x_out, // NOLINT(bugprone-narrowing-conversions)
-			y_out, // NOLINT(bugprone-narrowing-conversions)
-			bitmap->pitch,
-			bitmap->rows, // NOLINT(bugprone-narrowing-conversions)
-			GL_RED,
-			GL_UNSIGNED_BYTE,
-			bitmap->buffer);
-#if 0
-        if(cv_has_EXT_disjoint_timer_query.data == 1)
-        {
-            TIMER_U t2 = timer_now();
-            ctx.glEndQueryEXT(GL_TIME_ELAPSED_EXT);
-
-            GLuint64 elapsed_time;
-            ctx.glGetQueryObjectui64vEXT(query, GL_QUERY_RESULT, &elapsed_time);
-            slogf("glTexSubImage2D time: %f, wait: %f\n", elapsed_time / 1000000.0, timer_delta_ms(t1, t2));
-        }
-#endif
-		if(GL_RUNTIME(__func__) != GL_NO_ERROR)
-		{
-			return FONT_RESULT::ERROR;
-		}
-
-		glyph_out->rect_x = x_out;
-		glyph_out->rect_y = y_out;
-		glyph_out->rect_w = bitmap->width;
-		glyph_out->rect_h = bitmap->rows;
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		glyph_out->advance = (current_rasterizer->face->glyph->advance.x >> 6);
-		FT_BitmapGlyph ftglyph_bitmap = reinterpret_cast<FT_BitmapGlyph>(ftglyph.get());
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		glyph_out->xmin = (ftglyph_bitmap->left);
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		glyph_out->ymin = (ftglyph_bitmap->top);
-		glyph_out->type = (use_bitmap ? FONT_ENTRY::BITMAP : FONT_ENTRY::NORMAL);
-	}
-
 	if(!block.glyphs[style])
 	{
 		// allocate the style array
@@ -1599,97 +1530,120 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 	// this slot should be undefined.
 	ASSERT(block.glyphs[style][block_index].type == FONT_ENTRY::UNDEFINED);
 
-	block.glyphs[style][block_index] = *glyph_out;
+	font_glyph_entry* glyph_in = &block.glyphs[style][block_index];
+
+	// this is a space character.
+	if(bitmap->width == 0)
+	{
+		// use this to signal this is a space
+		glyph_in->type = FONT_ENTRY::SPACE;
+
+        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		glyph_in->advance = (current_rasterizer->face->glyph->advance.x >> 6);
+
+		// glyph_convert(glyph_in, glyph_out, font_scale);
+		glyph_out->advance = static_cast<float>(glyph_in->advance) * font_scale;
+		return FONT_RESULT::SPACE;
+	}
+    unsigned int x_out;
+    unsigned int y_out;
+    if(!atlas->find_atlas_slot(bitmap->pitch, bitmap->rows, &x_out, &y_out))
+    {
+        // I could use the fallback, but I want to only use it to show the glyph
+        // isn't found.
+        serrf(
+            "%s atlas out of space: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+        // it->second[raster_mask] = font_manager.error_glyph;
+        //*glyph = it->second[raster_mask];
+        // next time just load the fallback
+        block.bad_indexes.set(block_index);
+        return FONT_RESULT::ERROR;
+    }
+#if 0
+    if(cv_has_EXT_disjoint_timer_query.data == 1)
+    {
+        static GLuint query = 0;
+        if(query == 0)
+        {
+            ctx.glGenQueriesEXT(1, &query);
+        }
+        ctx.glBeginQueryEXT(GL_TIME_ELAPSED_EXT,query);
+        TIMER_U t1 = timer_now();
+    }
+#endif
+    ctx.glTexSubImage2D(
+        GL_TEXTURE_2D,
+        0,
+        x_out, // NOLINT(bugprone-narrowing-conversions)
+        y_out, // NOLINT(bugprone-narrowing-conversions)
+        bitmap->pitch,
+        bitmap->rows, // NOLINT(bugprone-narrowing-conversions)
+        GL_RED,
+        GL_UNSIGNED_BYTE,
+        bitmap->buffer);
+#if 0
+    if(cv_has_EXT_disjoint_timer_query.data == 1)
+    {
+        TIMER_U t2 = timer_now();
+        ctx.glEndQueryEXT(GL_TIME_ELAPSED_EXT);
+
+        GLuint64 elapsed_time;
+        ctx.glGetQueryObjectui64vEXT(query, GL_QUERY_RESULT, &elapsed_time);
+        slogf("glTexSubImage2D time: %f, wait: %f\n", elapsed_time / 1000000.0, timer_delta_ms(t1, t2));
+    }
+#endif
+    if(GL_RUNTIME(__func__) != GL_NO_ERROR)
+    {
+        return FONT_RESULT::ERROR;
+    }
+
+    glyph_in->rect_x = x_out;
+    glyph_in->rect_y = y_out;
+    glyph_in->rect_w = bitmap->width;
+    glyph_in->rect_h = bitmap->rows;
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+    glyph_in->advance = (current_rasterizer->face->glyph->advance.x >> 6);
+    FT_BitmapGlyph ftglyph_bitmap = reinterpret_cast<FT_BitmapGlyph>(ftglyph.get());
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+    glyph_in->xmin = (ftglyph_bitmap->left);
+    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+    glyph_in->ymin = (ftglyph_bitmap->top);
+    glyph_in->type = FONT_ENTRY::GLYPH;
+    convert_glyph_format(this, glyph_in, glyph_out, font_scale);
+
 	return FONT_RESULT::SUCCESS;
 }
 
-FONT_RESULT
+FONT_BASIC_RESULT
 internal_font_painter_state::load_glyph_verts(
 	char32_t codepoint, std::array<uint8_t, 4> color, font_style_type style)
 {
 	ASSERT(font != NULL);
 	ASSERT(batcher != NULL);
 
-	font_glyph_entry glyph;
-	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-	float atlas_size = font->get_font_atlas()->atlas_size;
+	font_style_result glyph;
 
-	FONT_RESULT ret = font->get_glyph(codepoint, style, &glyph);
-	if(ret != FONT_RESULT::SUCCESS)
+	switch(font->get_glyph(codepoint, style, &glyph, font_scale))
 	{
-		return ret;
+	case FONT_RESULT::SUCCESS: {
+		std::array<float, 4> uv{
+			glyph.atlas_xmin, glyph.atlas_ymin, glyph.atlas_xmax, glyph.atlas_ymax};
+
+		std::array<float, 4> pos{
+			draw_x_pos + glyph.glyph_xmin,
+			draw_y_pos + glyph.glyph_ymin,
+			draw_x_pos + glyph.glyph_xmax,
+			draw_y_pos + glyph.glyph_ymax};
+		batcher->draw_rect(pos, uv, color);
+		draw_x_pos += glyph.advance;
+		return FONT_BASIC_RESULT::SUCCESS;
+	}
+	case FONT_RESULT::SPACE: draw_x_pos += glyph.advance; return FONT_BASIC_RESULT::SUCCESS;
+	case FONT_RESULT::ERROR: return FONT_BASIC_RESULT::ERROR;
+	case FONT_RESULT::NOT_FOUND: return FONT_BASIC_RESULT::NOT_FOUND;
 	}
 
-	ASSERT(glyph.type != FONT_ENTRY::UNDEFINED);
-
-	std::array<float, 4> uv;
-	uv[0] = static_cast<float>(glyph.rect_x) / atlas_size;
-	uv[1] = static_cast<float>(glyph.rect_y) / atlas_size;
-	uv[2] = static_cast<float>(glyph.rect_x + glyph.rect_w) / atlas_size;
-	uv[3] = static_cast<float>(glyph.rect_y + glyph.rect_h) / atlas_size;
-
-	std::array<float, 4> pos;
-	float font_scale = font->get_scale();
-
-	switch(glyph.type)
-	{
-	default: CHECK(false && "unreachable"); return FONT_RESULT::ERROR;
-	case FONT_ENTRY::NORMAL:
-		/*
-			pos[0] = draw_x_pos + static_cast<float>(glyph.xmin);
-			pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin);
-			pos[2] = pos[0] + static_cast<float>(glyph.rect_w);
-			pos[3] = pos[1] + static_cast<float>(glyph.rect_h);
-			draw_x_pos += static_cast<float>(glyph.advance);
-			break;*/
-		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * font_scale;
-		pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * font_scale;
-		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * font_scale;
-		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * font_scale;
-		draw_x_pos += static_cast<float>(glyph.advance) * font_scale;
-		break;
-
-	case FONT_ENTRY::BITMAP: {
-		float bitmap_scale = (font->get_point_size() * font_scale) / font->get_bitmap_size();
-		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * bitmap_scale;
-		pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * bitmap_scale;
-		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * bitmap_scale;
-		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * bitmap_scale;
-		draw_x_pos += static_cast<float>(glyph.advance) * bitmap_scale;
-	}
-	break;
-
-	case FONT_ENTRY::HEXFONT: {
-		float hex_scale = (font->get_point_size() * font_scale) / static_cast<float>(HEX_HEIGHT);
-		pos[0] = draw_x_pos + static_cast<float>(glyph.xmin) * hex_scale;
-		pos[1] = draw_y_pos + static_cast<float>(HEX_HEIGHT - glyph.ymin) * hex_scale;
-		// this looks better on fonts that have HUGE lineskips... like NotoSansCJK-Regular
-		// because without this, hexfont will align to the TOP,
-		// but if I used this for a normal font (that looks similar to unifont in 16pt),
-		// hexfont would look horribly offset,
-		// because usually the lineskip == pointsize, and aligning to the top works.
-		// TODO(dootise): I might offer this as an extra setting in case I need this.
-		// pos[1] = draw_y_pos + font->get_ascent() - static_cast<float>(glyph.ymin) * hex_scale;
-		pos[2] = pos[0] + static_cast<float>(glyph.rect_w) * hex_scale;
-		pos[3] = pos[1] + static_cast<float>(glyph.rect_h) * hex_scale;
-		draw_x_pos += static_cast<float>(glyph.advance) * hex_scale;
-	}
-	break;
-
-	case FONT_ENTRY::SPACE:
-		draw_x_pos += static_cast<float>(glyph.advance);
-		return FONT_RESULT::SUCCESS;
-	}
-
-	if(!batcher->draw_rect(pos, uv, color))
-	{
-		// I really don't know what the best approach for this is.
-		// TODO(dootsie): maybe make a cvar for debugging batcher running out of room, raise
-		// ASSERT(false)?
-		return FONT_RESULT::SUCCESS;
-	}
-
-	return FONT_RESULT::SUCCESS;
+	return FONT_BASIC_RESULT::SUCCESS;
 }
 
 void font_sprite_painter::begin()
@@ -1773,6 +1727,71 @@ bool font_sprite_painter::draw_format(const char* fmt, ...)
 	return draw_text(buffer, trunc_size);
 }
 
+bool font_sprite_painter::measure_text_bounds(
+	const char* text, size_t size, float* w_out, float* h_out)
+{
+	ASSERT(state.font != NULL);
+
+	// I really don't think I need to do this, but it's here...
+	size = (size == 0) ? strlen(text) : size;
+
+	const char* str_cur = text;
+	const char* str_end = text + size;
+
+	float max_width = 0;
+	float current_line_width = 0;
+	float line_count = 1;
+
+	while(str_cur != str_end)
+	{
+		uint32_t codepoint;
+		utf8::internal::utf_error err_code =
+			utf8::internal::validate_next(str_cur, str_end, codepoint);
+		if(err_code != utf8::internal::UTF8_OK)
+		{
+			serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
+			return false;
+		}
+
+		if((current_flags & TEXT_FLAGS::NEWLINE) != 0 && codepoint == '\n')
+		{
+			max_width = std::max(current_line_width, max_width);
+			current_line_width = 0;
+			line_count += 1;
+		}
+		else if((current_flags & TEXT_FLAGS::NEWLINE) != 0 && codepoint == '\r')
+		{
+			// assume that this is a carriage return (common on windows files),
+			// but I should check if the next character is a newline...
+		}
+		else
+		{
+			float advance = 0;
+			switch(state.font->get_advance(codepoint, &advance, state.font_scale))
+			{
+			case FONT_BASIC_RESULT::NOT_FOUND:
+				serrf("%s glyph not found: U+%X\n", __func__, codepoint);
+				return false;
+			case FONT_BASIC_RESULT::ERROR: return false;
+			case FONT_BASIC_RESULT::SUCCESS: break;
+			}
+			current_line_width += advance;
+		}
+	}
+	max_width = std::max(current_line_width, max_width);
+
+	if(w_out != NULL)
+	{
+		*w_out = max_width;
+	}
+	if(h_out != NULL)
+	{
+		*h_out = line_count * get_lineskip();
+	}
+
+	return true;
+}
+
 bool font_sprite_painter::draw_text(const char* text, size_t size)
 {
 	ASSERT(state.font != NULL);
@@ -1805,11 +1824,11 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 		{
 			switch(state.load_glyph_verts(codepoint, cur_color, current_style))
 			{
-			case FONT_RESULT::NOT_FOUND:
+			case FONT_BASIC_RESULT::NOT_FOUND:
 				serrf("%s glyph not found: U+%X\n", __func__, codepoint);
 				return false;
-			case FONT_RESULT::ERROR: return false;
-			case FONT_RESULT::SUCCESS: break;
+			case FONT_BASIC_RESULT::ERROR: return false;
+			case FONT_BASIC_RESULT::SUCCESS: break;
 			}
 		}
 	}
@@ -1946,5 +1965,5 @@ void font_sprite_painter::newline()
 	newline_cursor = size;
 
 	state.draw_x_pos = anchor_x;
-	state.draw_y_pos += state.font->get_lineskip();
+	state.draw_y_pos += get_lineskip();
 }

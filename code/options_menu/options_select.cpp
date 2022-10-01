@@ -19,19 +19,19 @@ void options_select_state::init(font_sprite_painter* font_painter_, GLuint vbo, 
 	{
 		select_entry& entry = select_entries.emplace_back();
 		entry.button.init(font_painter);
-		entry.button.text = "Video";
+		entry.text = "Video";
 		entry.result = OPTIONS_SELECT_RESULT::OPEN_VIDEO;
 	}
 	{
 		select_entry& entry = select_entries.emplace_back();
 		entry.button.init(font_painter);
-		entry.button.text = "Keybinds";
+		entry.text = "Keybinds";
 		entry.result = OPTIONS_SELECT_RESULT::OPEN_KEYBINDS;
 	}
 	{
 		select_entry& entry = select_entries.emplace_back();
 		entry.button.init(font_painter);
-		entry.button.text = "Mouse";
+		entry.text = "Mouse";
 		entry.result = OPTIONS_SELECT_RESULT::OPEN_MOUSE;
 	}
 	{
@@ -45,7 +45,7 @@ void options_select_state::init(font_sprite_painter* font_painter_, GLuint vbo, 
 	{
 		select_entry& entry = select_entries.emplace_back();
 		entry.button.init(font_painter);
-		entry.button.text = "Done";
+		entry.text = "Done";
 		entry.result = OPTIONS_SELECT_RESULT::CLOSE;
 	}
 	resize_view();
@@ -140,7 +140,7 @@ bool options_select_state::render()
 	// draw buttons
 	for(auto& entry : select_entries)
 	{
-		if(!entry.button.draw_buffer())
+		if(!entry.button.draw_buffer(entry.text.c_str(), entry.text.size()))
 		{
 			return false;
 		}
@@ -166,8 +166,8 @@ bool options_select_state::render()
 void options_select_state::resize_view()
 {
 	// for a 16px font I would want 200px
-	float button_width = 200 * (font_painter->state.font->get_lineskip() / 16.f);
-	float button_height = font_painter->state.font->get_lineskip() + font_padding;
+	float button_width = 200 * (font_painter->get_lineskip() / 16.f);
+	float button_height = font_painter->get_lineskip() + font_padding;
 
 	float screen_width = static_cast<float>(cv_screen_width.data);
 	float screen_height = static_cast<float>(cv_screen_height.data);

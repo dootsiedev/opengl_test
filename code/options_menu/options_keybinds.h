@@ -28,16 +28,22 @@ struct options_keybinds_state
 
 	struct keybind_entry
 	{
-		explicit keybind_entry(cvar_key_bind& keybind_)
-		: keybind(keybind_)
+		explicit keybind_entry(cvar_key_bind& keybind_, font_sprite_painter* font_painter, std::string text_)
+		: keybind(keybind_),
+        text(std::move(text_))
 		{
+            button.init(font_painter);
 		}
 		cvar_key_bind& keybind;
 		mono_button_object button;
+        std::string text;
 	};
 	std::vector<keybind_entry> buttons;
 
 	// maybe add a X button?
+	std::string revert_text;
+	std::string ok_text;
+	std::string defaults_text;
 	mono_button_object revert_button;
 	mono_button_object ok_button;
 	mono_button_object defaults_button;

@@ -26,6 +26,7 @@ struct options_select_state
 	struct select_entry
 	{
 		mono_button_object button;
+        std::string text;
 		OPTIONS_SELECT_RESULT result;
 	};
 	std::vector<select_entry> select_entries;

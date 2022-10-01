@@ -110,7 +110,7 @@ struct console_state
 	NDSERR bool parse_input();
 
 	// this checks for new logs
-	NDSERR bool update();
+	NDSERR bool update(double delta_sec);
 
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();

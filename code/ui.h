@@ -51,10 +51,10 @@ void set_event_unfocus(SDL_Event& e);
 
 // set_event_resize
 // converts the event to SDL_WINDOWEVENT_SIZE_CHANGED
-// you might need to call this if you present a UI element
-// that was not actively reading events to properly resize.
+// you might need to call this if you present a menu
+// that was hidden, and needs to explicitly resize.
 // I like to think of this as a SDL_WINDOWEVENT_SHOWN
-// except I think SDL_WINDOWEVENT_SHOWN != resize
+// except SDL_WINDOWEVENT_SHOWN != resize
 // NOTE: this only sets the type, so don't access any values.
 // use cv_screen_width and cv_screen_height!
 void set_event_resize(SDL_Event& e);
@@ -81,23 +81,29 @@ struct button_color_state
 	std::array<uint8_t, 4> text_color = {255, 255, 255, 255};
 	std::array<uint8_t, 4> text_outline_color = {0, 0, 0, 255};
 	std::array<uint8_t, 4> disabled_text_color = {100, 100, 100, 255};
+	std::array<uint8_t, 4> click_pop_fill_color = RGBA8_PREMULT(255, 255, 255, 200);
 	float fade_speed = 4;
-	bool show_outline = true;
+	bool text_outline = true;
 };
 
 struct mono_button_object
 {
 	button_color_state color_state;
 	font_sprite_painter* font_painter = NULL;
-	std::string text;
 	float fade = 0.f;
 	// pos on the screen, x,y,w,h
 	std::array<float, 4> button_rect{};
 	bool hover_over = false;
+    // use set_disabled instead of directly modifying this.
 	bool disabled = false;
 	// to make a click, you need to click down and up in the same area
 	// if mouse_button_down = true, this does nothing.
 	bool clicked_on = false;
+
+    // make the button "pop" for a frame when you click
+    bool display_click_frame = false;
+
+    bool update_buffer = true;
 
 	void init(font_sprite_painter* font_painter_, button_color_state* color_state_ = NULL)
 	{
@@ -110,6 +116,16 @@ struct mono_button_object
 		}
 	}
 
+    void set_disabled(bool on)
+    {
+        disabled = on;
+        if(disabled)
+        {
+            hover_over = false;
+            fade = 0;
+        }
+    }
+
 	void set_rect(std::array<float, 4> pos_)
 	{
 		button_rect = pos_;
@@ -119,10 +135,14 @@ struct mono_button_object
 		button_rect = {x, y, w, h};
 	}
 
+    bool draw_requested() const{
+        return update_buffer;
+    }
+
 	NDSERR BUTTON_RESULT input(SDL_Event& e);
 	// update requires the buffer to be bound.
 	void update(double delta_sec);
-	NDSERR bool draw_buffer();
+	NDSERR bool draw_buffer(const char* button_text, size_t button_text_len);
 };
 
 // renders the scroll bar
@@ -168,6 +188,8 @@ struct mono_y_scrollable_area
 
 	bool y_scrollbar_held = false;
 
+    bool update_buffer = true;
+
 	void init(font_sprite_painter* font_painter_)
 	{
 		ASSERT(font_painter_ != NULL);
@@ -180,6 +202,9 @@ struct mono_y_scrollable_area
 	void input(SDL_Event& e);
 
 	void draw_buffer();
+    bool draw_requested() const{
+        return update_buffer;
+    }
 
 	void scroll_to_top()
 	{
@@ -193,8 +218,10 @@ struct mono_y_scrollable_area
 	void internal_scroll_y_to(float mouse_y);
 };
 
-// simple prompt.
-struct simple_prompt_state
+#if 0
+// simple window that has a description text, and a list of buttons.
+// mainly for a simple "yes or no" popup window.
+struct simple_window_picker_state
 {
 	// this puts the text on the screen using a style and batcher.
 	font_sprite_painter* font_painter = NULL;
@@ -248,4 +275,86 @@ struct simple_prompt_state
 
 	// call this when you need to unfocus, like for example if you press escape or something.
 	void unfocus();
+};
+#endif
+
+// a slider that takes a double from 0-1.
+struct mono_normalized_slider_object
+{
+	// I don't need a font, but I use the lineskip for the scroll speed.............
+	// also contains the batcher, and white_uv I need.
+	// YOU CAN NOT USE THE FONT BECAUSE I DONT BIND THE ATLAS!
+	font_sprite_painter* font_painter = NULL;
+
+	// fill color of the thumb
+	std::array<uint8_t, 4> scrollbar_color = RGBA8_PREMULT(80, 80, 80, 200);
+	// the outlines
+	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
+	// optional fill
+	std::array<uint8_t, 4> fill_color{0, 0, 0, 255};
+
+	// screen coords of the scrollbox and scroll bar
+	// to get the area without the scrollbar, use box_inner_xmax
+	float box_xmin = -1;
+	float box_xmax = -1;
+	float box_ymin = -1;
+	float box_ymax = -1;
+
+	// output value, values based on slider_min and slider_max
+	double slider_value = 0;
+
+    // these values clamp the slider value.
+    double slider_min = 0;
+    double slider_max = 1;
+
+	float slider_thumb_size = 20;
+
+	// this is the offset that you clicked into the scroll thumb.
+	float slider_thumb_click_offset = -1;
+
+	bool slider_held = false;
+
+    bool update_buffer = true;
+
+	// initial_value is a value from 0-1.
+	void init(font_sprite_painter* font_painter_, double initial_value)
+	{
+		ASSERT(font_painter_ != NULL);
+		slider_value = initial_value;
+		font_painter = font_painter_;
+	}
+
+	// this does not return an error!!!
+	// this returns true if the value changed!
+	bool input(SDL_Event& e);
+
+	void draw_buffer();
+	bool draw_requested() const
+	{
+		return update_buffer;
+	}
+
+    // you need to use this because it sets draw_requested()
+    void set_value(double value)
+    {
+        slider_value = value;
+        update_buffer = true;
+    }
+    double get_value() const
+    {
+        return slider_value;
+    }
+
+	void unfocus();
+	void resize_view(float xmin, float xmax, float ymin, float ymax);
+
+	bool internal_slider_inside(float mouse_x, float mouse_y);
+	void internal_move_to(float mouse_x);
+
+
+	// get the value in a 0-1 range.
+    double get_slider_normalized() const
+    {
+        return (slider_value - slider_min) / (slider_max - slider_min);
+    }
 };
