@@ -37,8 +37,7 @@ bool options_state::init(
 	}
 
 	select.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
-	keybinds.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
-	return mouse.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
+	return controls.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
 }
 
 bool options_state::destroy()
@@ -62,27 +61,11 @@ OPTIONS_RESULT options_state::input(SDL_Event& e)
 			internal_refresh();
 			current_state = MENU_FACTORY::CONTROLS;
 			return OPTIONS_RESULT::CONTINUE;
-		//case OPTIONS_SELECT_RESULT::OPEN_KEYBINDS:
-		//	internal_refresh();
-		//	current_state = MENU_FACTORY::KEYBINDS;
-		//	return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_SELECT_RESULT::OPEN_VIDEO: internal_refresh(); return OPTIONS_RESULT::CLOSE;
 		}
 		break;
-	/*case MENU_FACTORY::CONTROLS:
-		switch(keybinds.input(e))
-		{
-		case OPTIONS_KEYBINDS_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
-		case OPTIONS_KEYBINDS_RESULT::CLOSE:
-			internal_refresh();
-			current_state = MENU_FACTORY::MENU_SELECT;
-			return OPTIONS_RESULT::CONTINUE;
-		case OPTIONS_KEYBINDS_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
-		}
-		break;
-        */
 	case MENU_FACTORY::CONTROLS:
-		switch(mouse.input(e))
+		switch(controls.input(e))
 		{
 		case OPTIONS_CONTROLS_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_CONTROLS_RESULT::CLOSE:
@@ -103,8 +86,7 @@ bool options_state::update(double delta_sec)
 	switch(current_state)
 	{
 	case MENU_FACTORY::MENU_SELECT: return select.update(delta_sec);
-	//case MENU_FACTORY::KEYBINDS: return keybinds.update(delta_sec);
-	case MENU_FACTORY::CONTROLS: return mouse.update(delta_sec);
+	case MENU_FACTORY::CONTROLS: return controls.update(delta_sec);
 	}
 	ASSERT(false);
 	serrf("%s: unknown switch", __func__);
@@ -117,8 +99,7 @@ bool options_state::render()
 	switch(current_state)
 	{
 	case MENU_FACTORY::MENU_SELECT: return select.render();
-	//case MENU_FACTORY::KEYBINDS: return keybinds.render();
-	case MENU_FACTORY::CONTROLS: return mouse.render();
+	case MENU_FACTORY::CONTROLS: return controls.render();
 	}
 	ASSERT(false);
 	serrf("%s: unknown switch", __func__);
@@ -133,13 +114,11 @@ void options_state::internal_refresh()
 	set_event_hidden(e);
 
 	select.input(e);
-	keybinds.input(e);
-	mouse.input(e);
+	controls.input(e);
     
 
 	set_event_resize(e);
 
 	select.input(e);
-	keybinds.input(e);
-	mouse.input(e);
+	controls.input(e);
 }

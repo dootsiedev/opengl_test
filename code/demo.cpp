@@ -151,10 +151,8 @@ static REGISTER_CVAR_INT(
 
 // keybinds
 
-REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_move_forward, SDLK_w, false, "move forward", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_move_backward, SDLK_s, false, "move backward", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, false, "move forward", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, false, "move backward", CVAR_T::RUNTIME);
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, false, "move left", CVAR_T::RUNTIME);
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, false, "move right", CVAR_T::RUNTIME);
 REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(

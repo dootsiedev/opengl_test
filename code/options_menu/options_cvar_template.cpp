@@ -6,7 +6,6 @@
 #include "../font/utf8_stuff.h"
 #include "../app.h"
 
-
 bool option_error_prompt::init(shared_cvar_option_state* state_, std::string message)
 {
 	ASSERT(state_ != NULL);
@@ -571,7 +570,7 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN)
 		{
 			parse_event = true;
-            slider.unfocus();
+			slider.unfocus();
 			// eat
 			set_event_unfocus(e);
 		}
@@ -659,7 +658,7 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 			slider.set_value(value);
 		}
 
-        slider.unfocus();
+		slider.unfocus();
 
 		// eat
 		set_event_unfocus(e);
@@ -820,26 +819,21 @@ std::unique_ptr<abstract_option_element> create_slider_option(
 	return output;
 }
 
-
 struct cvar_keybind_option : public abstract_option_element
 {
-
-    shared_cvar_option_state* state = NULL;
+	shared_cvar_option_state* state = NULL;
 	cvar_key_bind* cvar = NULL;
 	std::string label_text;
 	float element_height = -1;
 
 	keybind_state previous_key_value;
-    bool value_changed = false;
-    bool update_buffer = true;
+	bool value_changed = false;
+	bool update_buffer = true;
 
 	std::string button_text;
 	mono_button_object button;
 
-	NDSERR bool init(
-		shared_cvar_option_state* state_,
-		std::string label,
-		cvar_key_bind* cvar_);
+	NDSERR bool init(shared_cvar_option_state* state_, std::string label, cvar_key_bind* cvar_);
 
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
@@ -858,9 +852,7 @@ struct cvar_keybind_option : public abstract_option_element
 };
 
 bool cvar_keybind_option::init(
-	shared_cvar_option_state* state_,
-	std::string label,
-	cvar_key_bind* cvar_)
+	shared_cvar_option_state* state_, std::string label, cvar_key_bind* cvar_)
 {
 	ASSERT(state_ != NULL);
 	ASSERT(cvar_ != NULL);
@@ -869,7 +861,7 @@ bool cvar_keybind_option::init(
 	label_text = std::move(label);
 	cvar = cvar_;
 
-    button_text = cvar->cvar_write();
+	button_text = cvar->cvar_write();
 	button.init(state->font_painter);
 
 	element_height = state->font_painter->get_lineskip() + state->font_padding;
@@ -946,14 +938,14 @@ bool cvar_keybind_option::draw_buffer(float x, float y, float menu_w)
 	float cur_x = x + (menu_w - element_padding) / 2 + element_padding;
 	button.set_rect(cur_x, y, (x + menu_w) - cur_x, element_height);
 
-    if(!button.draw_buffer(button_text.c_str(), button_text.size()))
-    {
-        return false;
-    }
+	if(!button.draw_buffer(button_text.c_str(), button_text.size()))
+	{
+		return false;
+	}
 
 	update_buffer = false;
 
-    return true;
+	return true;
 }
 
 bool cvar_keybind_option::draw_requested()
@@ -968,7 +960,7 @@ float cvar_keybind_option::get_height()
 
 bool cvar_keybind_option::set_default()
 {
-    if(!value_changed)
+	if(!value_changed)
 	{
 		previous_key_value = cvar->key_binds;
 		value_changed = true;
@@ -991,7 +983,7 @@ bool cvar_keybind_option::undo_changes()
 		// I could try to implement a on_modify() virtual function (or *operator= )
 		cvar->key_binds = previous_key_value;
 		value_changed = false;
-	    button_text = cvar->cvar_write();
+		button_text = cvar->cvar_write();
 	}
 	return true;
 }
@@ -1013,8 +1005,8 @@ std::unique_ptr<abstract_option_element>
 	return output;
 }
 
-
-bool option_keybind_request::init(shared_cvar_option_state* state_, cvar_keybind_option* option_state_)
+bool option_keybind_request::init(
+	shared_cvar_option_state* state_, cvar_keybind_option* option_state_)
 {
 	ASSERT(state_ != NULL);
 	ASSERT(option_state_ != NULL);
@@ -1022,8 +1014,8 @@ bool option_keybind_request::init(shared_cvar_option_state* state_, cvar_keybind
 	state = state_;
 	option_state = option_state_;
 
-    temp_value = option_state->cvar->key_binds;
-    value_modified = false;
+	temp_value = option_state->cvar->key_binds;
+	value_modified = false;
 
 	font_painter.init(state->font_painter->state.batcher, state->font_painter->state.font);
 	font_painter.set_flags(TEXT_FLAGS::NEWLINE);
@@ -1051,7 +1043,7 @@ bool option_keybind_request::format_text()
 		option_state->label_text.c_str(),
 		option_state->cvar->keybind_to_string(temp_value).c_str());
 
-    update_buffer = true;
+	update_buffer = true;
 
 	return display_message &&
 		   font_painter.measure_text_bounds(
@@ -1111,14 +1103,14 @@ bool option_keybind_request::update(double delta_sec)
 }
 void option_keybind_request::commit_change()
 {
-    if(!option_state->value_changed)
-    {
-        option_state->previous_key_value = option_state->cvar->key_binds;
-        option_state->value_changed = true;
-    }
-    option_state->cvar->key_binds = temp_value;
-    option_state->button_text = option_state->cvar->cvar_write();
-    option_state->update_buffer = true;
+	if(!option_state->value_changed)
+	{
+		option_state->previous_key_value = option_state->cvar->key_binds;
+		option_state->value_changed = true;
+	}
+	option_state->cvar->key_binds = temp_value;
+	option_state->button_text = option_state->cvar->cvar_write();
+	option_state->update_buffer = true;
 }
 FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 {
@@ -1128,9 +1120,9 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 	case BUTTON_RESULT::CONTINUE: break;
 	case BUTTON_RESULT::TRIGGER:
 		value_modified = true;
-        temp_value.type = KEYBIND_T::NONE;
-        ok_button.set_disabled(false);
-        format_text();
+		temp_value.type = KEYBIND_T::NONE;
+		ok_button.set_disabled(false);
+		format_text();
 		// eat
 		set_event_unfocus(e);
 		break;
@@ -1150,7 +1142,7 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 	case BUTTON_RESULT::TRIGGER:
 		if(value_modified)
 		{
-            commit_change();
+			commit_change();
 			return FOCUS_ELEMENT_RESULT::MODIFIED;
 		}
 		return FOCUS_ELEMENT_RESULT::CLOSE;
@@ -1165,23 +1157,23 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 		case SDLK_RETURN:
 			if(value_modified)
 			{
-                commit_change();
+				commit_change();
 				return FOCUS_ELEMENT_RESULT::MODIFIED;
 			}
 			return FOCUS_ELEMENT_RESULT::CLOSE;
 		}
 	}
-    */
+	*/
 
 	keybind_state out;
-    if(option_state->cvar->bind_sdl_event(out, e))
-    {
-        value_modified = true;
-        ok_button.set_disabled(false);
-        temp_value = out;
-        format_text();
-        set_event_unfocus(e);
-    }
+	if(option_state->cvar->bind_sdl_event(out, e))
+	{
+		value_modified = true;
+		ok_button.set_disabled(false);
+		temp_value = out;
+		format_text();
+		set_event_unfocus(e);
+	}
 
 	// backdrop
 	switch(e.type)
@@ -1286,7 +1278,7 @@ bool option_keybind_request::draw_buffer()
 
 	batch_vertex_count = batcher->get_current_vertex_count();
 
-    update_buffer = false;
+	update_buffer = false;
 
 	return true;
 }
@@ -1315,5 +1307,6 @@ bool option_keybind_request::render()
 bool option_keybind_request::draw_requested()
 {
 	ASSERT(state != NULL);
-	return update_buffer || ok_button.draw_requested() || cancel_button.draw_requested() || unbind_button.draw_requested();
+	return update_buffer || ok_button.draw_requested() || cancel_button.draw_requested() ||
+		   unbind_button.draw_requested();
 }

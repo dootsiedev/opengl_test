@@ -40,10 +40,10 @@ struct abstract_option_element
 enum class FOCUS_ELEMENT_RESULT : uint8_t
 {
 	CONTINUE,
-    // if returned, close() will be called for you.
-    CLOSE,
-	// same as OPTION_ELEMENT_RESULT::MODIFIED, 
-    // this is does CLOSE
+	// if returned, close() will be called for you.
+	CLOSE,
+	// same as OPTION_ELEMENT_RESULT::MODIFIED,
+	// this is does CLOSE
 	MODIFIED,
 	ERROR
 };
@@ -55,10 +55,10 @@ struct abstract_focus_element
 	NDSERR virtual bool update(double delta_sec) = 0;
 	NDSERR virtual FOCUS_ELEMENT_RESULT input(SDL_Event& e) = 0;
 	NDSERR virtual bool draw_buffer() = 0;
-    // you need to store the vertex offset from the batcher and make your own draw call.
+	// you need to store the vertex offset from the batcher and make your own draw call.
 	NDSERR virtual bool render() = 0;
 	virtual bool draw_requested() = 0;
-    virtual void resize_view() = 0;
+	virtual void resize_view() = 0;
 	// reset to default state (if there is any)
 	// you don't need to clear the history, or treat this as set_hidden_event.
 	// if any text is selected, unselect it, any scrolling (not possible ATM) scroll to top.
@@ -76,19 +76,19 @@ struct option_error_prompt : public abstract_focus_element
 {
 	shared_cvar_option_state* state = NULL;
 
-    // needs a independant painter because I need newlines, and the global one shouldn't have it.
-    font_sprite_painter font_painter;
+	// needs a independant painter because I need newlines, and the global one shouldn't have it.
+	font_sprite_painter font_painter;
 
-    // maybe if the message was a serr message,
-    // I would use a prompt to allow selection, and a button for "copy to clipboard",
-    // because serr is more of a programmer diagnostic and not comprehensible.
-    std::string display_message;
+	// maybe if the message was a serr message,
+	// I would use a prompt to allow selection, and a button for "copy to clipboard",
+	// because serr is more of a programmer diagnostic and not comprehensible.
+	std::string display_message;
 
-    std::string ok_button_text;
-    mono_button_object ok_button;
+	std::string ok_button_text;
+	mono_button_object ok_button;
 
-    GLint gl_batch_buffer_offset = -1;
-    GLsizei batch_vertex_count = 0;
+	GLint gl_batch_buffer_offset = -1;
+	GLsizei batch_vertex_count = 0;
 
 	// the dimensions of the whole backdrop
 	float box_xmin = -1;
@@ -96,23 +96,23 @@ struct option_error_prompt : public abstract_focus_element
 	float box_ymin = -1;
 	float box_ymax = -1;
 
-    float text_width = -1;
-    float text_height = -1;
+	float text_width = -1;
+	float text_height = -1;
 
 	NDSERR bool init(shared_cvar_option_state* state_, std::string message);
 
-    void resize_view() override;
+	void resize_view() override;
 
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
 	NDSERR FOCUS_ELEMENT_RESULT input(SDL_Event& e) override;
 	NDSERR bool draw_buffer() override;
-    NDSERR bool render() override;
+	NDSERR bool render() override;
 	bool draw_requested() override;
 	NDSERR bool close() override
 	{
-        gl_batch_buffer_offset = 0;
-        batch_vertex_count = 0;
+		gl_batch_buffer_offset = 0;
+		batch_vertex_count = 0;
 		return true;
 	}
 };
@@ -124,37 +124,37 @@ struct option_keybind_request : public abstract_focus_element
 {
 	shared_cvar_option_state* state = NULL;
 
-    // needs a independant painter because I need newlines, and the global one shouldn't have it.
-    font_sprite_painter font_painter;
+	// needs a independant painter because I need newlines, and the global one shouldn't have it.
+	font_sprite_painter font_painter;
 
-    // the value before you press the OK button.
-    keybind_state temp_value;
-    bool value_modified = false;
-    bool update_buffer = true;
+	// the value before you press the OK button.
+	keybind_state temp_value;
+	bool value_modified = false;
+	bool update_buffer = true;
 
-    cvar_keybind_option* option_state = NULL;
-    //cvar_key_bind* keybind = NULL;
-    //keybind_state* prev_value = NULL;
-    //bool* value_changed = NULL;
+	cvar_keybind_option* option_state = NULL;
+	// cvar_key_bind* keybind = NULL;
+	// keybind_state* prev_value = NULL;
+	// bool* value_changed = NULL;
 
-    // maybe if the message was a serr message,
-    // I would use a prompt to allow selection, and a button for "copy to clipboard",
-    // because serr is more of a programmer diagnostic and not comprehensible.
-   // std::string display_message;
-    std::unique_ptr<char[]> display_message;
-    int display_message_len = 0;
+	// maybe if the message was a serr message,
+	// I would use a prompt to allow selection, and a button for "copy to clipboard",
+	// because serr is more of a programmer diagnostic and not comprehensible.
+	// std::string display_message;
+	std::unique_ptr<char[]> display_message;
+	int display_message_len = 0;
 
-    std::string ok_button_text;
-    mono_button_object ok_button;
+	std::string ok_button_text;
+	mono_button_object ok_button;
 
-    std::string cancel_button_text;
-    mono_button_object cancel_button;
+	std::string cancel_button_text;
+	mono_button_object cancel_button;
 
-    std::string unbind_button_text;
-    mono_button_object unbind_button;
+	std::string unbind_button_text;
+	mono_button_object unbind_button;
 
-    GLint gl_batch_buffer_offset = -1;
-    GLsizei batch_vertex_count = 0;
+	GLint gl_batch_buffer_offset = -1;
+	GLsizei batch_vertex_count = 0;
 
 	// the dimensions of the whole backdrop
 	float box_xmin = -1;
@@ -162,26 +162,26 @@ struct option_keybind_request : public abstract_focus_element
 	float box_ymin = -1;
 	float box_ymax = -1;
 
-    float text_width = -1;
-    float text_height = -1;
+	float text_width = -1;
+	float text_height = -1;
 
 	NDSERR bool init(shared_cvar_option_state* state_, cvar_keybind_option* option_state_);
 
-    NDSERR bool format_text();
-    void commit_change();
+	NDSERR bool format_text();
+	void commit_change();
 
-    void resize_view() override;
+	void resize_view() override;
 
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
 	NDSERR FOCUS_ELEMENT_RESULT input(SDL_Event& e) override;
 	NDSERR bool draw_buffer() override;
-    NDSERR bool render() override;
+	NDSERR bool render() override;
 	bool draw_requested() override;
 	NDSERR bool close() override
 	{
-        gl_batch_buffer_offset = 0;
-        batch_vertex_count = 0;
+		gl_batch_buffer_offset = 0;
+		batch_vertex_count = 0;
 		return true;
 	}
 };
@@ -195,11 +195,11 @@ struct shared_cvar_option_state
 	abstract_focus_element* focus_element = NULL;
 	font_sprite_painter* font_painter = NULL;
 
-    // the error prompt for all the option elements.
-    // this doesn't carry any state other than a message, so it's shared.
-    // just call init() again.
-    option_error_prompt error_prompt;
-    option_keybind_request keybind_prompt;
+	// the error prompt for all the option elements.
+	// this doesn't carry any state other than a message, so it's shared.
+	// just call init() again.
+	option_error_prompt error_prompt;
+	option_keybind_request keybind_prompt;
 
 	float font_padding = 4;
 	float element_padding = 10;
@@ -264,8 +264,5 @@ std::unique_ptr<abstract_option_element> create_slider_option(
 	double max,
 	bool clamp);
 
-
-std::unique_ptr<abstract_option_element> create_keybind_option(
-	shared_cvar_option_state* state,
-	std::string label,
-	cvar_key_bind* cvar);
+std::unique_ptr<abstract_option_element>
+	create_keybind_option(shared_cvar_option_state* state, std::string label, cvar_key_bind* cvar);

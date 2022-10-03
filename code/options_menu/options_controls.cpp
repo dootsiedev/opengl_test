@@ -1,6 +1,6 @@
 #include "../global.h"
 
-#include "options_mouse.h"
+#include "options_controls.h"
 #include "../app.h"
 
 // for the cvars...
@@ -19,11 +19,21 @@ bool options_controls_state::init(font_sprite_painter* font_painter_, GLuint vbo
 	option_entries.emplace_back(
 		create_bool_option(&shared_state, "invert mouse", &cv_mouse_invert));
 	option_entries.emplace_back(
-		create_slider_option(&shared_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, true));
+		create_slider_option(&shared_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, false));
 	option_entries.emplace_back(
 		create_keybind_option(&shared_state, "forward", &cv_bind_move_forward));
+	option_entries.emplace_back(
+		create_keybind_option(&shared_state, "backwards", &cv_bind_move_backward));
+	option_entries.emplace_back(create_keybind_option(&shared_state, "left", &cv_bind_move_left));
+	option_entries.emplace_back(create_keybind_option(&shared_state, "right", &cv_bind_move_right));
+	option_entries.emplace_back(
+		create_keybind_option(&shared_state, "fullscreen", &cv_bind_fullscreen));
+	option_entries.emplace_back(
+		create_keybind_option(&shared_state, "console", &cv_bind_open_console));
+	option_entries.emplace_back(
+		create_keybind_option(&shared_state, "options", &cv_bind_open_options));
 
-    // check for errors.
+	// check for errors.
 	for(auto& entry : option_entries)
 	{
 		if(!entry)
@@ -79,7 +89,7 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 		set_event_leave(e);
 	}
 
-    // scroll
+	// scroll
 
 	scroll_state.input(e);
 
@@ -88,10 +98,10 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 	float scroll_ymin = scroll_state.box_ymin;
 	float scroll_ymax = scroll_state.box_ymax;
 
-    bool clip_scrollbox = false;
+	bool clip_scrollbox = false;
 
 	// filter out mouse events that are clipped out of the scroll_view
-    // TODO: this should really be handled in a way to reduce copy-paste
+	// TODO: this should really be handled in a way to reduce copy-paste
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
@@ -101,17 +111,17 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 			 scroll_xmin <= mouse_x))
 		{
 			// un hover all the elements.
-            SDL_Event e2;
+			SDL_Event e2;
 			set_event_leave(e2);
-            for(auto& entry : option_entries)
-	        {
-                if(entry->input(e2) == OPTION_ELEMENT_RESULT::ERROR)
-                {
-                    return OPTIONS_CONTROLS_RESULT::ERROR;
-                }
-            }
-            // skip the buttons motion event.
-            clip_scrollbox = true;
+			for(auto& entry : option_entries)
+			{
+				if(entry->input(e2) == OPTION_ELEMENT_RESULT::ERROR)
+				{
+					return OPTIONS_CONTROLS_RESULT::ERROR;
+				}
+			}
+			// skip the buttons motion event.
+			clip_scrollbox = true;
 		}
 	}
 	break;
@@ -130,18 +140,18 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 		}
 		break;
 	}
-    if(!clip_scrollbox)
-    {
-        for(auto& entry : option_entries)
-        {
-            switch(entry->input(e))
-            {
-            case OPTION_ELEMENT_RESULT::CONTINUE: break;
-            case OPTION_ELEMENT_RESULT::MODIFIED: revert_button.set_disabled(false); break;
-            case OPTION_ELEMENT_RESULT::ERROR: return OPTIONS_CONTROLS_RESULT::ERROR;
-            }
-        }
-    }
+	if(!clip_scrollbox)
+	{
+		for(auto& entry : option_entries)
+		{
+			switch(entry->input(e))
+			{
+			case OPTION_ELEMENT_RESULT::CONTINUE: break;
+			case OPTION_ELEMENT_RESULT::MODIFIED: revert_button.set_disabled(false); break;
+			case OPTION_ELEMENT_RESULT::ERROR: return OPTIONS_CONTROLS_RESULT::ERROR;
+			}
+		}
+	}
 
 	// footer buttons
 	{
@@ -193,10 +203,10 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{
 		// close counts as an eat.
-        if(!close())
-        {
-				return OPTIONS_CONTROLS_RESULT::ERROR;
-        }
+		if(!close())
+		{
+			return OPTIONS_CONTROLS_RESULT::ERROR;
+		}
 		return OPTIONS_CONTROLS_RESULT::CLOSE;
 	}
 
@@ -226,11 +236,11 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 
 bool options_controls_state::update(double delta_sec)
 {
-    if(shared_state.focus_element != NULL)
+	if(shared_state.focus_element != NULL)
 	{
 		if(!shared_state.focus_element->update(delta_sec))
 		{
-            return false;
+			return false;
 		}
 	}
 	// invert_button.update(delta_sec);
@@ -255,51 +265,51 @@ bool options_controls_state::draw_menu()
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
-    
-    // draw the backdrop bbox
-    {
-        float xmin = box_xmin;
-        float xmax = box_xmax;
-        float ymin = box_ymin;
-        float ymax = box_ymax;
 
-        std::array<uint8_t, 4> fill_color = RGBA8_PREMULT(50, 50, 50, 200);
+	// draw the backdrop bbox
+	{
+		float xmin = box_xmin;
+		float xmax = box_xmax;
+		float ymin = box_ymin;
+		float ymax = box_ymax;
 
-        batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, fill_color);
-        batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
-        batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
-        batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
-        batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
-    }
+		std::array<uint8_t, 4> fill_color = RGBA8_PREMULT(50, 50, 50, 200);
 
-    // footer buttons
-    {
-        if(!ok_button.draw_buffer(ok_text.c_str(), ok_text.size()))
-        {
-            return false;
-        }
-        if(!revert_button.draw_buffer(revert_text.c_str(), revert_text.size()))
-        {
-            return false;
-        }
-        if(!defaults_button.draw_buffer(defaults_text.c_str(), defaults_text.size()))
-        {
-            return false;
-        }
-    }
-    return true;
+		batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, fill_color);
+		batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+	}
+
+	// footer buttons
+	{
+		if(!ok_button.draw_buffer(ok_text.c_str(), ok_text.size()))
+		{
+			return false;
+		}
+		if(!revert_button.draw_buffer(revert_text.c_str(), revert_text.size()))
+		{
+			return false;
+		}
+		if(!defaults_button.draw_buffer(defaults_text.c_str(), defaults_text.size()))
+		{
+			return false;
+		}
+	}
+	return true;
 }
-    
+
 bool options_controls_state::draw_scroll()
 {
-    // for a 16px font I would want 400px
-    float menu_width = scroll_state.box_inner_xmax - scroll_state.box_xmin;
-    float cur_y = scroll_state.box_ymin - scroll_state.scroll_y;
+	// for a 16px font I would want 400px
+	float menu_width = scroll_state.box_inner_xmax - scroll_state.box_xmin;
+	float cur_y = scroll_state.box_ymin - scroll_state.scroll_y;
 
 	float scroll_ymin = scroll_state.box_ymin;
 	float scroll_ymax = scroll_state.box_ymax;
 
-    for(auto& entry : option_entries)
+	for(auto& entry : option_entries)
 	{
 		// too high
 		if(scroll_ymin >= cur_y + entry->get_height())
@@ -322,7 +332,7 @@ bool options_controls_state::draw_scroll()
 
 	scroll_state.draw_buffer();
 
-    return true;
+	return true;
 }
 
 // this requires the atlas texture to be bound with 1 byte packing
@@ -330,11 +340,11 @@ bool options_controls_state::render()
 {
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 
-    if(shared_state.focus_element != NULL)
+	if(shared_state.focus_element != NULL)
 	{
 		if(shared_state.focus_element->draw_requested())
 		{
-            update_buffer = true;
+			update_buffer = true;
 		}
 	}
 
@@ -352,93 +362,90 @@ bool options_controls_state::render()
 
 	update_buffer = update_buffer || scroll_state.draw_requested();
 
-    // upload the data to the GPU
+	// upload the data to the GPU
 	if(update_buffer)
 	{
-
 		batcher->clear();
 
-        if(!draw_menu())
-        {
-            return false;
-        }
+		if(!draw_menu())
+		{
+			return false;
+		}
 
-        // I need to split the batch into 2 draw calls for clipping the scroll.
-        menu_batch_vertex_count = batcher->get_current_vertex_count();
+		// I need to split the batch into 2 draw calls for clipping the scroll.
+		menu_batch_vertex_count = batcher->get_current_vertex_count();
 
-        if(!draw_scroll())
-        {
-            return false;
-        }
+		if(!draw_scroll())
+		{
+			return false;
+		}
 
-        scroll_batch_vertex_count = batcher->get_current_vertex_count();
+		scroll_batch_vertex_count = batcher->get_current_vertex_count();
 
-        if(shared_state.focus_element != NULL)
-        {
-            if(!shared_state.focus_element->draw_buffer())
-            {
-                return false;
-            }
-        }
+		if(shared_state.focus_element != NULL)
+		{
+			if(!shared_state.focus_element->draw_buffer())
+			{
+				return false;
+			}
+		}
 
-        if(batcher->get_quad_count() != 0)
-        {
-            // upload
-            ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_options_interleave_vbo);
-            ctx.glBufferData(GL_ARRAY_BUFFER, batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-            ctx.glBufferSubData(
-                GL_ARRAY_BUFFER, 0, batcher->get_current_vertex_size(), batcher->buffer);
-            ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
-        }
+		if(batcher->get_quad_count() != 0)
+		{
+			// upload
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_options_interleave_vbo);
+			ctx.glBufferData(
+				GL_ARRAY_BUFFER, batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
+			ctx.glBufferSubData(
+				GL_ARRAY_BUFFER, 0, batcher->get_current_vertex_size(), batcher->buffer);
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
 
-        update_buffer = false;
+		update_buffer = false;
 	}
 
-    //
-    // actual rendering
-    //
+	//
+	// actual rendering
+	//
 
-    // bind the vao which is used for all the batches here
-    ctx.glBindVertexArray(gl_options_vao_id);
+	// bind the vao which is used for all the batches here
+	ctx.glBindVertexArray(gl_options_vao_id);
 
-    if(menu_batch_vertex_count != 0)
-    {
-        // the draw_menu() call
-        ctx.glDrawArrays(GL_TRIANGLES, 0, menu_batch_vertex_count);
-    }
+	if(menu_batch_vertex_count != 0)
+	{
+		// the draw_menu() call
+		ctx.glDrawArrays(GL_TRIANGLES, 0, menu_batch_vertex_count);
+	}
 
-    GLint vertex_offset = menu_batch_vertex_count;
-    GLsizei vertex_count = scroll_batch_vertex_count - menu_batch_vertex_count;
+	GLint vertex_offset = menu_batch_vertex_count;
+	GLsizei vertex_count = scroll_batch_vertex_count - menu_batch_vertex_count;
 
-    if(vertex_count != 0)
-    {
-        // the scroll box
-        GLint scissor_x = static_cast<GLint>(scroll_state.box_xmin);
-        GLint scissor_y = static_cast<GLint>(scroll_state.box_ymin);
-        GLint scissor_w = static_cast<GLint>(scroll_state.box_xmax - scroll_state.box_xmin);
-        GLint scissor_h = static_cast<GLint>(scroll_state.box_ymax - scroll_state.box_ymin);
-        if(scissor_w > 0 && scissor_h > 0)
-        {
-            ctx.glEnable(GL_SCISSOR_TEST);
-            // don't forget that 0,0 is the bottom left corner...
-            ctx.glScissor(
-                scissor_x, cv_screen_height.data - scissor_y - scissor_h, scissor_w, scissor_h);
-            ctx.glDrawArrays(
-                GL_TRIANGLES,
-                vertex_offset,
-                vertex_count);
-            ctx.glDisable(GL_SCISSOR_TEST);
-        }
-    }
+	if(vertex_count != 0)
+	{
+		// the scroll box
+		GLint scissor_x = static_cast<GLint>(scroll_state.box_xmin);
+		GLint scissor_y = static_cast<GLint>(scroll_state.box_ymin);
+		GLint scissor_w = static_cast<GLint>(scroll_state.box_xmax - scroll_state.box_xmin);
+		GLint scissor_h = static_cast<GLint>(scroll_state.box_ymax - scroll_state.box_ymin);
+		if(scissor_w > 0 && scissor_h > 0)
+		{
+			ctx.glEnable(GL_SCISSOR_TEST);
+			// don't forget that 0,0 is the bottom left corner...
+			ctx.glScissor(
+				scissor_x, cv_screen_height.data - scissor_y - scissor_h, scissor_w, scissor_h);
+			ctx.glDrawArrays(GL_TRIANGLES, vertex_offset, vertex_count);
+			ctx.glDisable(GL_SCISSOR_TEST);
+		}
+	}
 
-    if(shared_state.focus_element != NULL)
-    {
-        // this requires the VAO.
-        if(!shared_state.focus_element->render())
-        {
-            return false;
-        }
-    }
+	if(shared_state.focus_element != NULL)
+	{
+		// this requires the VAO.
+		if(!shared_state.focus_element->render())
+		{
+			return false;
+		}
+	}
 
 	ctx.glBindVertexArray(0);
 
@@ -449,14 +456,14 @@ void options_controls_state::resize_view()
 {
 	float button_height = font_painter->get_lineskip() + font_padding;
 	float footer_height = button_height;
-    float window_edge_padding = 60;
-
+	float window_edge_padding = 60;
 
 	float screen_width = static_cast<float>(cv_screen_width.data);
 	float screen_height = static_cast<float>(cv_screen_height.data);
 
 	// for a 16px font I would want 400px
-	float menu_width = std::min(400 * (font_painter->get_lineskip() / 16.f), screen_width - window_edge_padding * 2);
+	float menu_width = std::min(
+		400 * (font_painter->get_lineskip() / 16.f), screen_width - window_edge_padding * 2);
 
 	float button_area_height = 0;
 	for(auto& entry : option_entries)
@@ -464,10 +471,11 @@ void options_controls_state::resize_view()
 		button_area_height += entry->get_height() + element_padding;
 	}
 
-    scroll_state.content_h = button_area_height - element_padding;
+	scroll_state.content_h = button_area_height - element_padding;
 	// the footer has element_padding, but button_area_height needs to be trimmed by element_padding
 	// so it cancels itself out.
-	float menu_height = std::min(button_area_height + footer_height, screen_height - window_edge_padding * 2);
+	float menu_height =
+		std::min(button_area_height + footer_height, screen_height - window_edge_padding * 2);
 	float x = std::floor((screen_width - menu_width) / 2.f);
 	float y = std::floor((screen_height - menu_height) / 2.f);
 
@@ -478,24 +486,14 @@ void options_controls_state::resize_view()
 
 		float x_cursor = x + menu_width;
 		x_cursor -= button_width;
-		ok_button.set_rect(
-			x_cursor,
-			y + menu_height - footer_height,
-			button_width,
-			button_height);
+		ok_button.set_rect(x_cursor, y + menu_height - footer_height, button_width, button_height);
 		x_cursor -= button_width + element_padding;
 		revert_button.set_rect(
-			x_cursor,
-			y + menu_height - footer_height,
-			button_width,
-			button_height);
+			x_cursor, y + menu_height - footer_height, button_width, button_height);
 		// note I double the width here
 		x_cursor -= (button_width * 2) + element_padding;
 		defaults_button.set_rect(
-			x_cursor,
-			y + menu_height - footer_height,
-			button_width * 2,
-			button_height);
+			x_cursor, y + menu_height - footer_height, button_width * 2, button_height);
 	}
 
 	box_xmin = x - element_padding;
@@ -503,18 +501,18 @@ void options_controls_state::resize_view()
 	box_ymin = y - element_padding;
 	box_ymax = y + menu_height + element_padding;
 
-    scroll_state.resize_view(
+	scroll_state.resize_view(
 		box_xmin + element_padding,
 		box_xmax - element_padding,
 		box_ymin + element_padding,
 		box_ymax - (footer_height + element_padding) - element_padding);
 
-    if(shared_state.focus_element != NULL)
-    {
-        shared_state.focus_element->resize_view();
-    }
+	if(shared_state.focus_element != NULL)
+	{
+		shared_state.focus_element->resize_view();
+	}
 
-    update_buffer = true;
+	update_buffer = true;
 }
 
 bool options_controls_state::undo_history()
@@ -568,13 +566,13 @@ bool options_controls_state::close()
 {
 	scroll_state.scroll_to_top();
 
-    // TODO(dootsie): this should probably be done outside...
-    if(!shared_state.set_focus(NULL))
-    {
-        return false;
-    }
-    
-    for(auto& entry : option_entries)
+	// TODO(dootsie): this should probably be done outside...
+	if(!shared_state.set_focus(NULL))
+	{
+		return false;
+	}
+
+	for(auto& entry : option_entries)
 	{
 		if(!entry->close())
 		{

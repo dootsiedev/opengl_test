@@ -9,8 +9,7 @@
 
 #include "options_select.h"
 #include "options_video.h"
-#include "options_mouse.h"
-#include "options_keybinds.h"
+#include "options_controls.h"
 #ifdef AUDIO_SUPPORT
 #include "options_audio.h"
 #endif
@@ -43,8 +42,7 @@ struct options_state
 	MENU_FACTORY current_state = MENU_FACTORY::MENU_SELECT;
 	options_select_state select;
 	options_video_state video;
-	options_controls_state mouse;
-	options_keybinds_state keybinds;
+	options_controls_state controls;
 #ifdef AUDIO_SUPPORT
 	options_audio_state audio;
 #endif
