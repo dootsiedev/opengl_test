@@ -86,11 +86,15 @@ bool text_prompt_wrapper::init(
 
 	// space_advance_cache = painter->font->GetAdvance(' ');
 
-	// implicitly set the space cache value.
-	if(!set_scale(state.font_scale))
-    {
-        return false;
-    }
+	// set the space cache value.
+	switch(state.font->get_advance(' ', &space_advance_cache, state.font_scale))
+	{
+	case FONT_BASIC_RESULT::SUCCESS: break;
+	case FONT_BASIC_RESULT::NOT_FOUND:
+		serrf("%s: space not found???\n", state.font->get_name());
+		return false;
+	case FONT_BASIC_RESULT::ERROR: return false;
+	}
 
 	return true;
 }
@@ -107,6 +111,17 @@ bool text_prompt_wrapper::set_scale(float font_scale)
 		return false;
 	case FONT_BASIC_RESULT::ERROR: return false;
 	}
+    for(auto &c :text_data)
+    {
+        switch(state.font->get_advance(c.codepoint, &c.advance, state.font_scale))
+        {
+        case FONT_BASIC_RESULT::SUCCESS: break;
+        case FONT_BASIC_RESULT::NOT_FOUND:
+            serrf("%s: space not found???\n", state.font->get_name());
+            return false;
+        case FONT_BASIC_RESULT::ERROR: return false;
+        }
+    }
 	return true;
 }
 

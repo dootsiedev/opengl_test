@@ -218,66 +218,6 @@ struct mono_y_scrollable_area
 	void internal_scroll_y_to(float mouse_y);
 };
 
-#if 0
-// simple window that has a description text, and a list of buttons.
-// mainly for a simple "yes or no" popup window.
-struct simple_window_picker_state
-{
-	// this puts the text on the screen using a style and batcher.
-	font_sprite_painter* font_painter = NULL;
-
-	// this is just a list of buttons, I will just associate the button with the enum.
-	struct select_entry
-	{
-		mono_button_object button;
-		// -1 is reserved for errors.
-		int result;
-	};
-	std::vector<select_entry> select_entries;
-
-	std::string info_text;
-	float menu_width = -1;
-
-	// the buffer that contains the menu rects and text
-	// this is NOT owned by this state
-	GLuint gl_options_interleave_vbo = 0;
-	GLuint gl_options_vao_id = 0;
-
-	// added size to the lineskip for the button size.
-	float font_padding = 4;
-	// padding between elements (buttons, scrollbar, etc)
-	float element_padding = 10;
-
-	// the dimensions of the whole backdrop
-	float box_xmin = -1;
-	float box_xmax = -1;
-	float box_ymin = -1;
-	float box_ymax = -1;
-
-	// instead of being horizontal, list the buttons vertically.
-	bool vertical_mode = false;
-
-	// info is the message, width should be scaled by the pointsize of the font.
-	void init(
-		std::string info, float width, font_sprite_painter* font_painter_, GLuint vbo, GLuint vao);
-
-	// add a button to the right, or down if vertical_mode is true.
-	void add_button(std::string text, int result);
-
-	NDSERR int input(SDL_Event& e);
-
-	NDSERR bool update(double delta_sec);
-
-	// this requires the atlas texture to be bound with 1 byte packing
-	NDSERR bool render();
-
-	void resize_view();
-
-	// call this when you need to unfocus, like for example if you press escape or something.
-	void unfocus();
-};
-#endif
-
 // a slider that takes a double from 0-1.
 struct mono_normalized_slider_object
 {
@@ -326,6 +266,7 @@ struct mono_normalized_slider_object
 
 	// this does not return an error!!!
 	// this returns true if the value changed!
+    // TODO: probably could add in a UNFOCUS enum if I didn't want the realtime modification.
 	bool input(SDL_Event& e);
 
 	void draw_buffer();

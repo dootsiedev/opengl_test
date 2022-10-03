@@ -8,6 +8,7 @@ bool options_state::init(
 	ASSERT(batcher_ != NULL);
 
 	font_painter.init(batcher_, font_);
+    font_painter.set_scale(2);
 
 	// create the buffer for the shader
 	ctx.glGenBuffers(1, &gl_options_interleave_vbo);

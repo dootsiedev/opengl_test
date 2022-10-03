@@ -13,7 +13,8 @@ bool option_error_prompt::init(shared_cvar_option_state* state_, std::string mes
 	state = state_;
 	display_message = std::move(message);
 
-	font_painter.init(state->font_painter->state.batcher, state->font_painter->state.font);
+    // TODO: should be font_painter.init(state->font_painter)
+	font_painter.state = state->font_painter->state;
 	font_painter.set_flags(TEXT_FLAGS::NEWLINE);
 
 	ok_button_text = "ok";
@@ -527,6 +528,9 @@ bool cvar_slider_option::init(
 
 	slider.init(font_painter, cvar->data);
 
+    // note this only works if you do it before init
+    prompt.state.font_scale = font_painter->state.font_scale;
+
 	// TODO(dootsie): I would make the prompt select all the text when you click up without
 	// dragging. or just implement double / triple clicking...
 	if(!prompt.init(
@@ -535,7 +539,7 @@ bool cvar_slider_option::init(
 		   font_painter->state.font,
 		   TEXTP_SINGLE_LINE | TEXTP_DRAW_BBOX | TEXTP_DRAW_BACKDROP | TEXTP_DISABLE_CULL))
 	{
-		// NOLINTNEXTLINE
+        // NOLINTNEXTLINE
 		return false;
 	}
 
@@ -767,7 +771,7 @@ bool cvar_slider_option::clear_history()
 std::unique_ptr<abstract_option_element>
 	create_bool_option(shared_cvar_option_state* state, std::string label, cvar_int* cvar)
 {
-	multi_option_entry bool_options[] = {{0, "off"}, {1, "on"}};
+	multi_option_entry bool_options[] = {{0, "off"}, {1, "on"}, {1, "on2"}};
 	auto output = std::make_unique<cvar_button_option>();
 	if(!output->init(state, std::move(label), cvar, std::size(bool_options), bool_options))
 	{
@@ -892,9 +896,13 @@ OPTION_ELEMENT_RESULT cvar_keybind_option::input(SDL_Event& e)
 			return OPTION_ELEMENT_RESULT::ERROR;
 		}
 		{
+            // dumb hack because the button needs to be told the mouse is obscured.
 			SDL_Event e2;
 			set_event_leave(e2);
-			button.input(e2);
+			if(button.input(e2) == BUTTON_RESULT::ERROR)
+            {
+                return OPTION_ELEMENT_RESULT::ERROR;
+            }
 		}
 		// eat
 		set_event_unfocus(e);
@@ -1016,18 +1024,25 @@ bool option_keybind_request::init(
 
 	temp_value = option_state->cvar->key_binds;
 	value_modified = false;
+	update_buffer = true;
 
-	font_painter.init(state->font_painter->state.batcher, state->font_painter->state.font);
+    gl_batch_buffer_offset = 0;
+    batch_vertex_count = 0;
+    gl_batch_buffer_offset = -1;
+	batch_vertex_count = 0;
+
+    // TODO: should be font_painter.init(state->font_painter)
+	font_painter.state = state->font_painter->state;
 	font_painter.set_flags(TEXT_FLAGS::NEWLINE);
 
 	unbind_button_text = "unbind";
-	unbind_button.init(state->font_painter);
+	unbind_button.init(&font_painter);
 
 	cancel_button_text = "cancel";
-	cancel_button.init(state->font_painter);
+	cancel_button.init(&font_painter);
 
 	ok_button_text = "ok";
-	ok_button.init(state->font_painter);
+	ok_button.init(&font_painter);
 	ok_button.set_disabled(true);
 
 	return format_text();
@@ -1122,7 +1137,10 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 		value_modified = true;
 		temp_value.type = KEYBIND_T::NONE;
 		ok_button.set_disabled(false);
-		format_text();
+		if(!format_text())
+        {
+            return FOCUS_ELEMENT_RESULT::ERROR;
+        }
 		// eat
 		set_event_unfocus(e);
 		break;
@@ -1171,7 +1189,10 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 		value_modified = true;
 		ok_button.set_disabled(false);
 		temp_value = out;
-		format_text();
+		if(!format_text())
+        {
+            return FOCUS_ELEMENT_RESULT::ERROR;
+        }
 		set_event_unfocus(e);
 	}
 
@@ -1289,15 +1310,6 @@ bool option_keybind_request::render()
 
 	if(batch_vertex_count - gl_batch_buffer_offset > 0)
 	{
-		// optimization: some render() calls use a draw call, and some dont,
-		// This is a microoptimization because focus_element isn't a hot path (only called once)
-		// but maybe I might want options to be more complex and elements could have multiple draw
-		// calls. maybe the render() call should turn into render(GLint *offset, GLsizei *count), if
-		// you don't need a exclusive draw call, just append *count. if you do, then you must draw
-		// the previous batch (because it's likely you need a exclusive draw call because you are
-		// using glScissor), then use your exclusive draw. and then after drawing do *offset +=
-		// *count; *count = 0; then when all the elements are draw, make sure to complete the last
-		// draw call.
 		ctx.glDrawArrays(
 			GL_TRIANGLES, gl_batch_buffer_offset, batch_vertex_count - gl_batch_buffer_offset);
 	}
@@ -1309,4 +1321,9 @@ bool option_keybind_request::draw_requested()
 	ASSERT(state != NULL);
 	return update_buffer || ok_button.draw_requested() || cancel_button.draw_requested() ||
 		   unbind_button.draw_requested();
+}
+
+bool option_keybind_request::close()
+{
+    return true;
 }

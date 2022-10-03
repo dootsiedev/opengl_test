@@ -938,7 +938,10 @@ bool demo_state::input(SDL_Event& e)
 		// eat
 		set_event_unfocus(e);
 		// unfocus ALL
-		input(e);
+		if(!input(e))
+        {
+            return false;
+        }
 		show_console = !show_console;
 		if(show_console)
 		{
@@ -946,7 +949,10 @@ bool demo_state::input(SDL_Event& e)
 			// force the console to resize itself.
 			SDL_Event e2;
 			set_event_resize(e2);
-			g_console.input(e2);
+			if(g_console.input(e2) == CONSOLE_RESULT::ERROR)
+            {
+                return false;
+            }
 		}
 	}
 
@@ -955,13 +961,19 @@ bool demo_state::input(SDL_Event& e)
 		// eat
 		set_event_unfocus(e);
 		// unfocus ALL
-		input(e);
+		if(!input(e))
+        {
+            return false;
+        }
 		// this isn't a toggle. only open, press escape or click close.
-		show_options = true;
+		show_options = !show_options;
 		// force resize.
 		SDL_Event e2;
 		set_event_resize(e2);
-		option_menu.input(e2);
+        if(option_menu.input(e2) == OPTIONS_RESULT::ERROR)
+        {
+            return false;
+        }
 	}
 
 	// unfocus the buttons if you pressed a button that could open something.

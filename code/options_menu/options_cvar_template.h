@@ -178,12 +178,7 @@ struct option_keybind_request : public abstract_focus_element
 	NDSERR bool draw_buffer() override;
 	NDSERR bool render() override;
 	bool draw_requested() override;
-	NDSERR bool close() override
-	{
-		gl_batch_buffer_offset = 0;
-		batch_vertex_count = 0;
-		return true;
-	}
+	NDSERR bool close() override;
 };
 
 // this needs to be allocated for the lifetime of the elements.

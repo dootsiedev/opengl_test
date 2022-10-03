@@ -20,6 +20,7 @@ bool options_controls_state::init(font_sprite_painter* font_painter_, GLuint vbo
 		create_bool_option(&shared_state, "invert mouse", &cv_mouse_invert));
 	option_entries.emplace_back(
 		create_slider_option(&shared_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, false));
+    // TODO: would be smart to have a dummy entry that is just text which says "key binds"
 	option_entries.emplace_back(
 		create_keybind_option(&shared_state, "forward", &cv_bind_move_forward));
 	option_entries.emplace_back(
@@ -78,7 +79,9 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 		switch(shared_state.focus_element->input(e))
 		{
 		case FOCUS_ELEMENT_RESULT::CONTINUE: break;
-		case FOCUS_ELEMENT_RESULT::CLOSE: shared_state.set_focus(NULL); break;
+		case FOCUS_ELEMENT_RESULT::CLOSE:
+			shared_state.set_focus(NULL);
+			break;
 		case FOCUS_ELEMENT_RESULT::MODIFIED:
 			shared_state.set_focus(NULL);
 			revert_button.set_disabled(false);
