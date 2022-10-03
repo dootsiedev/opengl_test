@@ -4,6 +4,9 @@
 
 #include "../app.h"
 
+//for key binds
+#include "../demo.h"
+
 // TODO(dootsie): make the escape button close the menu,
 // and make a popup that asks if you want to keep the changes?
 // TODO(dootsie): each keybind should have it's own "revert to default".
@@ -19,16 +22,14 @@ void options_keybinds_state::init(font_sprite_painter* font_painter_, GLuint vbo
 	gl_options_interleave_vbo = vbo;
 	gl_options_vao_id = vao;
 
-	for(const auto& [key, value] : get_keybinds())
-	{
-		switch(value.visablity)
-		{
-		case KEYBIND_VIS::HIDDEN: break;
-		case KEYBIND_VIS::NORMAL:
-			buttons.emplace_back(value, font_painter, value.cvar_write());
-			break;
-		}
-	}
+
+	buttons.emplace_back(cv_bind_move_forward, font_painter);
+	buttons.emplace_back(cv_bind_move_backward, font_painter);
+	buttons.emplace_back(cv_bind_move_left, font_painter);
+	buttons.emplace_back(cv_bind_move_right, font_painter);
+	buttons.emplace_back(cv_bind_fullscreen, font_painter);
+	buttons.emplace_back(cv_bind_open_console, font_painter);
+	buttons.emplace_back(cv_bind_open_options, font_painter);
 
 	revert_button.init(font_painter);
 	revert_text = "revert";
@@ -61,9 +62,8 @@ void options_keybinds_state::close()
 
 OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 {
-	switch(e.type)
+	if(e.type == SDL_WINDOWEVENT)
 	{
-	case SDL_WINDOWEVENT:
 		switch(e.window.event)
 		{
 		case SDL_WINDOWEVENT_SIZE_CHANGED: resize_view(); break;
@@ -113,7 +113,7 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		}
 
 		keybind_state out;
-		if(keybind.bind_sdl_event(e, &out))
+		if(keybind.bind_sdl_event(out, e))
 		{
 			// insert into history
 			history.emplace_back(keybind.key_binds, *requested_button);
@@ -194,7 +194,10 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 	float scroll_ymin = scroll_state.box_ymin;
 	float scroll_ymax = scroll_state.box_ymax;
 
+    bool skip_buttons = false;
+
 	// filter out mouse events that are clipped out of the scroll_view
+    // TODO: this should really be handled in a way to reduce copy-paste
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
@@ -203,36 +206,63 @@ OPTIONS_KEYBINDS_RESULT options_keybinds_state::input(SDL_Event& e)
 		if(!(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
 			 scroll_xmin <= mouse_x))
 		{
-			// un hover
-			set_event_leave(e);
+			// un hover all the buttons.
+            SDL_Event e2;
+			set_event_leave(e2);
+            for(auto& button : buttons)
+	        {
+                if(button.button.input(e2) == BUTTON_RESULT::ERROR)
+                {
+                    return OPTIONS_KEYBINDS_RESULT::ERROR;
+                }
+            }
+            // skip the buttons motion event.
+            skip_buttons = true;
 		}
 	}
 	break;
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP:
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
+		{
+			float mouse_x = static_cast<float>(e.button.x);
+			float mouse_y = static_cast<float>(e.button.y);
+			if(!(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
+				 scroll_xmin <= mouse_x))
+			{
+				// skip the buttons.
+				skip_buttons = true;
+			}
+		}
+		break;
 	}
-	for(auto& button : buttons)
-	{
-		// too high
-		if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
-		{
-			continue;
-		}
-		// too low
-		if(scroll_ymax <= button.button.button_rect[1])
-		{
-			break;
-		}
-		switch(button.button.input(e))
-		{
-		case BUTTON_RESULT::CONTINUE: break;
-		case BUTTON_RESULT::TRIGGER:
-			// trigger will eat
-			requested_button = &button;
-			button.text = "[press button]";
-			button.button.color_state.text_color = {255, 255, 0, 255};
-			return OPTIONS_KEYBINDS_RESULT::CONTINUE;
-		case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
-		}
-	}
+    if(!skip_buttons)
+    {
+        for(auto& button : buttons)
+        {
+            // too high
+            if(scroll_ymin >= button.button.button_rect[1] + button.button.button_rect[3])
+            {
+                continue;
+            }
+            // too low
+            if(scroll_ymax <= button.button.button_rect[1])
+            {
+                break;
+            }
+            switch(button.button.input(e))
+            {
+            case BUTTON_RESULT::CONTINUE: break;
+            case BUTTON_RESULT::TRIGGER:
+                // trigger will eat
+                requested_button = &button;
+                button.text = "[press button]";
+                button.button.color_state.text_color = {255, 255, 0, 255};
+                return OPTIONS_KEYBINDS_RESULT::CONTINUE;
+            case BUTTON_RESULT::ERROR: return OPTIONS_KEYBINDS_RESULT::ERROR;
+            }
+        }
+    }
 
 	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 	{

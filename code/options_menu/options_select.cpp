@@ -25,15 +25,17 @@ void options_select_state::init(font_sprite_painter* font_painter_, GLuint vbo, 
 	{
 		select_entry& entry = select_entries.emplace_back();
 		entry.button.init(font_painter);
-		entry.text = "Keybinds";
-		entry.result = OPTIONS_SELECT_RESULT::OPEN_KEYBINDS;
+		entry.text = "Controls";
+		entry.result = OPTIONS_SELECT_RESULT::OPEN_CONTROLS;
 	}
+    #if 0
 	{
 		select_entry& entry = select_entries.emplace_back();
 		entry.button.init(font_painter);
 		entry.text = "Mouse";
 		entry.result = OPTIONS_SELECT_RESULT::OPEN_MOUSE;
 	}
+    #endif
 	{
 #ifdef AUDIO_SUPPORT
 		select_entry& entry = select_entries.emplace_back();

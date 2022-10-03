@@ -522,7 +522,7 @@ struct font_bitmap_cache : public font_style_interface
 	// aliasing happens. this does mean that if there was a 10pt bitmap font, it would not look very
 	// good with 16pt because it would have either a short or long lineskip, and hexfont wouldn't
 	// have the same size (but readable!)
-	//float bitmap_scale = 1.f;
+	float bitmap_scale = 1.f;
 
 	void init(font_manager_state* font_manager, font_ttf_rasterizer* rasterizer);
 	NDSERR bool destroy();
@@ -666,6 +666,11 @@ struct font_sprite_painter
 	{
 		state.init(batcher_, font_);
 	}
+
+    void set_scale(float font_scale)
+    {
+        state.font_scale = font_scale;
+    }
 
 	void set_anchor(TEXT_ANCHOR anchor)
 	{

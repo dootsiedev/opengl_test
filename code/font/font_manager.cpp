@@ -139,7 +139,7 @@ static void convert_glyph_format(
 	out->glyph_ymin = font->get_ascent(font_scale) - (static_cast<float>(in->ymin) * font_scale);
 	out->glyph_xmax = out->glyph_xmin + static_cast<float>(in->rect_w) * font_scale;
 	out->glyph_ymax = out->glyph_ymin + (static_cast<float>(in->rect_h) * font_scale);
-	out->advance = static_cast<float>(in->advance) * font_scale;
+	out->advance = std::ceil(static_cast<float>(in->advance) * font_scale);
 }
 
 bool font_manager_state::create()
@@ -1145,14 +1145,14 @@ void font_bitmap_cache::init(font_manager_state* font_manager, font_ttf_rasteriz
 	current_rasterizer = rasterizer;
 	fallback = &font_manager->hex_font;
 
-/*
+
 	FT_Face face = current_rasterizer->face;
     const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
 	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
 	{
 		int bitmap_height = FT_CEIL(face->size->metrics.height);
-		//bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
-	}*/
+		bitmap_scale = face_settings->point_size / static_cast<float>(bitmap_height);
+	}
 
 	FT_Bitmap_Init(&convert_bitmap);
 }
@@ -1316,7 +1316,7 @@ float font_bitmap_cache::get_ascent(float font_scale)
 float font_bitmap_cache::get_lineskip(float font_scale)
 {
 	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
-	return std::ceil(face_settings->point_size) * font_scale;
+	return std::ceil(face_settings->point_size * font_scale);
 // the problem with using the "real" lineskip is that for certain fonts, it's excessive.
 // this might be useful if you were aiming for your lineskip look like a ms word document.
 #if 0
@@ -1373,7 +1373,7 @@ font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_sc
 		case FONT_ENTRY::UNDEFINED: break;
 		case FONT_ENTRY::GLYPH:
 		case FONT_ENTRY::SPACE:
-			*advance = std::ceil(static_cast<float>(glyph.advance) * font_scale);
+			*advance = std::ceil(static_cast<float>(glyph.advance) * font_scale * bitmap_scale);
 			return FONT_BASIC_RESULT::SUCCESS;
 		}
 	}
@@ -1422,7 +1422,7 @@ font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_sc
 
 	*advance = std::ceil(
 		static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) *
-		font_scale);
+		font_scale * bitmap_scale);
 
 	return FONT_BASIC_RESULT::SUCCESS;
 }
@@ -1468,10 +1468,10 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 		{
 		case FONT_ENTRY::UNDEFINED: break;
 		case FONT_ENTRY::GLYPH:
-			convert_glyph_format(this, glyph_in, glyph_out, font_scale);
+			convert_glyph_format(this, glyph_in, glyph_out, font_scale * bitmap_scale);
 			return FONT_RESULT::SUCCESS;
 		case FONT_ENTRY::SPACE:
-			glyph_out->advance = static_cast<float>(glyph_in->advance) * font_scale;
+			glyph_out->advance = std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
 			return FONT_RESULT::SPACE;
 		}
 	}
@@ -1542,7 +1542,7 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 		glyph_in->advance = (current_rasterizer->face->glyph->advance.x >> 6);
 
 		// glyph_convert(glyph_in, glyph_out, font_scale);
-		glyph_out->advance = static_cast<float>(glyph_in->advance) * font_scale;
+		glyph_out->advance = std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
 		return FONT_RESULT::SPACE;
 	}
     unsigned int x_out;
@@ -1609,7 +1609,7 @@ FONT_RESULT font_bitmap_cache::get_glyph(
     // NOLINTNEXTLINE(bugprone-narrowing-conversions)
     glyph_in->ymin = (ftglyph_bitmap->top);
     glyph_in->type = FONT_ENTRY::GLYPH;
-    convert_glyph_format(this, glyph_in, glyph_out, font_scale);
+    convert_glyph_format(this, glyph_in, glyph_out, font_scale * bitmap_scale);
 
 	return FONT_RESULT::SUCCESS;
 }

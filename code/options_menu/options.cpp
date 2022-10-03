@@ -58,18 +58,18 @@ OPTIONS_RESULT options_state::input(SDL_Event& e)
 		case OPTIONS_SELECT_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_SELECT_RESULT::CLOSE: internal_refresh(); return OPTIONS_RESULT::CLOSE;
 		case OPTIONS_SELECT_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
-		case OPTIONS_SELECT_RESULT::OPEN_MOUSE:
+		case OPTIONS_SELECT_RESULT::OPEN_CONTROLS:
 			internal_refresh();
-			current_state = MENU_FACTORY::MOUSE;
+			current_state = MENU_FACTORY::CONTROLS;
 			return OPTIONS_RESULT::CONTINUE;
-		case OPTIONS_SELECT_RESULT::OPEN_KEYBINDS:
-			internal_refresh();
-			current_state = MENU_FACTORY::KEYBINDS;
-			return OPTIONS_RESULT::CONTINUE;
+		//case OPTIONS_SELECT_RESULT::OPEN_KEYBINDS:
+		//	internal_refresh();
+		//	current_state = MENU_FACTORY::KEYBINDS;
+		//	return OPTIONS_RESULT::CONTINUE;
 		case OPTIONS_SELECT_RESULT::OPEN_VIDEO: internal_refresh(); return OPTIONS_RESULT::CLOSE;
 		}
 		break;
-	case MENU_FACTORY::KEYBINDS:
+	/*case MENU_FACTORY::CONTROLS:
 		switch(keybinds.input(e))
 		{
 		case OPTIONS_KEYBINDS_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
@@ -80,15 +80,16 @@ OPTIONS_RESULT options_state::input(SDL_Event& e)
 		case OPTIONS_KEYBINDS_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
 		}
 		break;
-	case MENU_FACTORY::MOUSE:
+        */
+	case MENU_FACTORY::CONTROLS:
 		switch(mouse.input(e))
 		{
-		case OPTIONS_MOUSE_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
-		case OPTIONS_MOUSE_RESULT::CLOSE:
+		case OPTIONS_CONTROLS_RESULT::CONTINUE: return OPTIONS_RESULT::CONTINUE;
+		case OPTIONS_CONTROLS_RESULT::CLOSE:
 			internal_refresh();
 			current_state = MENU_FACTORY::MENU_SELECT;
 			return OPTIONS_RESULT::CONTINUE;
-		case OPTIONS_MOUSE_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
+		case OPTIONS_CONTROLS_RESULT::ERROR: return OPTIONS_RESULT::ERROR;
 		}
 		break;
 	}
@@ -102,8 +103,8 @@ bool options_state::update(double delta_sec)
 	switch(current_state)
 	{
 	case MENU_FACTORY::MENU_SELECT: return select.update(delta_sec);
-	case MENU_FACTORY::KEYBINDS: return keybinds.update(delta_sec);
-	case MENU_FACTORY::MOUSE: return mouse.update(delta_sec);
+	//case MENU_FACTORY::KEYBINDS: return keybinds.update(delta_sec);
+	case MENU_FACTORY::CONTROLS: return mouse.update(delta_sec);
 	}
 	ASSERT(false);
 	serrf("%s: unknown switch", __func__);
@@ -116,8 +117,8 @@ bool options_state::render()
 	switch(current_state)
 	{
 	case MENU_FACTORY::MENU_SELECT: return select.render();
-	case MENU_FACTORY::KEYBINDS: return keybinds.render();
-	case MENU_FACTORY::MOUSE: return mouse.render();
+	//case MENU_FACTORY::KEYBINDS: return keybinds.render();
+	case MENU_FACTORY::CONTROLS: return mouse.render();
 	}
 	ASSERT(false);
 	serrf("%s: unknown switch", __func__);

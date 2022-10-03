@@ -9,39 +9,30 @@
 #define MOUSE_RMB_STRING_NAME "RMB"
 #define MOUSE_MMB_STRING_NAME "MMB"
 
+// needs a mask because apparently scroll lock is included....
+#define MY_ALLOWED_KMODS (KMOD_CTRL | KMOD_SHIFT | KMOD_ALT)
+
 // forward declaration
 Uint16 find_sdl_mod(const char* string, size_t size);
 SDL_Keycode find_sdl_keycode(const char* string, size_t size);
 const char* get_sdl_key_name(SDL_Keycode key);
 
-std::map<const char*, cvar_key_bind&, cmp_str>& get_keybinds()
-{
-	static std::map<const char*, cvar_key_bind&, cmp_str> keybinds;
-	return keybinds;
-}
-
 cvar_key_bind::cvar_key_bind(
 	const char* key,
 	keybind_state value,
-    KEYBIND_VIS visablity_,
+    bool allow_mouse_,
 	const char* comment,
 	CVAR_T type,
 	const char* file,
 	int line)
 : V_cvar(key, comment, type, file, line)
-, visablity(visablity_)
+, allow_mouse(allow_mouse_)
 {
 	{
 		auto [it, success] = get_convars().try_emplace(key, *this);
 		(void)success;
 		// this shouldn't be possible.
 		ASSERT(success && "cvar already registered");
-	}
-	{
-		auto [it, success] = get_keybinds().try_emplace(key, *this);
-		(void)success;
-		// this shouldn't be possible.
-		ASSERT(success && "keybind already registered");
 	}
 	key_binds = value;
 }
@@ -75,21 +66,21 @@ bool cvar_key_bind::cvar_read(const char* buffer)
 	}
 	return true;
 }
-std::string cvar_key_bind::cvar_write()
+std::string cvar_key_bind::keybind_to_string(keybind_state& in)
 {
 	std::string out;
 
-	if(key_binds.mod != 0)
+	if(in.mod != 0)
 	{
-		if((KMOD_CTRL & key_binds.mod) != 0)
+		if((KMOD_CTRL & in.mod) != 0)
 		{
 			out += "KMOD_CTRL;";
 		}
-		else if((KMOD_SHIFT & key_binds.mod) != 0)
+		else if((KMOD_SHIFT & in.mod) != 0)
 		{
 			out += "KMOD_SHIFT;";
 		}
-		else if((KMOD_ALT & key_binds.mod) != 0)
+		else if((KMOD_ALT & in.mod) != 0)
 		{
 			out += "KMOD_ALT;";
 		}
@@ -98,12 +89,12 @@ std::string cvar_key_bind::cvar_write()
 			out += "UNKNOWN_MODIFIER????";
 		}
 	}
-	switch(key_binds.type)
+	switch(in.type)
 	{
 	case KEYBIND_T::NONE: out += KEYBIND_NONE_STRING_NAME; break;
-	case KEYBIND_T::KEY: out += get_sdl_key_name(key_binds.key); break;
+	case KEYBIND_T::KEY: out += get_sdl_key_name(in.key); break;
 	case KEYBIND_T::MOUSE:
-		switch(key_binds.mouse_button)
+		switch(in.mouse_button)
 		{
 		case SDL_BUTTON_LEFT: out += MOUSE_LMB_STRING_NAME; break;
 		case SDL_BUTTON_RIGHT: out += MOUSE_RMB_STRING_NAME; break;
@@ -116,23 +107,30 @@ std::string cvar_key_bind::cvar_write()
 	return out;
 }
 
-bool cvar_key_bind::bind_sdl_event(SDL_Event& e, keybind_state* keybind)
+std::string cvar_key_bind::cvar_write()
+{
+	return keybind_to_string(key_binds);
+}
+
+bool cvar_key_bind::bind_sdl_event(keybind_state& value, SDL_Event& e)
 {
 	switch(e.type)
 	{
 		// I use button up because if I try to use the modifier,
 		// the modifier would be eaten as the bind before you could press another button.
 	case SDL_KEYUP:
-		keybind->type = KEYBIND_T::KEY;
-		keybind->key = e.key.keysym.sym;
-		// needs a mask because apparently scroll lock is included....
-		keybind->mod = e.key.keysym.mod & (KMOD_CTRL | KMOD_SHIFT | KMOD_ALT);
+		value.type = KEYBIND_T::KEY;
+		value.key = e.key.keysym.sym;
+		value.mod = e.key.keysym.mod & MY_ALLOWED_KMODS;
 		return true;
 	case SDL_MOUSEBUTTONDOWN:
-		keybind->type = KEYBIND_T::MOUSE;
-		keybind->mouse_button = e.button.button;
-		keybind->mod = SDL_GetModState() & (KMOD_CTRL | KMOD_SHIFT | KMOD_ALT);
-		return true;
+		if(allow_mouse)
+		{
+			value.type = KEYBIND_T::MOUSE;
+			value.mouse_button = e.button.button;
+			value.mod = SDL_GetModState() & MY_ALLOWED_KMODS;
+			return true;
+		}
 	}
 	return false;
 }

@@ -400,13 +400,13 @@ void cvar_list(bool debug)
 		switch(it.second.cvar_type)
 		{
 		case CVAR_T::RUNTIME: type = ""; break;
-		case CVAR_T::STARTUP: type = "[STARTUP]"; break;
-		case CVAR_T::DEFFERRED: type = "[DEFFERRED]"; break;
-		case CVAR_T::READONLY: type = "[READONLY]"; break;
-		case CVAR_T::DISABLED: type = "[DISABLED]"; break;
+		case CVAR_T::STARTUP: type = " [STARTUP]"; break;
+		case CVAR_T::DEFFERRED: type = " [DEFFERRED]"; break;
+		case CVAR_T::READONLY: type = " [READONLY]"; break;
+		case CVAR_T::DISABLED: type = " [DISABLED]"; break;
 		default: ASSERT("unreachable" && false);
 		}
-		slogf("%s %s: \"%s\"\n", it.second.cvar_key, type, value.c_str());
+		slogf("%s%s: \"%s\"\n", it.second.cvar_key, type, value.c_str());
 		if(debug)
 		{
 			slogf("\tFile: %s\n", it.second.cvar_debug_file);

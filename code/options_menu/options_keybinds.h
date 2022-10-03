@@ -28,11 +28,11 @@ struct options_keybinds_state
 
 	struct keybind_entry
 	{
-		explicit keybind_entry(cvar_key_bind& keybind_, font_sprite_painter* font_painter, std::string text_)
-		: keybind(keybind_),
-        text(std::move(text_))
+		explicit keybind_entry(cvar_key_bind& keybind_, font_sprite_painter* font_painter)
+		: keybind(keybind_)
+		, text(keybind.cvar_write())
 		{
-            button.init(font_painter);
+			button.init(font_painter);
 		}
 		cvar_key_bind& keybind;
 		mono_button_object button;

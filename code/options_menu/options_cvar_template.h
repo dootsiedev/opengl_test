@@ -2,6 +2,7 @@
 
 #include "../cvar.h"
 #include "../ui.h"
+#include "../keybind.h"
 
 #include <SDL2/SDL.h>
 
@@ -12,7 +13,7 @@ enum class OPTION_ELEMENT_RESULT : uint8_t
 	CONTINUE,
 	// this is used to notify that the option is has history for undo_changes().
 	// this does not need to be returned if there is already a modification (but maybe it's better)
-	MODIFY,
+	MODIFIED,
 	ERROR
 };
 
@@ -41,6 +42,9 @@ enum class FOCUS_ELEMENT_RESULT : uint8_t
 	CONTINUE,
     // if returned, close() will be called for you.
     CLOSE,
+	// same as OPTION_ELEMENT_RESULT::MODIFIED, 
+    // this is does CLOSE
+	MODIFIED,
 	ERROR
 };
 
@@ -113,6 +117,75 @@ struct option_error_prompt : public abstract_focus_element
 	}
 };
 
+// forward declaration
+struct cvar_keybind_option;
+
+struct option_keybind_request : public abstract_focus_element
+{
+	shared_cvar_option_state* state = NULL;
+
+    // needs a independant painter because I need newlines, and the global one shouldn't have it.
+    font_sprite_painter font_painter;
+
+    // the value before you press the OK button.
+    keybind_state temp_value;
+    bool value_modified = false;
+    bool update_buffer = true;
+
+    cvar_keybind_option* option_state = NULL;
+    //cvar_key_bind* keybind = NULL;
+    //keybind_state* prev_value = NULL;
+    //bool* value_changed = NULL;
+
+    // maybe if the message was a serr message,
+    // I would use a prompt to allow selection, and a button for "copy to clipboard",
+    // because serr is more of a programmer diagnostic and not comprehensible.
+   // std::string display_message;
+    std::unique_ptr<char[]> display_message;
+    int display_message_len = 0;
+
+    std::string ok_button_text;
+    mono_button_object ok_button;
+
+    std::string cancel_button_text;
+    mono_button_object cancel_button;
+
+    std::string unbind_button_text;
+    mono_button_object unbind_button;
+
+    GLint gl_batch_buffer_offset = -1;
+    GLsizei batch_vertex_count = 0;
+
+	// the dimensions of the whole backdrop
+	float box_xmin = -1;
+	float box_xmax = -1;
+	float box_ymin = -1;
+	float box_ymax = -1;
+
+    float text_width = -1;
+    float text_height = -1;
+
+	NDSERR bool init(shared_cvar_option_state* state_, cvar_keybind_option* option_state_);
+
+    NDSERR bool format_text();
+    void commit_change();
+
+    void resize_view() override;
+
+	// virtual functions
+	NDSERR bool update(double delta_sec) override;
+	NDSERR FOCUS_ELEMENT_RESULT input(SDL_Event& e) override;
+	NDSERR bool draw_buffer() override;
+    NDSERR bool render() override;
+	bool draw_requested() override;
+	NDSERR bool close() override
+	{
+        gl_batch_buffer_offset = 0;
+        batch_vertex_count = 0;
+		return true;
+	}
+};
+
 // this needs to be allocated for the lifetime of the elements.
 struct shared_cvar_option_state
 {
@@ -126,6 +199,7 @@ struct shared_cvar_option_state
     // this doesn't carry any state other than a message, so it's shared.
     // just call init() again.
     option_error_prompt error_prompt;
+    option_keybind_request keybind_prompt;
 
 	float font_padding = 4;
 	float element_padding = 10;
@@ -189,3 +263,9 @@ std::unique_ptr<abstract_option_element> create_slider_option(
 	double min,
 	double max,
 	bool clamp);
+
+
+std::unique_ptr<abstract_option_element> create_keybind_option(
+	shared_cvar_option_state* state,
+	std::string label,
+	cvar_key_bind* cvar);

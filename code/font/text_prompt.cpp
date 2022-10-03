@@ -11,6 +11,7 @@
 // TODO(dootsie): add a font_padding so the bbox can be not so tight because the outline can clip.
 //          but one problem is that single_line prompts use lineskip() for height,
 //          maybe make get_single_line_height() and ignore the value set for the height.
+// TODO(dootsie): make the mouse change it's icon to the I beam when hovering over the prompt?
 
 #define STB_TEXTEDIT_KEYTYPE SDL_Keycode
 #define STB_TEXTEDIT_STRING text_prompt_wrapper
@@ -50,10 +51,12 @@
 #define STB_TEXTEDIT_K_LINEEND SDLK_END
 #define STB_TEXTEDIT_K_TEXTSTART (STB_TEXTEDIT_K_LINESTART | STB_TEXTEDIT_K_CONTROL)
 #define STB_TEXTEDIT_K_TEXTEND (STB_TEXTEDIT_K_LINEEND | STB_TEXTEDIT_K_CONTROL)
+// this is not actually used
 #define STB_TEXTEDIT_K_DELETE SDLK_DELETE
 #define STB_TEXTEDIT_K_INSERT SDLK_INSERT
 #define STB_TEXTEDIT_K_WORDLEFT (STB_TEXTEDIT_K_LEFT | STB_TEXTEDIT_K_CONTROL)
 #define STB_TEXTEDIT_K_WORDRIGHT (STB_TEXTEDIT_K_RIGHT | STB_TEXTEDIT_K_CONTROL)
+// this is not actually used
 #define STB_TEXTEDIT_K_PGUP SDLK_PAGEUP
 #define STB_TEXTEDIT_K_PGDOWN SDLK_PAGEDOWN
 
@@ -84,7 +87,10 @@ bool text_prompt_wrapper::init(
 	// space_advance_cache = painter->font->GetAdvance(' ');
 
 	// implicitly set the space cache value.
-	set_scale(state.font_scale);
+	if(!set_scale(state.font_scale))
+    {
+        return false;
+    }
 
 	return true;
 }
@@ -1190,7 +1196,11 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		{
 		case SDL_WINDOWEVENT_FOCUS_LOST:
 		case SDL_WINDOWEVENT_HIDDEN:
-			unfocus();
+			if(text_focus)
+			{
+				unfocus();
+				return TEXT_PROMPT_RESULT::UNFOCUS;
+			}
 			return TEXT_PROMPT_RESULT::CONTINUE;
 			// leave is only used for releasing "hover focus"
 			// case SDL_WINDOWEVENT_LEAVE:
@@ -1381,7 +1391,11 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
 			}
-			unfocus();
+            if(text_focus)
+            {
+                unfocus();
+				return TEXT_PROMPT_RESULT::UNFOCUS;
+            }
 		}
 		break;
 		// Special text input event
@@ -1459,32 +1473,35 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			// NOTE: double check if making a SDL_TEXTEDITING chain would cause the next
 			// SDL_TEXTEDITING to be empty?
 			markedText.clear();
-			break;
 		}
+        else
+        {
+            scroll_to_cursor = true;
+            mouse_held = false;
+            drag_x = -1;
+            drag_y = -1;
 
-		scroll_to_cursor = true;
-		mouse_held = false;
-		drag_x = -1;
-		drag_y = -1;
+            // IME text
+            if(stb_state.select_start != stb_state.select_end)
+            {
+                // I want the IME text to be at the beginning of the line.
+                if(stb_state.select_start < stb_state.select_end)
+                {
+                    stb_state.cursor = stb_state.select_start;
+                    int temp = stb_state.select_start;
+                    stb_state.select_start = stb_state.select_end;
+                    stb_state.select_end = temp;
+                }
+                // delete the selection.
+                stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_BACKSPACE);
+            }
+            markedText = e.edit.text;
 
-		// IME text
-		if(stb_state.select_start != stb_state.select_end)
-		{
-			// I want the IME text to be at the beginning of the line.
-			if(stb_state.select_start < stb_state.select_end)
-			{
-				stb_state.cursor = stb_state.select_start;
-				int temp = stb_state.select_start;
-				stb_state.select_start = stb_state.select_end;
-				stb_state.select_end = temp;
-			}
-			// delete the selection.
-			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_BACKSPACE);
-		}
-		markedText = e.edit.text;
+        }
 
 		blink_timer = timer_now();
 		update_buffer = true;
+
 		// eat
 		set_event_unfocus(e);
 		return TEXT_PROMPT_RESULT::CONTINUE;
@@ -1515,31 +1532,32 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			// because I would click into a prompt,
 			// that would trigger this with an empty string, and it would prevent dragging.
 			markedText.clear();
-			break;
 		}
-
-		scroll_to_cursor = true;
-		mouse_held = false;
-		drag_x = -1;
-		drag_y = -1;
-
-		marked_cursor_begin = e.editExt.start;
-		marked_cursor_end = e.editExt.length;
-		// IME text
-		if(stb_state.select_start != stb_state.select_end)
+		else
 		{
-			// I want the IME text to be at the beginning of the line.
-			if(stb_state.select_start < stb_state.select_end)
+			scroll_to_cursor = true;
+			mouse_held = false;
+			drag_x = -1;
+			drag_y = -1;
+
+			marked_cursor_begin = e.editExt.start;
+			marked_cursor_end = e.editExt.length;
+			// IME text
+			if(stb_state.select_start != stb_state.select_end)
 			{
-				stb_state.cursor = stb_state.select_start;
-				int temp = stb_state.select_start;
-				stb_state.select_start = stb_state.select_end;
-				stb_state.select_end = temp;
+				// I want the IME text to be at the beginning of the line.
+				if(stb_state.select_start < stb_state.select_end)
+				{
+					stb_state.cursor = stb_state.select_start;
+					int temp = stb_state.select_start;
+					stb_state.select_start = stb_state.select_end;
+					stb_state.select_end = temp;
+				}
+				// delete the selection.
+				stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_BACKSPACE);
 			}
-			// delete the selection.
-			stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_BACKSPACE);
+			markedText = e.editExt.text;
 		}
-		markedText = e.editExt.text;
 
 		blink_timer = timer_now();
 		update_buffer = true;
@@ -1551,12 +1569,13 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 	case SDL_KEYDOWN: {
 		// maybe escape unfocus could be a flag if it causes problems
 		// or make escape cause the line to be cleared
+        // note this is done HERE because I don't want mouse_held = false
 		if(text_focus && e.key.keysym.sym == SDLK_ESCAPE)
 		{
 			unfocus();
 			// eat
 			set_event_unfocus(e);
-			return TEXT_PROMPT_RESULT::CONTINUE;
+			return TEXT_PROMPT_RESULT::UNFOCUS;
 		}
 		if(!text_focus)
 		{
@@ -1573,11 +1592,12 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		switch(e.key.keysym.sym)
 		{
 		case SDLK_BACKSPACE:
-		case SDLK_DELETE:
+		//case SDLK_DELETE:
 		case SDLK_TAB:
 		case SDLK_RETURN: {
 			if(read_only())
 			{
+                // should this be eaten?
 				break;
 			}
 			// this isn't in the switch statement because "break" doesn't work.
@@ -1589,7 +1609,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			switch(e.key.keysym.sym)
 			{
 			case SDLK_BACKSPACE: stb_key = STB_TEXTEDIT_K_BACKSPACE; break;
-			case SDLK_DELETE: stb_key = STB_TEXTEDIT_K_DELETE; break;
+            // I disable DELETE because the cursor would move weird when I would undo.
+			//case SDLK_DELETE: stb_key = STB_TEXTEDIT_K_DELETE; break;
 			case SDLK_TAB: stb_key = '\t'; break;
 			case SDLK_RETURN: stb_key = '\n'; break; // note SDLK_RETURN is '\r' for some reason.
 			}

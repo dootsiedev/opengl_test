@@ -119,9 +119,12 @@ static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, v
 }
 #endif
 
-REGISTER_CVAR_DOUBLE(cv_mouse_sensitivity, 0.4, "mouse move speed while in first person", CVAR_T::RUNTIME);
-REGISTER_CVAR_DOUBLE(cv_camera_speed, 20.0, "direction move speed while in first person", CVAR_T::RUNTIME);
-REGISTER_CVAR_INT(cv_mouse_invert, 0, "invert while in first person, 0 = off, 1 = invert", CVAR_T::RUNTIME);
+REGISTER_CVAR_DOUBLE(
+	cv_mouse_sensitivity, 0.4, "mouse move speed while in first person", CVAR_T::RUNTIME);
+REGISTER_CVAR_DOUBLE(
+	cv_camera_speed, 20.0, "direction move speed while in first person", CVAR_T::RUNTIME);
+REGISTER_CVAR_INT(
+	cv_mouse_invert, 0, "invert while in first person, 0 = off, 1 = invert", CVAR_T::RUNTIME);
 
 static REGISTER_CVAR_STRING(
 	cv_string,
@@ -146,29 +149,21 @@ static REGISTER_CVAR_INT(
 	"0 = off, 1 = on, can't bold or italics, but looks different",
 	CVAR_T::STARTUP);
 
-
 // keybinds
 
-static REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_move_forward, SDLK_w, KEYBIND_VIS::NORMAL, "move forward", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_move_backward, SDLK_s, KEYBIND_VIS::NORMAL, "move backward", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_move_left, SDLK_a, KEYBIND_VIS::NORMAL, "move left", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_move_right, SDLK_d, KEYBIND_VIS::NORMAL, "move right", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
-	cv_bind_fullscreen,
-	SDLK_RETURN,
-	KMOD_ALT,
-	KEYBIND_VIS::NORMAL,
-	"toggle fullscreen",
-	CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_move_forward, SDLK_w, false, "move forward", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_move_backward, SDLK_s, false, "move backward", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, false, "move left", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, false, "move right", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
+	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, false, "toggle fullscreen", CVAR_T::RUNTIME);
 
-static REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_open_console, SDLK_F1, KEYBIND_VIS::HIDDEN, "open console overlay", CVAR_T::RUNTIME);
-static REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_open_options, SDLK_SLASH, KEYBIND_VIS::HIDDEN, "open option menu", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_open_console, SDLK_F1, false, "open console overlay", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_open_options, SDLK_SLASH, false, "open option menu", CVAR_T::RUNTIME);
 
 struct gl_point_vertex
 {
@@ -662,7 +657,7 @@ bool demo_state::init_gl_font()
 		}
 
 		font_style.init(&font_manager, &font_rasterizer);
-        //font_style.font_scale = 2;
+		// font_style.font_scale = 2;
 		// font_settings.point_size = 32;
 		current_font = &font_style;
 	}
@@ -702,7 +697,7 @@ bool demo_state::init_gl_font()
 	font_batcher.init(font_batcher_buffer.get(), max_quads);
 
 	font_painter.init(&font_batcher, current_font);
-    //font_painter.state.font_scale = 2;
+	// font_painter.state.font_scale = 2;
 
 	if(!g_console.init(current_font, &font_batcher, mono_shader))
 	{
@@ -846,7 +841,7 @@ bool demo_state::input(SDL_Event& e)
 			// int x;
 			// int y;
 			// SDL_GetRelativeMouseState(&x, &y);
-            float inverse = (cv_mouse_invert.data == 1) ? -1 : 1;
+			float inverse = (cv_mouse_invert.data == 1) ? -1 : 1;
 			camera_yaw += static_cast<float>(e.motion.xrel * cv_mouse_sensitivity.data) * inverse;
 			camera_pitch -= static_cast<float>(e.motion.yrel * cv_mouse_sensitivity.data) * inverse;
 			camera_pitch = fmaxf(camera_pitch, -89.f);
@@ -969,6 +964,21 @@ bool demo_state::input(SDL_Event& e)
 		SDL_Event e2;
 		set_event_resize(e2);
 		option_menu.input(e2);
+	}
+
+	// unfocus the buttons if you pressed a button that could open something.
+	if(e.type == SDL_WINDOWEVENT)
+	{
+		switch(e.window.event)
+		{
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+		case SDL_WINDOWEVENT_HIDDEN:
+			keys_down[MOVE_FORWARD] = false;
+			keys_down[MOVE_BACKWARD] = false;
+			keys_down[MOVE_LEFT] = false;
+			keys_down[MOVE_RIGHT] = false;
+			break;
+		}
 	}
 
 	// movement. note that you can't bind these to mouse buttons because they get eaten.
@@ -1249,9 +1259,9 @@ DEMO_RESULT demo_state::process()
 			{
 				return DEMO_RESULT::ERROR;
 			}
-			// this is not an eat because if I set LMB for fullscreen,
+			// note if I set LMB for fullscreen,
 			// I can't undo the change because it would be eaten!
-			// kind of annoying when you toggle while typing in a prompt...
+			set_event_unfocus(e);
 		}
 		if(!input(e))
 		{

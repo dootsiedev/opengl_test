@@ -75,10 +75,12 @@ bool console_state::init(
 	{
 		return false;
 	}
+    /*
     if(!log_box.set_scale(2))
     {
         return false;
     }
+    */
 	// set the color table so we can print errors with a different color
 	log_box.color_table = log_color_table.data();
 	log_box.color_table_size = log_color_table.size();
@@ -302,10 +304,9 @@ void console_state::resize_text_area()
 
 CONSOLE_RESULT console_state::input(SDL_Event& e)
 {
-	switch(e.type)
+	if(e.type == SDL_WINDOWEVENT)
 	{
-	case SDL_WINDOWEVENT:
-		switch(e.window.event)
+        switch(e.window.event)
 		{
 		case SDL_WINDOWEVENT_SIZE_CHANGED: resize_text_area(); break;
 		}
@@ -322,13 +323,6 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 				{
 					return CONSOLE_RESULT::ERROR;
 				}
-				// eat
-				set_event_unfocus(e);
-				return CONSOLE_RESULT::CONTINUE;
-			case SDLK_ESCAPE:
-				// this may be annoying since maybe you expected escape to unfocus.
-				// but you can still just undo.
-				prompt_cmd.replace_string(std::string_view(), false);
 				// eat
 				set_event_unfocus(e);
 				return CONSOLE_RESULT::CONTINUE;
@@ -408,13 +402,6 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 		case TEXT_PROMPT_RESULT::UNFOCUS: break;
 		case TEXT_PROMPT_RESULT::ERROR: return CONSOLE_RESULT::ERROR;
 		}
-	}
-
-	if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
-	{
-		// unfocus any selection left.
-		// not an eat because this is similar to clicking outside the element
-		unfocus();
 	}
 
 	return CONSOLE_RESULT::CONTINUE;
@@ -724,12 +711,6 @@ bool console_state::render()
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 
-void console_state::unfocus()
-{
-	prompt_cmd.unfocus();
-	log_box.unfocus();
-	error_text.unfocus();
-}
 void console_state::focus()
 {
 	prompt_cmd.focus();

@@ -115,8 +115,6 @@ struct console_state
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();
 
-	// call this when you need to unfocus, like for example if you press escape or something.
-	void unfocus();
 	// this will make the prompt focused.
 	void focus();
 

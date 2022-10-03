@@ -33,8 +33,8 @@ struct options_state
 	{
 		MENU_SELECT,
 		VIDEO,
-		KEYBINDS,
-		MOUSE,
+		CONTROLS,
+		//MOUSE,
 #ifdef AUDIO_SUPPORT
 		AUDIO
 #endif
@@ -43,7 +43,7 @@ struct options_state
 	MENU_FACTORY current_state = MENU_FACTORY::MENU_SELECT;
 	options_select_state select;
 	options_video_state video;
-	options_mouse_state mouse;
+	options_controls_state mouse;
 	options_keybinds_state keybinds;
 #ifdef AUDIO_SUPPORT
 	options_audio_state audio;

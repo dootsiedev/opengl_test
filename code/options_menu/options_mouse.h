@@ -5,13 +5,13 @@
 #include "options_cvar_template.h"
 
 
-enum class OPTIONS_MOUSE_RESULT
+enum class OPTIONS_CONTROLS_RESULT
 {
 	CLOSE,
 	CONTINUE,
 	ERROR
 };
-struct options_mouse_state
+struct options_controls_state
 {
 	// this puts the text on the screen using a style and batcher.
 	font_sprite_painter* font_painter = NULL;
@@ -19,6 +19,7 @@ struct options_mouse_state
     shared_cvar_option_state shared_state;
     std::vector<std::unique_ptr<abstract_option_element>> option_entries;
 
+	mono_y_scrollable_area scroll_state;
 
     //footer buttons
 	std::string revert_text;
@@ -33,7 +34,9 @@ struct options_mouse_state
 	GLuint gl_options_interleave_vbo = 0;
 	GLuint gl_options_vao_id = 0;
     // since I only render when it is requested, I need to keep this.
-    GLsizei batch_vertex_count = 0;
+    GLsizei menu_batch_vertex_count = 0;
+    // the scroll goes right after the menu batch.
+    GLsizei scroll_batch_vertex_count = 0;
 
 	// added size to the lineskip for the button size.
 	float font_padding = 4;
@@ -50,7 +53,13 @@ struct options_mouse_state
 
 	NDSERR bool init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao);
 
-	NDSERR OPTIONS_MOUSE_RESULT input(SDL_Event& e);
+	NDSERR OPTIONS_CONTROLS_RESULT input(SDL_Event& e);
+
+    // draw the backdrop and footer
+    NDSERR bool draw_menu();
+
+    // draw the scrollbar and contents.
+    NDSERR bool draw_scroll();
 
 	NDSERR bool update(double delta_sec);
 

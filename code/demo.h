@@ -23,6 +23,16 @@ extern cvar_double cv_mouse_sensitivity;
 extern cvar_double cv_camera_speed;
 extern cvar_int cv_mouse_invert;
 
+#include "keybind.h"
+//keybinds
+extern cvar_key_bind cv_bind_move_forward;
+extern cvar_key_bind cv_bind_move_backward;
+extern cvar_key_bind cv_bind_move_left;
+extern cvar_key_bind cv_bind_move_right;
+extern cvar_key_bind cv_bind_fullscreen;
+extern cvar_key_bind cv_bind_open_console;
+extern cvar_key_bind cv_bind_open_options;
+
 // This is absolutely not the best way of doing this...
 struct bench_data
 {

@@ -5,32 +5,20 @@
 #include <SDL2/SDL.h>
 
 // keyboard
-#define REGISTER_CVAR_KEY_BIND_KEY(key, value, hidden, comment, type) \
+#define REGISTER_CVAR_KEY_BIND_KEY(key, value, allow_mouse, comment, type) \
 	cvar_key_bind key(                                                \
-		#key, {KEYBIND_T::KEY, 0, value, 0}, hidden, comment, type, __FILE__, __LINE__)
+		#key, {KEYBIND_T::KEY, 0, value, 0}, allow_mouse, comment, type, __FILE__, __LINE__)
 // mouse
-#define REGISTER_CVAR_KEY_BIND_MOUSE(key, value, hidden, comment, type) \
+#define REGISTER_CVAR_KEY_BIND_MOUSE(key, value, allow_mouse, comment, type) \
 	cvar_key_bind key(                                                  \
-		#key, {KEYBIND_T::MOUSE, value, 0, 0}, hidden, comment, type, __FILE__, __LINE__)
+		#key, {KEYBIND_T::MOUSE, value, 0, 0}, allow_mouse, comment, type, __FILE__, __LINE__)
 // this is used for fullscreen alt + enter.
-#define REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(key, value, mod, hidden, comment, type) \
+#define REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(key, value, mod, allow_mouse, comment, type) \
 	cvar_key_bind key(                                                             \
-		#key, {KEYBIND_T::KEY, 0, value, mod}, hidden, comment, type, __FILE__, __LINE__)
+		#key, {KEYBIND_T::KEY, 0, value, mod}, allow_mouse, comment, type, __FILE__, __LINE__)
 // unbound key.
-#define REGISTER_CVAR_KEY_BIND_NONE(key, hidden, comment, type) \
-	cvar_key_bind key(#key, {KEYBIND_T::NONE, 0, 0, 0}, hidden, comment, type, __FILE__, __LINE__)
-
-class cvar_key_bind;
-// for the options menu to be able to list and modify keybinds.
-std::map<const char*, cvar_key_bind&, cmp_str>& get_keybinds();
-
-// this is only used for hiding the keybind from the keybind menu
-// because some keybinds shouldn't be changed (like the console)
-enum class KEYBIND_VIS : uint8_t
-{
-    NORMAL,
-    HIDDEN
-};
+#define REGISTER_CVAR_KEY_BIND_NONE(key, allow_mouse, comment, type) \
+	cvar_key_bind key(#key, {KEYBIND_T::NONE, 0, 0, 0}, allow_mouse, comment, type, __FILE__, __LINE__)
 
 // used for registry
 enum class KEYBIND_T : uint8_t
@@ -89,7 +77,10 @@ public:
 	// but this could support a controller as well.
 	keybind_state key_binds;
 
-    KEYBIND_VIS visablity;
+    // if I set fullscreen to LMB, 
+    // I cannot undo the change because LMB would always be eaten.
+    // so you probably don't want to allow the mouse to be an input.
+    bool allow_mouse = true;
 
 	// NOTE: the problem is that this ONLY supports 1 key
 	// Note that I really want to use a string for the registry,
@@ -99,15 +90,17 @@ public:
 	cvar_key_bind(
 		const char* key,
 		keybind_state value,
-        KEYBIND_VIS visablity_,
+        bool allow_mouse_,
 		const char* comment,
 		CVAR_T type,
 		const char* file,
 		int line);
 	NDSERR bool cvar_read(const char* buffer) override;
 	std::string cvar_write() override;
+
+    std::string keybind_to_string(keybind_state& in);
 	// returns true if the event is eaten.
-	bool bind_sdl_event(SDL_Event& e, keybind_state* keybind);
+	bool bind_sdl_event(keybind_state& value, SDL_Event& e);
 	// returns the flag that was eaten, if you use KEYBIND_REPEAT, it will be OR'd into the return.
 	keybind_compare_type compare_sdl_event(SDL_Event& e, keybind_compare_type flags);
 	// internal use
