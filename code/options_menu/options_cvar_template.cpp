@@ -13,7 +13,7 @@ bool option_error_prompt::init(shared_cvar_option_state* state_, std::string mes
 	state = state_;
 	display_message = std::move(message);
 
-    // TODO: should be font_painter.init(state->font_painter)
+	// TODO: should be font_painter.init(state->font_painter)
 	font_painter.state = state->font_painter->state;
 	font_painter.set_flags(TEXT_FLAGS::NEWLINE);
 
@@ -211,14 +211,14 @@ bool option_error_prompt::draw_requested()
 	return ok_button.draw_requested();
 }
 
-// this is mainly for on or off buttons, but you can set this to
-struct cvar_button_option : public abstract_option_element
+// this is mainly for on or off buttons, but you can have more than 2 states to cycle.
+struct cvar_button_multi_option : public abstract_option_element
 {
 	shared_cvar_option_state* state = NULL;
-	cvar_int* cvar = NULL;
+	V_cvar* cvar = NULL;
 	std::string label_text;
 	float element_height = -1;
-	int previous_int_value = -1;
+	std::string previous_cvar_value;
 	bool value_changed = false;
 
 	std::unique_ptr<multi_option_entry[]> option_entries;
@@ -231,7 +231,7 @@ struct cvar_button_option : public abstract_option_element
 	NDSERR bool init(
 		shared_cvar_option_state* state_,
 		std::string label,
-		cvar_int* cvar_,
+		V_cvar* cvar_,
 		size_t count,
 		multi_option_entry* entries);
 
@@ -253,10 +253,10 @@ struct cvar_button_option : public abstract_option_element
 	NDSERR bool clear_history() override;
 };
 
-bool cvar_button_option::init(
+bool cvar_button_multi_option::init(
 	shared_cvar_option_state* state_,
 	std::string label,
-	cvar_int* cvar_,
+	V_cvar* cvar_,
 	size_t count,
 	multi_option_entry* entries)
 {
@@ -279,7 +279,7 @@ bool cvar_button_option::init(
 	for(size_t i = 0; i < option_entries_size; ++i)
 	{
 		option_entries[i] = std::move(entries[i]);
-		if(option_entries[i].value == cvar->data)
+		if(cvar->cvar_write() == option_entries[i].cvar_value)
 		{
 			ASSERT(!found);
 			found = true;
@@ -290,31 +290,31 @@ bool cvar_button_option::init(
 	if(!found)
 	{
 		slogf(
-			"info: couldn't find a option with the current value of the cvar %s (%d).\n",
+			"info: couldn't find a option with the current value of the cvar %s (%s).\n",
 			cvar->cvar_key,
-			cvar->data);
+			cvar->cvar_write().c_str());
 		set_error_button();
 	}
 
 	return true;
 }
 
-void cvar_button_option::set_error_button()
+void cvar_button_multi_option::set_error_button()
 {
 	button.disabled = true;
 	current_button_index = 0;
 	option_entries_size = 1;
-	option_entries[0].value = 0;
+	option_entries[0].cvar_value = "?";
 	option_entries[0].name = "?";
 }
 
-bool cvar_button_option::update(double delta_sec)
+bool cvar_button_multi_option::update(double delta_sec)
 {
 	ASSERT(state != NULL);
 	button.update(delta_sec);
 	return true;
 }
-OPTION_ELEMENT_RESULT cvar_button_option::input(SDL_Event& e)
+OPTION_ELEMENT_RESULT cvar_button_multi_option::input(SDL_Event& e)
 {
 	ASSERT(state != NULL);
 	switch(button.input(e))
@@ -323,17 +323,20 @@ OPTION_ELEMENT_RESULT cvar_button_option::input(SDL_Event& e)
 	case BUTTON_RESULT::TRIGGER:
 		if(!value_changed)
 		{
-			previous_int_value = cvar->data;
+			previous_cvar_value = cvar->cvar_write();
 			value_changed = true;
 		}
 		current_button_index = (current_button_index + 1) % option_entries_size;
-		cvar->data = option_entries[current_button_index].value;
+		if(!cvar->cvar_read(option_entries[current_button_index].cvar_value))
+		{
+			return OPTION_ELEMENT_RESULT::ERROR;
+		}
 		return OPTION_ELEMENT_RESULT::MODIFIED;
 	case BUTTON_RESULT::ERROR: return OPTION_ELEMENT_RESULT::ERROR;
 	}
 	return OPTION_ELEMENT_RESULT::CONTINUE;
 }
-bool cvar_button_option::draw_buffer(float x, float y, float menu_w)
+bool cvar_button_multi_option::draw_buffer(float x, float y, float menu_w)
 {
 	ASSERT(state != NULL);
 	font_sprite_painter* font_painter = state->font_painter;
@@ -373,22 +376,22 @@ bool cvar_button_option::draw_buffer(float x, float y, float menu_w)
 	return button.draw_buffer(text, text_size);
 }
 
-bool cvar_button_option::draw_requested()
+bool cvar_button_multi_option::draw_requested()
 {
 	return button.draw_requested();
 }
 
-float cvar_button_option::get_height()
+float cvar_button_multi_option::get_height()
 {
 	return element_height;
 }
 
-bool cvar_button_option::set_default()
+bool cvar_button_multi_option::set_default()
 {
 	ASSERT(state != NULL);
 	if(!value_changed)
 	{
-		previous_int_value = cvar->data;
+		previous_cvar_value = cvar->cvar_write();
 		value_changed = true;
 	}
 	if(!cvar->cvar_read(cvar->cvar_default_value.c_str()))
@@ -398,7 +401,7 @@ bool cvar_button_option::set_default()
 	bool found = false;
 	for(size_t i = 0; i < option_entries_size; ++i)
 	{
-		if(option_entries[i].value == cvar->data)
+		if(cvar->cvar_write() == option_entries[i].cvar_value)
 		{
 			ASSERT(!found);
 			found = true;
@@ -409,14 +412,14 @@ bool cvar_button_option::set_default()
 	if(!found)
 	{
 		slogf(
-			"info: couldn't find a option with the current value of the cvar %s (%d).\n",
+			"info: couldn't find a option with the current value of the cvar %s (%s).\n",
 			cvar->cvar_key,
-			cvar->data);
+			cvar->cvar_write().c_str());
 		set_error_button();
 	}
 	return true;
 }
-bool cvar_button_option::undo_changes()
+bool cvar_button_multi_option::undo_changes()
 {
 	ASSERT(state != NULL);
 
@@ -424,14 +427,17 @@ bool cvar_button_option::undo_changes()
 	{
 		// TODO: for special inherited cvar_int cvars like vsync & fullscreen
 		// I could try to implement a on_modify() virtual function (or *operator= )
-		cvar->data = previous_int_value;
-		previous_int_value = -1;
+		if(!cvar->cvar_read(previous_cvar_value.c_str()))
+		{
+			return false;
+		}
+		previous_cvar_value.clear();
 		value_changed = false;
 	}
 	bool found = false;
 	for(size_t i = 0; i < option_entries_size; ++i)
 	{
-		if(option_entries[i].value == cvar->data)
+		if(cvar->cvar_write() == option_entries[i].cvar_value)
 		{
 			ASSERT(!found);
 			found = true;
@@ -442,20 +448,47 @@ bool cvar_button_option::undo_changes()
 	if(!found)
 	{
 		slogf(
-			"info: couldn't find a option with the current value of the cvar %s (%d).\n",
+			"info: couldn't find a option with the current value of the cvar %s (%s).\n",
 			cvar->cvar_key,
-			cvar->data);
+			cvar->cvar_write().c_str());
 		set_error_button();
 	}
 
 	return true;
 }
-bool cvar_button_option::clear_history()
+bool cvar_button_multi_option::clear_history()
 {
 	ASSERT(state != NULL);
-	previous_int_value = -1;
+	previous_cvar_value.clear();
 	value_changed = false;
 	return true;
+}
+
+std::unique_ptr<abstract_option_element>
+	create_bool_option(shared_cvar_option_state* state, std::string label, cvar_int* cvar)
+{
+	multi_option_entry bool_options[] = {{"off", "0"}, {"on", "1"}};
+	auto output = std::make_unique<cvar_button_multi_option>();
+	if(!output->init(state, std::move(label), cvar, std::size(bool_options), bool_options))
+	{
+		return std::unique_ptr<abstract_option_element>();
+	}
+	return output;
+}
+
+std::unique_ptr<abstract_option_element> create_multi_option(
+	shared_cvar_option_state* state,
+	std::string label,
+	V_cvar* cvar,
+	size_t count,
+	multi_option_entry* entries)
+{
+	auto output = std::make_unique<cvar_button_multi_option>();
+	if(!output->init(state, std::move(label), cvar, count, entries))
+	{
+		return std::unique_ptr<abstract_option_element>();
+	}
+	return output;
 }
 
 struct cvar_slider_option : public abstract_option_element
@@ -528,8 +561,8 @@ bool cvar_slider_option::init(
 
 	slider.init(font_painter, cvar->data);
 
-    // note this only works if you do it before init
-    prompt.state.font_scale = font_painter->state.font_scale;
+	// note this only works if you do it before init
+	prompt.state.font_scale = font_painter->state.font_scale;
 
 	// TODO(dootsie): I would make the prompt select all the text when you click up without
 	// dragging. or just implement double / triple clicking...
@@ -539,7 +572,7 @@ bool cvar_slider_option::init(
 		   font_painter->state.font,
 		   TEXTP_SINGLE_LINE | TEXTP_DRAW_BBOX | TEXTP_DRAW_BACKDROP | TEXTP_DISABLE_CULL))
 	{
-        // NOLINTNEXTLINE
+		// NOLINTNEXTLINE
 		return false;
 	}
 
@@ -701,17 +734,13 @@ bool cvar_slider_option::draw_buffer(float x, float y, float menu_w)
 		}
 		font_painter->end();
 	}
-	// float cur_x = x + (menu_w - element_padding) / 2 + element_padding;
-	// button.set_rect(cur_x, y, (x + menu_w) - cur_x, element_height);
-	// return button.draw_buffer(button_text.c_str(), button_text.size());
 
 	float cur_x = x + (menu_w - element_padding) / 2;
 
 	float prompt_width = 80 * (font_painter->get_lineskip() / 16.f);
 	prompt.set_bbox(
 		cur_x - prompt_width, y + font_padding / 2, prompt_width, font_painter->get_lineskip());
-	// this is neccessary, but we need to draw every frame.
-	prompt.draw_requested();
+
 	if(!prompt.draw())
 	{
 		return false;
@@ -766,43 +795,6 @@ bool cvar_slider_option::clear_history()
 	ASSERT(state != NULL);
 	previous_value = NAN;
 	return true;
-}
-
-std::unique_ptr<abstract_option_element>
-	create_bool_option(shared_cvar_option_state* state, std::string label, cvar_int* cvar)
-{
-	multi_option_entry bool_options[] = {{0, "off"}, {1, "on"}, {1, "on2"}};
-	auto output = std::make_unique<cvar_button_option>();
-	if(!output->init(state, std::move(label), cvar, std::size(bool_options), bool_options))
-	{
-		return std::unique_ptr<abstract_option_element>();
-	}
-	return output;
-}
-
-std::unique_ptr<abstract_option_element> create_multi_option(
-	shared_cvar_option_state* state,
-	std::string label,
-	cvar_int* cvar,
-	size_t count,
-	multi_option_entry* entries)
-{
-	auto output = std::make_unique<cvar_button_option>();
-	if(!output->init(state, std::move(label), cvar, count, entries))
-	{
-		return std::unique_ptr<abstract_option_element>();
-	}
-	return output;
-}
-
-std::unique_ptr<abstract_option_element> create_int_prompt_option(
-	shared_cvar_option_state* state,
-	std::string label,
-	cvar_double* cvar,
-	int min,
-	int max,
-	bool clamp)
-{
 }
 
 // a slider + prompt for a floating point number
@@ -896,13 +888,13 @@ OPTION_ELEMENT_RESULT cvar_keybind_option::input(SDL_Event& e)
 			return OPTION_ELEMENT_RESULT::ERROR;
 		}
 		{
-            // dumb hack because the button needs to be told the mouse is obscured.
+			// dumb hack because the button needs to be told the mouse is obscured.
 			SDL_Event e2;
 			set_event_leave(e2);
 			if(button.input(e2) == BUTTON_RESULT::ERROR)
-            {
-                return OPTION_ELEMENT_RESULT::ERROR;
-            }
+			{
+				return OPTION_ELEMENT_RESULT::ERROR;
+			}
 		}
 		// eat
 		set_event_unfocus(e);
@@ -987,8 +979,6 @@ bool cvar_keybind_option::undo_changes()
 
 	if(value_changed)
 	{
-		// TODO: for special inherited cvar_int cvars like vsync & fullscreen
-		// I could try to implement a on_modify() virtual function (or *operator= )
 		cvar->key_binds = previous_key_value;
 		value_changed = false;
 		button_text = cvar->cvar_write();
@@ -1026,12 +1016,12 @@ bool option_keybind_request::init(
 	value_modified = false;
 	update_buffer = true;
 
-    gl_batch_buffer_offset = 0;
-    batch_vertex_count = 0;
-    gl_batch_buffer_offset = -1;
+	gl_batch_buffer_offset = 0;
+	batch_vertex_count = 0;
+	gl_batch_buffer_offset = -1;
 	batch_vertex_count = 0;
 
-    // TODO: should be font_painter.init(state->font_painter)
+	// TODO: should be font_painter.init(state->font_painter)
 	font_painter.state = state->font_painter->state;
 	font_painter.set_flags(TEXT_FLAGS::NEWLINE);
 
@@ -1138,9 +1128,9 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 		temp_value.type = KEYBIND_T::NONE;
 		ok_button.set_disabled(false);
 		if(!format_text())
-        {
-            return FOCUS_ELEMENT_RESULT::ERROR;
-        }
+		{
+			return FOCUS_ELEMENT_RESULT::ERROR;
+		}
 		// eat
 		set_event_unfocus(e);
 		break;
@@ -1190,9 +1180,9 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 		ok_button.set_disabled(false);
 		temp_value = out;
 		if(!format_text())
-        {
-            return FOCUS_ELEMENT_RESULT::ERROR;
-        }
+		{
+			return FOCUS_ELEMENT_RESULT::ERROR;
+		}
 		set_event_unfocus(e);
 	}
 
@@ -1325,5 +1315,5 @@ bool option_keybind_request::draw_requested()
 
 bool option_keybind_request::close()
 {
-    return true;
+	return true;
 }

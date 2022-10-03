@@ -9,7 +9,7 @@
 #include "font/font_manager.h"
 #include "font/text_prompt.h"
 #include "console.h"
-#include "options_menu/options.h"
+#include "options_menu/options_tree.h"
 #include "cvar.h"
 
 #include <SDL2/SDL.h>
@@ -126,7 +126,7 @@ struct demo_state
 	mono_2d_batcher font_batcher;
 	std::unique_ptr<gl_mono_vertex[]> font_batcher_buffer;
 
-    options_state option_menu;
+    options_tree_state option_menu;
     bool show_options = false;
 
 	// show g_console

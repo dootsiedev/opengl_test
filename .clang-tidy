@@ -30,6 +30,7 @@ Checks: >
   -readability-make-member-function-const,
   -readability-uppercase-literal-suffix,
   -readability-function-cognitive-complexity,
+  -readability-use-anyofallof,
 #you must make sure the last THING to ends with a comma!!!
   
 

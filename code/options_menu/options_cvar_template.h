@@ -199,10 +199,15 @@ struct shared_cvar_option_state
 	float font_padding = 4;
 	float element_padding = 10;
 
-	void init(font_sprite_painter* font_painter_)
+	GLuint gl_options_interleave_vbo = 0;
+	GLuint gl_options_vao_id = 0;
+
+	void init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao)
 	{
 		ASSERT(font_painter_ != NULL);
 		font_painter = font_painter_;
+		gl_options_interleave_vbo = vbo;
+		gl_options_vao_id = vao;
 	}
 
 	bool set_focus(abstract_focus_element* element)
@@ -228,17 +233,21 @@ std::unique_ptr<abstract_option_element>
 // also remember multi_option_entry should have the option to be disabled.
 struct multi_option_entry
 {
-	int value;
 	// the value stored here will be MOVED out.
 	std::string name;
+	const char* cvar_value;
 };
+
+// note that this will use cvar_write and cvar_read for all modifications,
+// which means "special" cvars like fullscreen and vsync can work.
 std::unique_ptr<abstract_option_element> create_multi_option(
 	shared_cvar_option_state* state,
 	std::string label,
-	cvar_int* cvar,
+	V_cvar* cvar,
 	size_t count,
 	multi_option_entry* entries);
 
+#if 0
 // a text prompt that you can enter a number into (you have to unfocus or press enter to commit)
 // clamp will clamp numbers entered into the prompt (with a conversion error).
 std::unique_ptr<abstract_option_element> create_int_prompt_option(
@@ -248,9 +257,12 @@ std::unique_ptr<abstract_option_element> create_int_prompt_option(
 	int min,
 	int max,
 	bool clamp);
+#endif
 
 // a slider + prompt for a floating point number
 // clamp will clamp numbers entered into the prompt.
+// WARNING, this modifies the .data value directly
+// if you have special cvar_write/read overload, it wont work.
 std::unique_ptr<abstract_option_element> create_slider_option(
 	shared_cvar_option_state* state,
 	std::string label,

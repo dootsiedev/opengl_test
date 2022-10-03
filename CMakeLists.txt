@@ -384,18 +384,12 @@ add_executable(${PROJECT_NAME}
     code/ui.h
     code/ui.cpp
 
-    code/options_menu/options.h
-    code/options_menu/options.cpp
+    code/options_menu/options_tree.h
+    code/options_menu/options_tree.cpp
+    code/options_menu/options_list.h
+    code/options_menu/options_list.cpp
     code/options_menu/options_cvar_template.h
     code/options_menu/options_cvar_template.cpp
-    code/options_menu/options_select.h
-    code/options_menu/options_select.cpp
-    code/options_menu/options_controls.h
-    code/options_menu/options_controls.cpp
-    code/options_menu/options_video.h
-    code/options_menu/options_video.cpp
-    code/options_menu/options_audio.h
-    code/options_menu/options_audio.cpp
     
     code/shaders/pointsprite.h
     code/shaders/pointsprite.cpp

@@ -1,69 +1,37 @@
 #include "../global.h"
 
-#include "options_controls.h"
+#include "options_list.h"
 #include "../app.h"
 
-// for the cvars...
-#include "../demo.h"
-
-bool options_controls_state::init(font_sprite_painter* font_painter_, GLuint vbo, GLuint vao)
+bool options_list_state::init(shared_cvar_option_state* shared_state_)
 {
-	ASSERT(font_painter_ != NULL);
+	ASSERT(shared_state_ != NULL);
 
-	font_painter = font_painter_;
-	gl_options_interleave_vbo = vbo;
-	gl_options_vao_id = vao;
+	shared_state = shared_state_;
 
-	shared_state.init(font_painter);
-
-	option_entries.emplace_back(
-		create_bool_option(&shared_state, "invert mouse", &cv_mouse_invert));
-	option_entries.emplace_back(
-		create_slider_option(&shared_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, false));
-    // TODO: would be smart to have a dummy entry that is just text which says "key binds"
-	option_entries.emplace_back(
-		create_keybind_option(&shared_state, "forward", &cv_bind_move_forward));
-	option_entries.emplace_back(
-		create_keybind_option(&shared_state, "backwards", &cv_bind_move_backward));
-	option_entries.emplace_back(create_keybind_option(&shared_state, "left", &cv_bind_move_left));
-	option_entries.emplace_back(create_keybind_option(&shared_state, "right", &cv_bind_move_right));
-	option_entries.emplace_back(
-		create_keybind_option(&shared_state, "fullscreen", &cv_bind_fullscreen));
-	option_entries.emplace_back(
-		create_keybind_option(&shared_state, "console", &cv_bind_open_console));
-	option_entries.emplace_back(
-		create_keybind_option(&shared_state, "options", &cv_bind_open_options));
-
-	// check for errors.
-	for(auto& entry : option_entries)
-	{
-		if(!entry)
-		{
-			return false;
-		}
-	}
+	font_sprite_painter* font_painter = shared_state->font_painter;
 
 	// footer buttons
-	revert_button.init(font_painter);
 	revert_text = "revert";
+	revert_button.init(font_painter);
 	revert_button.set_disabled(true);
 
-	ok_button.init(font_painter);
 	ok_text = "ok";
+	ok_button.init(font_painter);
 
-	defaults_button.init(font_painter);
 	defaults_text = "set defaults";
+	defaults_button.init(font_painter);
 
 	// scrollbar
 	scroll_state.init(font_painter);
-	scroll_state.scrollbar_padding = element_padding;
+	scroll_state.scrollbar_padding = shared_state->element_padding;
 
 	resize_view();
 
 	return true;
 }
 
-OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
+OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 {
 	switch(e.type)
 	{
@@ -74,19 +42,17 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 		}
 	}
 
-	if(shared_state.focus_element != NULL)
+	if(shared_state->focus_element != NULL)
 	{
-		switch(shared_state.focus_element->input(e))
+		switch(shared_state->focus_element->input(e))
 		{
 		case FOCUS_ELEMENT_RESULT::CONTINUE: break;
-		case FOCUS_ELEMENT_RESULT::CLOSE:
-			shared_state.set_focus(NULL);
-			break;
+		case FOCUS_ELEMENT_RESULT::CLOSE: shared_state->set_focus(NULL); break;
 		case FOCUS_ELEMENT_RESULT::MODIFIED:
-			shared_state.set_focus(NULL);
+			shared_state->set_focus(NULL);
 			revert_button.set_disabled(false);
 			break;
-		case FOCUS_ELEMENT_RESULT::ERROR: return OPTIONS_CONTROLS_RESULT::ERROR;
+		case FOCUS_ELEMENT_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
 		}
 		// eat
 		set_event_leave(e);
@@ -120,7 +86,7 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 			{
 				if(entry->input(e2) == OPTION_ELEMENT_RESULT::ERROR)
 				{
-					return OPTIONS_CONTROLS_RESULT::ERROR;
+					return OPTIONS_MENU_RESULT::ERROR;
 				}
 			}
 			// skip the buttons motion event.
@@ -151,7 +117,7 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 			{
 			case OPTION_ELEMENT_RESULT::CONTINUE: break;
 			case OPTION_ELEMENT_RESULT::MODIFIED: revert_button.set_disabled(false); break;
-			case OPTION_ELEMENT_RESULT::ERROR: return OPTIONS_CONTROLS_RESULT::ERROR;
+			case OPTION_ELEMENT_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
 			}
 		}
 	}
@@ -166,11 +132,11 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 			// slog("revert click\n");
 			if(!undo_history())
 			{
-				return OPTIONS_CONTROLS_RESULT::ERROR;
+				return OPTIONS_MENU_RESULT::ERROR;
 			}
-			return OPTIONS_CONTROLS_RESULT::CONTINUE;
+			return OPTIONS_MENU_RESULT::CONTINUE;
 
-		case BUTTON_RESULT::ERROR: return OPTIONS_CONTROLS_RESULT::ERROR;
+		case BUTTON_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
 		}
 
 		switch(ok_button.input(e))
@@ -181,11 +147,11 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 			// slog("ok click\n");
 			if(!close())
 			{
-				return OPTIONS_CONTROLS_RESULT::ERROR;
+				return OPTIONS_MENU_RESULT::ERROR;
 			}
 			// close acts like an eat
-			return OPTIONS_CONTROLS_RESULT::CLOSE;
-		case BUTTON_RESULT::ERROR: return OPTIONS_CONTROLS_RESULT::ERROR;
+			return OPTIONS_MENU_RESULT::CLOSE;
+		case BUTTON_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
 		}
 
 		switch(defaults_button.input(e))
@@ -196,10 +162,10 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 			// slog("reset defaults click\n");
 			if(!set_defaults())
 			{
-				return OPTIONS_CONTROLS_RESULT::ERROR;
+				return OPTIONS_MENU_RESULT::ERROR;
 			}
-			return OPTIONS_CONTROLS_RESULT::CONTINUE;
-		case BUTTON_RESULT::ERROR: return OPTIONS_CONTROLS_RESULT::ERROR;
+			return OPTIONS_MENU_RESULT::CONTINUE;
+		case BUTTON_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
 		}
 	}
 
@@ -208,9 +174,9 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 		// close counts as an eat.
 		if(!close())
 		{
-			return OPTIONS_CONTROLS_RESULT::ERROR;
+			return OPTIONS_MENU_RESULT::ERROR;
 		}
-		return OPTIONS_CONTROLS_RESULT::CLOSE;
+		return OPTIONS_MENU_RESULT::CLOSE;
 	}
 
 	// backdrop
@@ -228,20 +194,20 @@ OPTIONS_CONTROLS_RESULT options_controls_state::input(SDL_Event& e)
 			{
 				// eat
 				set_event_unfocus(e);
-				return OPTIONS_CONTROLS_RESULT::CONTINUE;
+				return OPTIONS_MENU_RESULT::CONTINUE;
 			}
 		}
 		break;
 	}
 
-	return OPTIONS_CONTROLS_RESULT::CONTINUE;
+	return OPTIONS_MENU_RESULT::CONTINUE;
 }
 
-bool options_controls_state::update(double delta_sec)
+bool options_list_state::update(double delta_sec)
 {
-	if(shared_state.focus_element != NULL)
+	if(shared_state->focus_element != NULL)
 	{
-		if(!shared_state.focus_element->update(delta_sec))
+		if(!shared_state->focus_element->update(delta_sec))
 		{
 			return false;
 		}
@@ -263,10 +229,10 @@ bool options_controls_state::update(double delta_sec)
 	return true;
 }
 
-bool options_controls_state::draw_menu()
+bool options_list_state::draw_menu()
 {
-	mono_2d_batcher* batcher = font_painter->state.batcher;
-	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
+	mono_2d_batcher* batcher = shared_state->font_painter->state.batcher;
+	auto white_uv = shared_state->font_painter->state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 
 	// draw the backdrop bbox
@@ -303,7 +269,7 @@ bool options_controls_state::draw_menu()
 	return true;
 }
 
-bool options_controls_state::draw_scroll()
+bool options_list_state::draw_scroll()
 {
 	// for a 16px font I would want 400px
 	float menu_width = scroll_state.box_inner_xmax - scroll_state.box_xmin;
@@ -330,7 +296,7 @@ bool options_controls_state::draw_scroll()
 				return false;
 			}
 		}
-		cur_y += entry->get_height() + element_padding;
+		cur_y += entry->get_height() + shared_state->element_padding;
 	}
 
 	scroll_state.draw_buffer();
@@ -339,13 +305,13 @@ bool options_controls_state::draw_scroll()
 }
 
 // this requires the atlas texture to be bound with 1 byte packing
-bool options_controls_state::render()
+bool options_list_state::render()
 {
-	mono_2d_batcher* batcher = font_painter->state.batcher;
+	mono_2d_batcher* batcher = shared_state->font_painter->state.batcher;
 
-	if(shared_state.focus_element != NULL)
+	if(shared_state->focus_element != NULL)
 	{
-		if(shared_state.focus_element->draw_requested())
+		if(shared_state->focus_element->draw_requested())
 		{
 			update_buffer = true;
 		}
@@ -385,9 +351,9 @@ bool options_controls_state::render()
 
 		scroll_batch_vertex_count = batcher->get_current_vertex_count();
 
-		if(shared_state.focus_element != NULL)
+		if(shared_state->focus_element != NULL)
 		{
-			if(!shared_state.focus_element->draw_buffer())
+			if(!shared_state->focus_element->draw_buffer())
 			{
 				return false;
 			}
@@ -396,7 +362,7 @@ bool options_controls_state::render()
 		if(batcher->get_quad_count() != 0)
 		{
 			// upload
-			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_options_interleave_vbo);
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, shared_state->gl_options_interleave_vbo);
 			ctx.glBufferData(
 				GL_ARRAY_BUFFER, batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
 			ctx.glBufferSubData(
@@ -412,7 +378,7 @@ bool options_controls_state::render()
 	//
 
 	// bind the vao which is used for all the batches here
-	ctx.glBindVertexArray(gl_options_vao_id);
+	ctx.glBindVertexArray(shared_state->gl_options_vao_id);
 
 	if(menu_batch_vertex_count != 0)
 	{
@@ -441,10 +407,10 @@ bool options_controls_state::render()
 		}
 	}
 
-	if(shared_state.focus_element != NULL)
+	if(shared_state->focus_element != NULL)
 	{
 		// this requires the VAO.
-		if(!shared_state.focus_element->render())
+		if(!shared_state->focus_element->render())
 		{
 			return false;
 		}
@@ -455,8 +421,13 @@ bool options_controls_state::render()
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 
-void options_controls_state::resize_view()
+void options_list_state::resize_view()
 {
+	font_sprite_painter* font_painter = shared_state->font_painter;
+
+	float font_padding = shared_state->font_padding;
+	float element_padding = shared_state->element_padding;
+
 	float button_height = font_painter->get_lineskip() + font_padding;
 	float footer_height = button_height;
 	float window_edge_padding = 60;
@@ -510,15 +481,15 @@ void options_controls_state::resize_view()
 		box_ymin + element_padding,
 		box_ymax - (footer_height + element_padding) - element_padding);
 
-	if(shared_state.focus_element != NULL)
+	if(shared_state->focus_element != NULL)
 	{
-		shared_state.focus_element->resize_view();
+		shared_state->focus_element->resize_view();
 	}
 
 	update_buffer = true;
 }
 
-bool options_controls_state::undo_history()
+bool options_list_state::undo_history()
 {
 	for(auto& entry : option_entries)
 	{
@@ -535,7 +506,7 @@ bool options_controls_state::undo_history()
 	return true;
 }
 
-bool options_controls_state::clear_history()
+bool options_list_state::clear_history()
 {
 	for(auto& entry : option_entries)
 	{
@@ -549,7 +520,7 @@ bool options_controls_state::clear_history()
 	return true;
 }
 
-bool options_controls_state::set_defaults()
+bool options_list_state::set_defaults()
 {
 	for(auto& entry : option_entries)
 	{
@@ -565,12 +536,12 @@ bool options_controls_state::set_defaults()
 	return true;
 }
 
-bool options_controls_state::close()
+bool options_list_state::close()
 {
 	scroll_state.scroll_to_top();
 
 	// TODO(dootsie): this should probably be done outside...
-	if(!shared_state.set_focus(NULL))
+	if(!shared_state->set_focus(NULL))
 	{
 		return false;
 	}

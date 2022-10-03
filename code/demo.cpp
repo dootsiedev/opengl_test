@@ -873,12 +873,12 @@ bool demo_state::input(SDL_Event& e)
 	{
 		switch(option_menu.input(e))
 		{
-		case OPTIONS_RESULT::CONTINUE: break;
-		case OPTIONS_RESULT::CLOSE:
+		case OPTIONS_MENU_RESULT::CONTINUE: break;
+		case OPTIONS_MENU_RESULT::CLOSE:
 			show_options = false;
 			// eat
 			return true;
-		case OPTIONS_RESULT::ERROR: return false;
+		case OPTIONS_MENU_RESULT::ERROR: return false;
 		}
 	}
 
@@ -970,7 +970,7 @@ bool demo_state::input(SDL_Event& e)
 		// force resize.
 		SDL_Event e2;
 		set_event_resize(e2);
-        if(option_menu.input(e2) == OPTIONS_RESULT::ERROR)
+        if(option_menu.input(e2) == OPTIONS_MENU_RESULT::ERROR)
         {
             return false;
         }
