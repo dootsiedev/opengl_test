@@ -210,7 +210,7 @@ struct shared_cvar_option_state
 		gl_options_vao_id = vao;
 	}
 
-	bool set_focus(abstract_focus_element* element)
+	NDSERR bool set_focus(abstract_focus_element* element)
 	{
 		if(focus_element != NULL && !focus_element->close())
 		{
@@ -247,22 +247,19 @@ std::unique_ptr<abstract_option_element> create_multi_option(
 	size_t count,
 	multi_option_entry* entries);
 
-#if 0
-// a text prompt that you can enter a number into (you have to unfocus or press enter to commit)
-// clamp will clamp numbers entered into the prompt (with a conversion error).
-std::unique_ptr<abstract_option_element> create_int_prompt_option(
+// a prompt with a string or whatever you want.
+std::unique_ptr<abstract_option_element> create_prompt_option(
 	shared_cvar_option_state* state,
 	std::string label,
-	cvar_double* cvar,
-	int min,
-	int max,
-	bool clamp);
-#endif
+	V_cvar* cvar);
 
 // a slider + prompt for a floating point number
 // clamp will clamp numbers entered into the prompt.
 // WARNING, this modifies the .data value directly
-// if you have special cvar_write/read overload, it wont work.
+// if you have special cvar_read overload, it wont work.
+// TODO: I am just lazy, I should use cvar_read.
+// TODO: I feel like the cvar should have it's internal min/max, 
+// so I don't need "clamp", and the console should also give an error.
 std::unique_ptr<abstract_option_element> create_slider_option(
 	shared_cvar_option_state* state,
 	std::string label,

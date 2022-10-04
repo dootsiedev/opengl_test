@@ -94,16 +94,16 @@ struct mono_button_object
 	// pos on the screen, x,y,w,h
 	std::array<float, 4> button_rect{};
 	bool hover_over = false;
-    // use set_disabled instead of directly modifying this.
+	// use set_disabled instead of directly modifying this.
 	bool disabled = false;
 	// to make a click, you need to click down and up in the same area
 	// if mouse_button_down = true, this does nothing.
 	bool clicked_on = false;
 
-    // make the button "pop" for a frame when you click
-    bool display_click_frame = false;
+	// make the button "pop" for a frame when you click
+	bool display_click_frame = false;
 
-    bool update_buffer = true;
+	bool update_buffer = true;
 
 	void init(font_sprite_painter* font_painter_, button_color_state* color_state_ = NULL)
 	{
@@ -116,15 +116,15 @@ struct mono_button_object
 		}
 	}
 
-    void set_disabled(bool on)
-    {
-        disabled = on;
-        if(disabled)
-        {
-            hover_over = false;
-            fade = 0;
-        }
-    }
+	void set_disabled(bool on)
+	{
+		disabled = on;
+		if(disabled)
+		{
+			hover_over = false;
+			fade = 0;
+		}
+	}
 
 	void set_rect(std::array<float, 4> pos_)
 	{
@@ -135,9 +135,10 @@ struct mono_button_object
 		button_rect = {x, y, w, h};
 	}
 
-    bool draw_requested() const{
-        return update_buffer;
-    }
+	bool draw_requested() const
+	{
+		return update_buffer;
+	}
 
 	NDSERR BUTTON_RESULT input(SDL_Event& e);
 	// update requires the buffer to be bound.
@@ -188,7 +189,7 @@ struct mono_y_scrollable_area
 
 	bool y_scrollbar_held = false;
 
-    bool update_buffer = true;
+	bool update_buffer = true;
 
 	void init(font_sprite_painter* font_painter_)
 	{
@@ -202,9 +203,10 @@ struct mono_y_scrollable_area
 	void input(SDL_Event& e);
 
 	void draw_buffer();
-    bool draw_requested() const{
-        return update_buffer;
-    }
+	bool draw_requested() const
+	{
+		return update_buffer;
+	}
 
 	void scroll_to_top()
 	{
@@ -243,9 +245,9 @@ struct mono_normalized_slider_object
 	// output value, values based on slider_min and slider_max
 	double slider_value = 0;
 
-    // these values clamp the slider value.
-    double slider_min = 0;
-    double slider_max = 1;
+	// these values clamp the slider value.
+	double slider_min = 0;
+	double slider_max = 1;
 
 	float slider_thumb_size = 20;
 
@@ -254,19 +256,18 @@ struct mono_normalized_slider_object
 
 	bool slider_held = false;
 
-    bool update_buffer = true;
+	bool update_buffer = true;
 
 	// initial_value is a value from 0-1.
-	void init(font_sprite_painter* font_painter_, double initial_value)
-	{
-		ASSERT(font_painter_ != NULL);
-		slider_value = initial_value;
-		font_painter = font_painter_;
-	}
+	void init(
+		font_sprite_painter* font_painter_,
+		double initial_value,
+		double slider_min_,
+		double slider_max_);
 
 	// this does not return an error!!!
 	// this returns true if the value changed!
-    // TODO: probably could add in a UNFOCUS enum if I didn't want the realtime modification.
+	// TODO: probably could add in a UNFOCUS enum if I didn't want the realtime modification.
 	bool input(SDL_Event& e);
 
 	void draw_buffer();
@@ -275,16 +276,16 @@ struct mono_normalized_slider_object
 		return update_buffer;
 	}
 
-    // you need to use this because it sets draw_requested()
-    void set_value(double value)
-    {
-        slider_value = value;
-        update_buffer = true;
-    }
-    double get_value() const
-    {
-        return slider_value;
-    }
+	// you need to use this because it sets draw_requested()
+	void set_value(double value)
+	{
+		slider_value = value;
+		update_buffer = true;
+	}
+	double get_value() const
+	{
+		return slider_value;
+	}
 
 	void unfocus();
 	void resize_view(float xmin, float xmax, float ymin, float ymax);
@@ -292,10 +293,9 @@ struct mono_normalized_slider_object
 	bool internal_slider_inside(float mouse_x, float mouse_y);
 	void internal_move_to(float mouse_x);
 
-
 	// get the value in a 0-1 range.
-    double get_slider_normalized() const
-    {
-        return (slider_value - slider_min) / (slider_max - slider_min);
-    }
+	double get_slider_normalized() const
+	{
+		return (slider_value - slider_min) / (slider_max - slider_min);
+	}
 };

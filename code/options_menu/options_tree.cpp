@@ -48,36 +48,68 @@ bool options_tree_state::init(
 
 	shared_menu_state.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
 
-	auto& back = menus.emplace_back();
-	back.text = "Controls";
-	back.button.init(&font_painter);
 
-	back.add_option(create_bool_option(&shared_menu_state, "invert mouse", &cv_mouse_invert));
-	back.add_option(create_slider_option(
-		&shared_menu_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, false));
-	// TODO: would be smart to have a dummy entry that is just text which says "key binds"
-	back.add_option(
-		create_keybind_option(&shared_menu_state, "bind forward", &cv_bind_move_forward));
-	back.add_option(
-		create_keybind_option(&shared_menu_state, "bind backwards", &cv_bind_move_backward));
-	back.add_option(create_keybind_option(&shared_menu_state, "left", &cv_bind_move_left));
-	back.add_option(create_keybind_option(&shared_menu_state, "right", &cv_bind_move_right));
-	back.add_option(
-		create_keybind_option(&shared_menu_state, "bind fullscreen", &cv_bind_fullscreen));
-	back.add_option(
-		create_keybind_option(&shared_menu_state, "bind console", &cv_bind_open_console));
-	back.add_option(
-		create_keybind_option(&shared_menu_state, "bind options", &cv_bind_open_options));
+    // video
 
-	if(!back.good())
+    {
+        auto &back = menus.emplace_back();
+        back.text = "Video";
+        back.button.init(&font_painter);
+
+        back.add_option(create_bool_option(&shared_menu_state, "fullscreen", &cv_fullscreen));
+        back.add_option(create_bool_option(&shared_menu_state, "vsync", &cv_vsync));
+        back.add_option(create_prompt_option(&shared_menu_state, "screen width", &cv_screen_width));
+        back.add_option(create_prompt_option(&shared_menu_state, "screen height", &cv_screen_height));
+
+        if(!back.good())
+        {
+            return false;
+        }
+
+        if(!back.menu_state.init(&shared_menu_state))
+        {
+            return false;
+        }
+    }
+
+    // controls
 	{
-		return false;
-	}
+        auto& back = menus.emplace_back();
+        back.text = "Controls";
+        back.button.init(&font_painter);
 
-	if(!back.menu_state.init(&shared_menu_state))
-	{
-		return false;
-	}
+        back.add_option(create_bool_option(&shared_menu_state, "invert mouse", &cv_mouse_invert));
+        back.add_option(create_slider_option(
+            &shared_menu_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, false));
+        back.add_option(create_slider_option(
+            &shared_menu_state, "scroll speed", &cv_scroll_speed, 0, 10, false));
+        back.add_option(create_slider_option(
+            &shared_menu_state, "camera speed", &cv_camera_speed, 0, 100, false));
+        // TODO: would be smart to have a dummy entry that is just text which says "key binds"
+        back.add_option(
+            create_keybind_option(&shared_menu_state, "bind forward", &cv_bind_move_forward));
+        back.add_option(
+            create_keybind_option(&shared_menu_state, "bind backwards", &cv_bind_move_backward));
+        back.add_option(create_keybind_option(&shared_menu_state, "left", &cv_bind_move_left));
+        back.add_option(create_keybind_option(&shared_menu_state, "right", &cv_bind_move_right));
+        back.add_option(
+            create_keybind_option(&shared_menu_state, "bind fullscreen", &cv_bind_fullscreen));
+        back.add_option(
+            create_keybind_option(&shared_menu_state, "bind console", &cv_bind_open_console));
+        back.add_option(
+            create_keybind_option(&shared_menu_state, "bind options", &cv_bind_open_options));
+
+        if(!back.good())
+        {
+            return false;
+        }
+
+        if(!back.menu_state.init(&shared_menu_state))
+        {
+            return false;
+        }
+    }
+
 
 	tree_resize_view();
 

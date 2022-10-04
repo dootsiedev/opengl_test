@@ -323,6 +323,45 @@ OPTION_ELEMENT_RESULT cvar_button_multi_option::input(SDL_Event& e)
 	case BUTTON_RESULT::TRIGGER:
 		if(!value_changed)
 		{
+			if(cvar->cvar_type == CVAR_T::DEFFERRED || cvar->cvar_type == CVAR_T::STARTUP ||
+			   cvar->cvar_type == CVAR_T::DISABLED)
+			{
+				// TODO: would be better if the prompt offerred some sort of word wrapping.
+				// I could do that if I used a prompt instead of a text painter.
+				switch(cvar->cvar_type)
+				{
+				case CVAR_T::STARTUP:
+					if(!state->error_prompt.init(
+						   state,
+						   "Warning, this value is used in startup,\n"
+						   "which means that this change\n"
+						   "requires a restart take effect."))
+					{
+						return OPTION_ELEMENT_RESULT::ERROR;
+					}
+					break;
+				case CVAR_T::DEFFERRED:
+					if(!state->error_prompt.init(
+						   state,
+						   "Warning, this value is deferred,\n"
+						   "which means that this change\n"
+						   "will not make immediately take effect."))
+					{
+						return OPTION_ELEMENT_RESULT::ERROR;
+					}
+					break;
+				default:
+					if(!state->error_prompt.init(state, "I don't know why this is here"))
+					{
+						return OPTION_ELEMENT_RESULT::ERROR;
+					}
+					break;
+				}
+				if(!state->set_focus(&state->error_prompt))
+				{
+					return OPTION_ELEMENT_RESULT::ERROR;
+				}
+			}
 			previous_cvar_value = cvar->cvar_write();
 			value_changed = true;
 		}
@@ -559,7 +598,7 @@ bool cvar_slider_option::init(
 
 	element_height = font_painter->get_lineskip() + state->font_padding;
 
-	slider.init(font_painter, cvar->data);
+	slider.init(font_painter, cvar->data, min, max);
 
 	// note this only works if you do it before init
 	prompt.state.font_scale = font_painter->state.font_scale;
@@ -607,6 +646,7 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN)
 		{
 			parse_event = true;
+			// I forgot why this is here
 			slider.unfocus();
 			// eat
 			set_event_unfocus(e);
@@ -696,10 +736,6 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 		}
 
 		slider.unfocus();
-
-		// eat
-		set_event_unfocus(e);
-		// return OPTION_ELEMENT_RESULT::CONTINUE;
 	}
 	return modified ? OPTION_ELEMENT_RESULT::MODIFIED : OPTION_ELEMENT_RESULT::CONTINUE;
 }
@@ -809,6 +845,276 @@ std::unique_ptr<abstract_option_element> create_slider_option(
 {
 	auto output = std::make_unique<cvar_slider_option>();
 	if(!output->init(state, std::move(label), cvar, min, max, clamp))
+	{
+		return std::unique_ptr<abstract_option_element>();
+	}
+	return output;
+}
+
+struct cvar_prompt_option : public abstract_option_element
+{
+	shared_cvar_option_state* state = NULL;
+	std::string label_text;
+
+	V_cvar* cvar = NULL;
+
+	text_prompt_wrapper prompt;
+
+	std::string previous_value;
+	bool value_changed = false;
+
+	float element_height = -1;
+
+	NDSERR bool init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_);
+
+	// virtual functions
+	NDSERR bool update(double delta_sec) override;
+	NDSERR OPTION_ELEMENT_RESULT input(SDL_Event& e) override;
+	NDSERR bool draw_buffer(float x, float y, float menu_w) override;
+	bool draw_requested() override;
+	NDSERR bool close() override
+	{
+		// the prompt and slider will unfocus
+		// because set_event_hidden will be triggered.
+		// but the prompt won't remove the selection so I need to do that here.
+		prompt.clear_selection();
+		return true;
+	};
+
+	float get_height() override;
+	NDSERR bool set_default() override;
+	NDSERR bool undo_changes() override;
+	NDSERR bool clear_history() override;
+};
+
+bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_)
+{
+	ASSERT(state_ != NULL);
+	ASSERT(cvar_ != NULL);
+
+	state = state_;
+	label_text = std::move(label);
+	cvar = cvar_;
+
+	font_sprite_painter* font_painter = state->font_painter;
+
+	element_height = font_painter->get_lineskip() + state->font_padding;
+
+	// note this only works if you do it before init
+	prompt.state.font_scale = font_painter->state.font_scale;
+
+	// TODO(dootsie): I would make the prompt select all the text when you click up without
+	// dragging. or just implement double / triple clicking...
+	if(!prompt.init(
+		   cvar->cvar_write(),
+		   font_painter->state.batcher,
+		   font_painter->state.font,
+		   TEXTP_SINGLE_LINE | TEXTP_DRAW_BBOX | TEXTP_DRAW_BACKDROP | TEXTP_DISABLE_CULL))
+	{
+		// NOLINTNEXTLINE
+		return false;
+	}
+
+	return true;
+}
+
+bool cvar_prompt_option::update(double delta_sec)
+{
+	ASSERT(state != NULL);
+	// slider.update(delta_sec);
+	prompt.update(delta_sec);
+	return true;
+}
+OPTION_ELEMENT_RESULT cvar_prompt_option::input(SDL_Event& e)
+{
+	ASSERT(state != NULL);
+	bool modified = false;
+
+	bool parse_event = false;
+	if(prompt.text_focus)
+	{
+		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RETURN)
+		{
+			parse_event = true;
+			// eat
+			set_event_unfocus(e);
+		}
+	}
+	switch(prompt.input(e))
+	{
+	// ignore modified because it might be annoying to have an error on every modification.
+	// BUT I could make the text change to a red color if the input has an error.
+	case TEXT_PROMPT_RESULT::MODIFIED:
+	case TEXT_PROMPT_RESULT::CONTINUE: break;
+	case TEXT_PROMPT_RESULT::ERROR: return OPTION_ELEMENT_RESULT::ERROR;
+	case TEXT_PROMPT_RESULT::UNFOCUS: parse_event = true; break;
+	}
+	if(parse_event)
+	{
+		std::string prev_string;
+		if(!value_changed)
+		{
+			prev_string = cvar->cvar_write();
+		}
+		std::string prompt_text = prompt.get_string();
+		if(!cvar->cvar_read(prompt_text.c_str()))
+		{
+			if(!state->error_prompt.init(state, serr_get_error()))
+			{
+				return OPTION_ELEMENT_RESULT::ERROR;
+			}
+			if(!state->set_focus(&state->error_prompt))
+			{
+				return OPTION_ELEMENT_RESULT::ERROR;
+			}
+		}
+		else
+		{
+			if(!value_changed)
+			{
+				previous_value = std::move(prev_string);
+				value_changed = true;
+			}
+
+            if(cvar->cvar_type == CVAR_T::DEFFERRED || cvar->cvar_type == CVAR_T::STARTUP ||
+			   cvar->cvar_type == CVAR_T::DISABLED)
+			{
+				// TODO: would be better if the prompt offerred some sort of word wrapping.
+				// I could do that if I used a prompt instead of a text painter.
+				switch(cvar->cvar_type)
+				{
+				case CVAR_T::STARTUP:
+					if(!state->error_prompt.init(
+						   state,
+						   "Warning, this value is used in startup,\n"
+						   "which means that this change\n"
+						   "requires a restart take effect."))
+					{
+						return OPTION_ELEMENT_RESULT::ERROR;
+					}
+					break;
+				case CVAR_T::DEFFERRED:
+					if(!state->error_prompt.init(
+						   state,
+						   "Warning, this value is deferred,\n"
+						   "which means that this change\n"
+						   "will not make immediately take effect."))
+					{
+						return OPTION_ELEMENT_RESULT::ERROR;
+					}
+					break;
+				default:
+					if(!state->error_prompt.init(state, "I don't know why this is here"))
+					{
+						return OPTION_ELEMENT_RESULT::ERROR;
+					}
+					break;
+				}
+				if(!state->set_focus(&state->error_prompt))
+				{
+					return OPTION_ELEMENT_RESULT::ERROR;
+				}
+			}
+		}
+	}
+	return modified ? OPTION_ELEMENT_RESULT::MODIFIED : OPTION_ELEMENT_RESULT::CONTINUE;
+}
+bool cvar_prompt_option::draw_buffer(float x, float y, float menu_w)
+{
+	ASSERT(state != NULL);
+	font_sprite_painter* font_painter = state->font_painter;
+
+	float font_padding = state->font_padding;
+	float element_padding = state->element_padding;
+
+	// the description text
+	{
+		float font_x = x + font_padding / 2.f;
+		float font_y = y + font_padding / 2.f;
+
+		font_painter->begin();
+		font_painter->set_style(FONT_STYLE_OUTLINE);
+		font_painter->set_color(0, 0, 0, 255);
+		font_painter->set_xy(font_x, font_y);
+		font_painter->set_anchor(TEXT_ANCHOR::TOP_LEFT);
+		if(!font_painter->draw_text(label_text.c_str(), label_text.size()))
+		{
+			return false;
+		}
+		font_painter->set_style(FONT_STYLE_NORMAL);
+		font_painter->set_color(255, 255, 255, 255);
+		font_painter->set_xy(font_x, font_y);
+		if(!font_painter->draw_text(label_text.c_str(), label_text.size()))
+		{
+			return false;
+		}
+		font_painter->end();
+	}
+
+	float cur_x = x + (menu_w - element_padding) / 2;
+
+	float prompt_width = 80 * (font_painter->get_lineskip() / 16.f);
+	prompt.set_bbox(
+		cur_x + element_padding, y + font_padding / 2, prompt_width, font_painter->get_lineskip());
+
+	return prompt.draw();
+}
+
+bool cvar_prompt_option::draw_requested()
+{
+	return prompt.draw_requested();
+}
+
+float cvar_prompt_option::get_height()
+{
+	return element_height;
+}
+
+bool cvar_prompt_option::set_default()
+{
+	ASSERT(state != NULL);
+	if(!value_changed)
+	{
+		previous_value = cvar->cvar_write();
+		value_changed = true;
+	}
+	if(!cvar->cvar_read(cvar->cvar_default_value.c_str()))
+	{
+		return false;
+	}
+	prompt.replace_string(cvar->cvar_default_value, false);
+	return true;
+}
+bool cvar_prompt_option::undo_changes()
+{
+	ASSERT(state != NULL);
+
+	if(value_changed)
+	{
+		if(!cvar->cvar_read(previous_value.c_str()))
+		{
+			return false;
+		}
+		prompt.replace_string(previous_value, false);
+		previous_value.clear();
+		value_changed = false;
+	}
+
+	return true;
+}
+bool cvar_prompt_option::clear_history()
+{
+	ASSERT(state != NULL);
+	previous_value.clear();
+	value_changed = false;
+	return true;
+}
+
+std::unique_ptr<abstract_option_element>
+	create_prompt_option(shared_cvar_option_state* state, std::string label, V_cvar* cvar)
+{
+	auto output = std::make_unique<cvar_prompt_option>();
+	if(!output->init(state, std::move(label), cvar))
 	{
 		return std::unique_ptr<abstract_option_element>();
 	}
@@ -1120,6 +1426,20 @@ void option_keybind_request::commit_change()
 FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 {
 	ASSERT(state != NULL);
+
+	switch(e.type)
+	{
+	case SDL_WINDOWEVENT:
+		switch(e.window.event)
+		{
+		case SDL_WINDOWEVENT_HIDDEN:
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			// some event was eaten (like opening up the console),
+			// or click'd out, so lets just cancel the keybind.
+			return FOCUS_ELEMENT_RESULT::CLOSE;
+		}
+	}
+
 	switch(unbind_button.input(e))
 	{
 	case BUTTON_RESULT::CONTINUE: break;

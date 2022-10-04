@@ -170,14 +170,6 @@ struct gl_point_vertex
 	GLint inst_id;
 };
 
-/*
-struct gl_font_vertex
-{
-	GLfloat pos[3];
-	GLfloat tex[2];
-	GLubyte color[4];
-};*/
-
 // creates a pattern like this with divisions = 1
 //|\|\|
 //|\|\|
@@ -859,6 +851,29 @@ bool demo_state::input(SDL_Event& e)
 		}
 	}
 
+    if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+		// eat
+		set_event_unfocus(e);
+		// unfocus ALL
+		if(!input(e))
+        {
+            return false;
+        }
+		show_console = !show_console;
+		if(show_console)
+		{
+			g_console.focus();
+			// force the console to resize itself.
+			SDL_Event e2;
+			set_event_resize(e2);
+			if(g_console.input(e2) == CONSOLE_RESULT::ERROR)
+            {
+                return false;
+            }
+		}
+	}
+
 	if(show_console)
 	{
 		CONSOLE_RESULT ret = g_console.input(e);
@@ -867,6 +882,26 @@ bool demo_state::input(SDL_Event& e)
 		case CONSOLE_RESULT::CONTINUE: break;
 		case CONSOLE_RESULT::ERROR: return false;
 		}
+	}
+
+    if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+		// eat
+		set_event_unfocus(e);
+		// unfocus ALL
+		if(!input(e))
+        {
+            return false;
+        }
+		// this isn't a toggle. only open, press escape or click close.
+		show_options = !show_options;
+		// force resize.
+		SDL_Event e2;
+		set_event_resize(e2);
+        if(option_menu.input(e2) == OPTIONS_MENU_RESULT::ERROR)
+        {
+            return false;
+        }
 	}
 
 	if(show_options)
@@ -931,49 +966,6 @@ bool demo_state::input(SDL_Event& e)
 #endif
 		}
 		break;
-	}
-
-	if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-	{
-		// eat
-		set_event_unfocus(e);
-		// unfocus ALL
-		if(!input(e))
-        {
-            return false;
-        }
-		show_console = !show_console;
-		if(show_console)
-		{
-			g_console.focus();
-			// force the console to resize itself.
-			SDL_Event e2;
-			set_event_resize(e2);
-			if(g_console.input(e2) == CONSOLE_RESULT::ERROR)
-            {
-                return false;
-            }
-		}
-	}
-
-	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-	{
-		// eat
-		set_event_unfocus(e);
-		// unfocus ALL
-		if(!input(e))
-        {
-            return false;
-        }
-		// this isn't a toggle. only open, press escape or click close.
-		show_options = !show_options;
-		// force resize.
-		SDL_Event e2;
-		set_event_resize(e2);
-        if(option_menu.input(e2) == OPTIONS_MENU_RESULT::ERROR)
-        {
-            return false;
-        }
 	}
 
 	// unfocus the buttons if you pressed a button that could open something.
@@ -1233,27 +1225,27 @@ DEMO_RESULT demo_state::process()
 				update_screen_resize = true;
 				break;
 				/* TODO: pretty important window events.
-							case SDL_WINDOWEVENT_LEAVE:
-								slogf("leave\n");
-								break;
-							case SDL_WINDOWEVENT_ENTER:
-								slogf("enter\n");
-								break;
-							case SDL_WINDOWEVENT_FOCUS_GAINED:
-								slogf("key focus gain\n");
-								break;
-							case SDL_WINDOWEVENT_FOCUS_LOST:
-								slogf("key focus lost\n");
-								break;
-							case SDL_WINDOWEVENT_SHOWN:
-								slogf("shown\n");
-								break;
-							case SDL_WINDOWEVENT_HIDDEN:
-								slogf("hidden\n");
-								break;
-							case SDL_WINDOWEVENT_EXPOSED:
-								slogf("exposed\n");
-								break;
+			case SDL_WINDOWEVENT_LEAVE:
+				slogf("leave\n");
+				break;
+			case SDL_WINDOWEVENT_ENTER:
+				slogf("enter\n");
+				break;
+			case SDL_WINDOWEVENT_FOCUS_GAINED:
+				slogf("key focus gain\n");
+				break;
+			case SDL_WINDOWEVENT_FOCUS_LOST:
+				slogf("key focus lost\n");
+				break;
+			case SDL_WINDOWEVENT_SHOWN:
+				slogf("shown\n");
+				break;
+			case SDL_WINDOWEVENT_HIDDEN:
+				slogf("hidden\n");
+				break;
+			case SDL_WINDOWEVENT_EXPOSED:
+				slogf("exposed\n");
+				break;
 				*/
 			}
 			break;
