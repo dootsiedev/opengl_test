@@ -1,3 +1,4 @@
+#include "../global_pch.h"
 #ifndef DISABLE_BS_JSON
 #include "../global.h"
 #include "BS_json.h"

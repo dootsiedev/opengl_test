@@ -1,12 +1,24 @@
+#include "global_pch.h"
 #include "global.h"
+
 #include "app.h"
 
 #include "opengles2/opengl_stuff.h"
 
 App_Info g_app;
 
-REGISTER_CVAR_INT(cv_screen_width, 640, "screen width in windowed mode", CVAR_T::STARTUP);
-REGISTER_CVAR_INT(cv_screen_height, 480, "screen height in windowed mode", CVAR_T::STARTUP);
+REGISTER_CVAR_INT(
+	cv_startup_screen_width,
+	640,
+	"screen width on startup, and when you reset the window size",
+	CVAR_T::STARTUP);
+REGISTER_CVAR_INT(
+	cv_startup_screen_height,
+	480,
+	"screen height on startup, and when you reset the window size",
+	CVAR_T::STARTUP);
+REGISTER_CVAR_INT(cv_screen_width, 640, "current screen width", CVAR_T::READONLY);
+REGISTER_CVAR_INT(cv_screen_height, 480, "current screen height", CVAR_T::READONLY);
 
 REGISTER_CVAR_INT(
 	cv_debug_opengl,
@@ -139,10 +151,10 @@ EM_BOOL fullscreenchange_callback(int eventType, const EmscriptenFullscreenChang
 extern "C" {
 extern void enter_fullscreen()
 {
-	// make the screen pixel perfect to the screen resolution (but this is NOT high-dpi aware)
+#if 0
 	EmscriptenFullscreenStrategy s;
 	memset(&s, 0, sizeof(s));
-	s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_DEFAULT;
+	s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_STRETCH;
 	s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
 	s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
 	s.canvasResizedCallback = 0; // on_canvassize_changed;
@@ -156,11 +168,17 @@ extern void enter_fullscreen()
 			"emscripten_request_fullscreen_strategy",
 			emscripten_result_to_string(em_ret));
 	}
+#endif
+	if(SDL_SetWindowFullscreen(g_app.window, SDL_WINDOW_FULLSCREEN_DESKTOP) < 0)
+    {
+		slogf("SDL_SetWindowFullscreen Error: %s", SDL_GetError());
+    }
 }
 }
 
 const char* fullscreen_button_string = "#fullscreen_button";
-static int on_fullscreen_button_click(int eventType, const EmscriptenMouseEvent* mouseEvent, void* userData)
+static int on_fullscreen_button_click(
+	int eventType, const EmscriptenMouseEvent* mouseEvent, void* userData)
 {
 	(void)userData; // unused
 	(void)mouseEvent; // unused
@@ -193,8 +211,8 @@ bool app_init(App_Info& app)
         slogf("%s returned %s.\n", "emscripten_set_fullscreenchange_callback", emscripten_result_to_string(em_ret));
     }
 #endif
-	EMSCRIPTEN_RESULT em_ret =
-		emscripten_set_click_callback(fullscreen_button_string, NULL, 0, on_fullscreen_button_click);
+	EMSCRIPTEN_RESULT em_ret = emscripten_set_click_callback(
+		fullscreen_button_string, NULL, 0, on_fullscreen_button_click);
 	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
 	{
 		slogf(
@@ -226,7 +244,7 @@ bool app_init(App_Info& app)
 
 	// SDL_CHECK(SDL_SetHint("SDL_HINT_MOUSE_RELATIVE_MODE_WARP", "1"));
 	// SDL_CHECK(SDL_SetHint("SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH", "1"));
-#ifdef IME_TEXTEDIT_EXT
+#ifdef HAS_IME_TEXTEDIT_EXT
 	// seems like this only works for wayland ATM.
 	SDL_CHECK(SDL_SetHint("SDL_HINT_IME_SUPPORT_EXTENDED_TEXT", "1"));
 #endif
@@ -263,8 +281,8 @@ bool app_init(App_Info& app)
 		"A Window",
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
-		cv_screen_width.data,
-		cv_screen_height.data,
+		cv_startup_screen_width.data,
+		cv_startup_screen_height.data,
 		SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | fullscreen_mode);
 	if(app.window == NULL)
 	{
@@ -319,6 +337,16 @@ bool app_init(App_Info& app)
 		slogf("Warning: SDL_GL_SetSwapInterval(): %s\n", SDL_GetError());
 	}
 
+	// I don't know why by emscripten gets bugged out by SDL_GL_GetDrawableSize.
+	// int w;
+	// int h;
+	// SDL_GL_GetDrawableSize(app.window, &w,&h);
+	// cv_screen_width.data = w;
+	// cv_screen_height.data = h;
+	cv_screen_width.data = cv_startup_screen_width.data;
+	cv_screen_height.data = cv_startup_screen_height.data;
+	ctx.glViewport(0, 0, cv_screen_width.data, cv_screen_height.data);
+
 	return true;
 }
 
@@ -358,7 +386,7 @@ bool app_destroy(App_Info& app)
 		slogf(
 			"%s(\"%s\") returned %s.\n",
 			"emscripten_set_click_callback",
-            fullscreen_button_string,
+			fullscreen_button_string,
 			emscripten_result_to_string(em_ret));
 	}
 #endif
@@ -429,10 +457,16 @@ bool cvar_fullscreen::cvar_read(const char* buffer)
 					emscripten_result_to_string(em_ret));
 				data = 0;
 			}
+			int w, h;
+			emscripten_get_canvas_element_size("#canvas", &w, &h);
+			SDL_SetWindowSize(g_app.window, w, h);
 		}
 		else
 		{
 			emscripten_exit_soft_fullscreen();
+			int w, h;
+			emscripten_get_canvas_element_size("#canvas", &w, &h);
+			SDL_SetWindowSize(g_app.window, w, h);
 		}
 #else
 		Uint32 fullscreen_mode = data == 1 ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;

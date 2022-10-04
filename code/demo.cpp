@@ -1,3 +1,4 @@
+#include "global_pch.h"
 #include "global.h"
 
 #include "demo.h"
@@ -44,12 +45,13 @@ static EM_BOOL on_pointerlockchange(int eventType, const EmscriptenPointerlockCh
 #endif
 static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, void* userData)
 {
-	/*
-	 slogf("%s, screen: (%ld,%ld), client: (%ld,%ld),%s%s%s%s button: %hu, buttons: %hu, movement:
-	 (%ld,%ld), target: (%ld, %ld)\n", emscripten_event_type_to_string(eventType), e->screenX,
+#if 0
+	 slogf("%s, screen: (%ld,%ld), client: (%ld,%ld),%s%s%s%s button: %hu, buttons: %hu, movement: (%ld,%ld), target: (%ld, %ld)\n", emscripten_event_type_to_string(eventType), e->screenX,
 	 e->screenY, e->clientX, e->clientY, e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "",
 	 e->altKey ? " ALT" : "", e->metaKey ? " META" : "", e->button, e->buttons, e->movementX,
-	 e->movementY, e->targetX, e->targetY);*/
+	 e->movementY, e->targetX, e->targetY);
+     slogf("canvas: (%ld, %ld)\n",  e->canvasX, e->canvasY);
+#endif
 	if(eventType == EMSCRIPTEN_EVENT_MOUSEUP)
 	{
 		ASSERT(userData != NULL);
@@ -61,6 +63,7 @@ static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, v
 		ev.button.button =
 			(e->button == 0 ? SDL_BUTTON_LEFT : (e->button == 2 ? SDL_BUTTON_RIGHT : 0));
 		ev.button.state = SDL_RELEASED;
+#if 0
 		// this is based on SDL's code
 		/*
 		unfortunately this can't handle the sitatuation where I fullscreen with the inspector open
@@ -108,6 +111,10 @@ static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, v
 		// slogf("cw: %f, ch: %f, w: %d, h: %d\n", client_w, client_h, window_w, window_h);
 		ev.button.x = e->targetX * xscale;
 		ev.button.y = e->targetY * yscale;
+#endif
+
+		SDL_GetMouseState(&ev.button.x, &ev.button.y);
+
 		// TODO: I really should handle this error, but I need some sort of way to signal
 		// to the main thread that an error propogated...
 		// should put bool exit inside of g_app I guess.
@@ -131,7 +138,8 @@ static REGISTER_CVAR_STRING(
 	"test\n"
 	"f1 - open console\n"
 	"alt+enter - fullscreen\n"
-	"wasd - move",
+	"wasd - move\n"
+	"/?- open options",
 	"the string to display",
 	CVAR_T::STARTUP);
 static REGISTER_CVAR_DOUBLE(cv_string_pt, 16.0, "the point size of the string", CVAR_T::STARTUP);
@@ -155,6 +163,8 @@ REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, false, "move forward", 
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, false, "move backward", CVAR_T::RUNTIME);
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, false, "move left", CVAR_T::RUNTIME);
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, false, "move right", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_jump, SDLK_SPACE, false, "jump", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_crouch, SDLK_c, false, "crouch", CVAR_T::RUNTIME);
 REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
 	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, false, "toggle fullscreen", CVAR_T::RUNTIME);
 
@@ -162,6 +172,12 @@ REGISTER_CVAR_KEY_BIND_KEY(
 	cv_bind_open_console, SDLK_F1, false, "open console overlay", CVAR_T::RUNTIME);
 REGISTER_CVAR_KEY_BIND_KEY(
 	cv_bind_open_options, SDLK_SLASH, false, "open option menu", CVAR_T::RUNTIME);
+REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_reset_window_size,
+	SDLK_F5,
+	false,
+	"set the window to cv_startup_screen_width/height",
+	CVAR_T::RUNTIME);
 
 struct gl_point_vertex
 {
@@ -647,8 +663,6 @@ bool demo_state::init_gl_font()
 		}
 
 		font_style.init(&font_manager, &font_rasterizer);
-		// font_style.font_scale = 2;
-		// font_settings.point_size = 32;
 		current_font = &font_style;
 	}
 
@@ -687,7 +701,7 @@ bool demo_state::init_gl_font()
 	font_batcher.init(font_batcher_buffer.get(), max_quads);
 
 	font_painter.init(&font_batcher, current_font);
-	// font_painter.state.font_scale = 2;
+	font_painter.set_scale(2);
 
 	if(!g_console.init(current_font, &font_batcher, mono_shader))
 	{
@@ -804,6 +818,15 @@ bool demo_state::input(SDL_Event& e)
 			// case SDL_WINDOWEVENT_LEAVE:
 		}
 	}
+
+	if(cv_bind_reset_window_size.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+		SDL_SetWindowSize(
+			g_app.window, cv_startup_screen_width.data, cv_startup_screen_height.data);
+		// eat
+		set_event_unfocus(e);
+	}
+
 	// TIMER_U t1 = timer_now();
 	// bool input_eaten = false;
 	// is the mouse currently locked?
@@ -824,7 +847,7 @@ bool demo_state::input(SDL_Event& e)
 	{
 		if(e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
 		{
-			return true;
+			set_event_unfocus(e);
 		}
 		if(e.type == SDL_MOUSEMOTION)
 		{
@@ -842,24 +865,24 @@ bool demo_state::input(SDL_Event& e)
 			direction.y = sin(glm::radians(camera_pitch));
 			direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
 			camera_direction = glm::normalize(direction);
-			return true;
+			set_event_leave(e);
 		}
 		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 		{
 			unfocus_demo();
-			return true;
+			set_event_unfocus(e);
 		}
 	}
 
-    if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
 	{
 		// eat
 		set_event_unfocus(e);
 		// unfocus ALL
 		if(!input(e))
-        {
-            return false;
-        }
+		{
+			return false;
+		}
 		show_console = !show_console;
 		if(show_console)
 		{
@@ -868,9 +891,9 @@ bool demo_state::input(SDL_Event& e)
 			SDL_Event e2;
 			set_event_resize(e2);
 			if(g_console.input(e2) == CONSOLE_RESULT::ERROR)
-            {
-                return false;
-            }
+			{
+				return false;
+			}
 		}
 	}
 
@@ -884,24 +907,24 @@ bool demo_state::input(SDL_Event& e)
 		}
 	}
 
-    if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
 	{
 		// eat
 		set_event_unfocus(e);
 		// unfocus ALL
 		if(!input(e))
-        {
-            return false;
-        }
+		{
+			return false;
+		}
 		// this isn't a toggle. only open, press escape or click close.
 		show_options = !show_options;
 		// force resize.
 		SDL_Event e2;
 		set_event_resize(e2);
-        if(option_menu.input(e2) == OPTIONS_MENU_RESULT::ERROR)
-        {
-            return false;
-        }
+		if(option_menu.input(e2) == OPTIONS_MENU_RESULT::ERROR)
+		{
+			return false;
+		}
 	}
 
 	if(show_options)
@@ -944,6 +967,13 @@ bool demo_state::input(SDL_Event& e)
 		// TODO: should check if I button down wasn't eaten before I button up.
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
+			// eat
+			set_event_unfocus(e);
+			// unfocus ALL
+			if(!input(e))
+			{
+				return false;
+			}
 #ifdef __EMSCRIPTEN__
 			// this ONLY works when called inside of a mouse button event that is inside a html5
 			// handler. the deferred option means if false (0), this will give an error and nothing
@@ -975,10 +1005,10 @@ bool demo_state::input(SDL_Event& e)
 		{
 		case SDL_WINDOWEVENT_FOCUS_LOST:
 		case SDL_WINDOWEVENT_HIDDEN:
-			keys_down[MOVE_FORWARD] = false;
-			keys_down[MOVE_BACKWARD] = false;
-			keys_down[MOVE_LEFT] = false;
-			keys_down[MOVE_RIGHT] = false;
+			for(bool& down : keys_down)
+			{
+				down = false;
+			}
 			break;
 		}
 	}
@@ -1004,6 +1034,16 @@ bool demo_state::input(SDL_Event& e)
 	if(ret != KEYBIND_NULL)
 	{
 		keys_down[MOVE_RIGHT] = (ret & KEYBIND_BUTTON_DOWN) != 0;
+	}
+	ret = cv_bind_move_jump.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	if(ret != KEYBIND_NULL)
+	{
+		keys_down[MOVE_JUMP] = (ret & KEYBIND_BUTTON_DOWN) != 0;
+	}
+	ret = cv_bind_move_crouch.compare_sdl_event(e, KEYBIND_BUTTON_DOWN | KEYBIND_BUTTON_UP);
+	if(ret != KEYBIND_NULL)
+	{
+		keys_down[MOVE_CROUCH] = (ret & KEYBIND_BUTTON_DOWN) != 0;
 	}
 
 	return true;
@@ -1055,6 +1095,17 @@ bool demo_state::update(double delta_sec)
 	{
 		camera_pos += glm::normalize(glm::cross(camera_direction, up)) * cameraSpeed;
 	}
+
+	if(keys_down[MOVE_JUMP])
+	{
+		camera_pos += up * cameraSpeed;
+	}
+
+	if(keys_down[MOVE_CROUCH])
+	{
+		camera_pos -= up * cameraSpeed;
+	}
+
 	return true;
 }
 
@@ -1124,7 +1175,6 @@ bool demo_state::render()
 	if(update_screen_resize)
 	{
 		update_screen_resize = false;
-		ctx.glViewport(0, 0, cv_screen_width.data, cv_screen_height.data);
 		glm::mat4 mvp = glm::ortho<float>(
 			0,
 			cv_screen_width.data, // NOLINT(bugprone-narrowing-conversions)
@@ -1199,16 +1249,6 @@ DEMO_RESULT demo_state::process()
 
 	tick1 = timer_now();
 
-#ifdef __EMSCRIPTEN__
-	// emscripten really doesn't like resizing the screen for some reason...
-	// it only does it when I go fullscreen (and the emscripten html button for fullscreen wont
-	// resize) I tried to use the resize callback, but I couldn't get any events. and resize events
-	// won't happen unless I do this hack... THIS IS NOT THE BEST SOLUTION! I just don't understand
-	// how SDL<->html5 interacts.
-	int w, h;
-	emscripten_get_canvas_element_size("#canvas", &w, &h);
-	SDL_SetWindowSize(g_app.window, w, h);
-#endif
 	SDL_Event e;
 	while(SDL_PollEvent(&e) != 0)
 	{
@@ -1219,11 +1259,19 @@ DEMO_RESULT demo_state::process()
 		case SDL_WINDOWEVENT:
 			switch(e.window.event)
 			{
-			case SDL_WINDOWEVENT_SIZE_CHANGED:
-				cv_screen_width.data = e.window.data1;
-				cv_screen_height.data = e.window.data2;
+			case SDL_WINDOWEVENT_SIZE_CHANGED: {
+				int w;
+				int h;
+				SDL_GL_GetDrawableSize(g_app.window, &w, &h);
+				cv_screen_width.data = w;
+				cv_screen_height.data = h;
+
+				ctx.glViewport(0, 0, cv_screen_width.data, cv_screen_height.data);
+				// cv_screen_width.data = e.window.data1;
+				// cv_screen_height.data = e.window.data2;
 				update_screen_resize = true;
-				break;
+			}
+			break;
 				/* TODO: pretty important window events.
 			case SDL_WINDOWEVENT_LEAVE:
 				slogf("leave\n");

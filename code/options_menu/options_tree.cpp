@@ -1,3 +1,4 @@
+#include "../global_pch.h"
 #include "../global.h"
 
 #include "options_tree.h"
@@ -6,6 +7,10 @@
 
 // for the cvars...
 #include "../demo.h"
+
+// TODO: BIG PROBLEM if I modify a cvar (like fullscreen) outside the menu,
+// the change will not appear in the menu even if you close and open it...
+// I think I need a bool open() callback... or just refresh every second...
 
 bool options_tree_state::init(
 	font_style_interface* font_, mono_2d_batcher* batcher_, shader_mono_state& mono_shader)
@@ -48,68 +53,77 @@ bool options_tree_state::init(
 
 	shared_menu_state.init(&font_painter, gl_options_interleave_vbo, gl_options_vao_id);
 
+	// video
 
-    // video
-
-    {
-        auto &back = menus.emplace_back();
-        back.text = "Video";
-        back.button.init(&font_painter);
-
-        back.add_option(create_bool_option(&shared_menu_state, "fullscreen", &cv_fullscreen));
-        back.add_option(create_bool_option(&shared_menu_state, "vsync", &cv_vsync));
-        back.add_option(create_prompt_option(&shared_menu_state, "screen width", &cv_screen_width));
-        back.add_option(create_prompt_option(&shared_menu_state, "screen height", &cv_screen_height));
-
-        if(!back.good())
-        {
-            return false;
-        }
-
-        if(!back.menu_state.init(&shared_menu_state))
-        {
-            return false;
-        }
-    }
-
-    // controls
 	{
-        auto& back = menus.emplace_back();
-        back.text = "Controls";
-        back.button.init(&font_painter);
+		auto& back = menus.emplace_back();
+		back.text = "Video";
+		back.button.init(&font_painter);
 
-        back.add_option(create_bool_option(&shared_menu_state, "invert mouse", &cv_mouse_invert));
-        back.add_option(create_slider_option(
-            &shared_menu_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, false));
-        back.add_option(create_slider_option(
-            &shared_menu_state, "scroll speed", &cv_scroll_speed, 0, 10, false));
-        back.add_option(create_slider_option(
-            &shared_menu_state, "camera speed", &cv_camera_speed, 0, 100, false));
-        // TODO: would be smart to have a dummy entry that is just text which says "key binds"
-        back.add_option(
-            create_keybind_option(&shared_menu_state, "bind forward", &cv_bind_move_forward));
-        back.add_option(
-            create_keybind_option(&shared_menu_state, "bind backwards", &cv_bind_move_backward));
-        back.add_option(create_keybind_option(&shared_menu_state, "left", &cv_bind_move_left));
-        back.add_option(create_keybind_option(&shared_menu_state, "right", &cv_bind_move_right));
-        back.add_option(
-            create_keybind_option(&shared_menu_state, "bind fullscreen", &cv_bind_fullscreen));
-        back.add_option(
-            create_keybind_option(&shared_menu_state, "bind console", &cv_bind_open_console));
-        back.add_option(
-            create_keybind_option(&shared_menu_state, "bind options", &cv_bind_open_options));
+		back.add_option(create_bool_option(&shared_menu_state, "fullscreen", &cv_fullscreen));
+		back.add_option(create_bool_option(&shared_menu_state, "vsync", &cv_vsync));
+		back.add_option(create_prompt_option(
+			&shared_menu_state, "startup screen width", &cv_startup_screen_width));
+		back.add_option(create_prompt_option(
+			&shared_menu_state, "startup screen height", &cv_startup_screen_height));
+        // TODO: add a new option that is a one_shot button
+        // so that I can add in a "resize window", for people who want a specific resolution
 
-        if(!back.good())
-        {
-            return false;
-        }
+		if(!back.good())
+		{
+			return false;
+		}
 
-        if(!back.menu_state.init(&shared_menu_state))
-        {
-            return false;
-        }
-    }
+		if(!back.menu_state.init(&shared_menu_state))
+		{
+			return false;
+		}
+	}
 
+	// controls
+	{
+		auto& back = menus.emplace_back();
+		back.text = "Controls";
+		back.button.init(&font_painter);
+
+		back.add_option(create_bool_option(&shared_menu_state, "invert mouse", &cv_mouse_invert));
+		back.add_option(create_slider_option(
+			&shared_menu_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, false));
+		back.add_option(create_slider_option(
+			&shared_menu_state, "scroll speed", &cv_scroll_speed, 0, 10, false));
+		back.add_option(create_slider_option(
+			&shared_menu_state, "camera speed", &cv_camera_speed, 0, 100, false));
+		// TODO: would be smart to have a dummy entry that is just text which says "key binds"
+		back.add_option(
+			create_keybind_option(&shared_menu_state, "bind forward", &cv_bind_move_forward));
+		back.add_option(
+			create_keybind_option(&shared_menu_state, "bind backwards", &cv_bind_move_backward));
+		back.add_option(create_keybind_option(&shared_menu_state, "bind left", &cv_bind_move_left));
+		back.add_option(
+			create_keybind_option(&shared_menu_state, "bind right", &cv_bind_move_right));
+		back.add_option(
+			create_keybind_option(&shared_menu_state, "bind jump/float", &cv_bind_move_jump));
+		back.add_option(
+			create_keybind_option(&shared_menu_state, "bind crouch/fall", &cv_bind_move_crouch));
+		back.add_option(
+			create_keybind_option(&shared_menu_state, "bind fullscreen", &cv_bind_fullscreen));
+		back.add_option(
+			create_keybind_option(&shared_menu_state, "bind console", &cv_bind_open_console));
+		back.add_option(
+			create_keybind_option(&shared_menu_state, "bind options", &cv_bind_open_options));
+		back.add_option(create_keybind_option(
+			&shared_menu_state, "bind reset window", &cv_bind_reset_window_size));
+
+		if(!back.good())
+		{
+			return false;
+		}
+
+		if(!back.menu_state.init(&shared_menu_state))
+		{
+			return false;
+		}
+	}
 
 	tree_resize_view();
 

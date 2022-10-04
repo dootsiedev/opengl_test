@@ -87,13 +87,13 @@ struct text_prompt_wrapper
 	// IME text that is displayed.
 	std::string markedText;
 
-#ifdef IME_TEXTEDIT_EXT
+#ifdef HAS_IME_TEXTEDIT_EXT
 	int marked_cursor_begin = -1;
 	int marked_cursor_end = -1;
 #endif
 
 	// caret (cursor) blinking timer
-	TIMER_U blink_timer = 0;
+	TIMER_U blink_timer = TIMER_NULL;
 
 	float box_xmin = -1;
 	float box_xmax = -1;

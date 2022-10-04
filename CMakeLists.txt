@@ -365,6 +365,7 @@ endif()
 
 add_executable(${PROJECT_NAME}
     code/main.cpp
+    code/global_pch.h
     code/global.h
     code/global.cpp
     code/app.h
@@ -421,7 +422,7 @@ add_executable(${PROJECT_NAME}
 #this SHOULD help clangd to deal with non self-contained headers 
 #because it's automatically #include'd into every file
 #but clangd doesn't detect it for some reason...
-#target_precompile_headers(${PROJECT_NAME} PRIVATE "code/global.h")
+target_precompile_headers(${PROJECT_NAME} PRIVATE "code/global_pch.h")
 
 target_link_libraries(${PROJECT_NAME} ALL_SANITIZERS)
 target_compile_options(${PROJECT_NAME} PRIVATE ${MY_COMPILER_FLAGS})

@@ -4,19 +4,13 @@
 #include <cstdarg>
 #include <cmath>
 #include <cstdint>
-
-#include <string>
-#include <string_view>
-#include <memory>
-#include <vector>
-#include <deque>
-#include <map>
-#include <unordered_map>
-#include <algorithm>
-#include <chrono>
-#include <sstream>
+#include <cerrno>
+#include <cstring>
 
 #include <SDL2/SDL.h>
+
+#include <string>
+#include <memory>
 
 // assert is bad, but sometimes an explosion is the only choice, eg: PTR IS NULL
 #define ASSERT assert
@@ -45,10 +39,11 @@ std::string WIN_WideToUTF8(const wchar_t* buffer, int size);
 std::wstring WIN_UTF8ToWide(const char* buffer, int size);
 #endif
 
-// SDL fixed IME's but I still want old SDL2 support
-#ifndef IME_TEXTEDIT_EXT
+// for SDL_TEXTEDITING_EXT which is better than SDL_TEXTEDITING
+// this is also might be used for SDL_IsTextInputShown 
+#ifndef HAS_IME_TEXTEDIT_EXT
 #if SDL_VERSION_ATLEAST(2, 23, 0)
-#define IME_TEXTEDIT_EXT
+#define HAS_IME_TEXTEDIT_EXT
 #endif
 #endif
 
@@ -96,7 +91,11 @@ typedef double TIMER_RESULT;
 // but QPC's shouldn't be used if timers from other threads are compared.
 // you can also try clang's __builtin_readcyclecounter
 // if you are measuring really tiny calculations.
-#if 0
+#ifdef __EMSCRIPTEN__
+
+#include <chrono>
+
+#define TIMER_NULL std::chrono::steady_clock::time_point{}
 
 typedef std::chrono::steady_clock::time_point TIMER_U;
 
@@ -117,7 +116,10 @@ TIMER_RESULT timer_delta(TIMER_U start, TIMER_U end)
 
 #else
 
+
 typedef Uint64 TIMER_U;
+
+#define TIMER_NULL 0
 
 inline TIMER_U timer_now()
 {
@@ -159,6 +161,7 @@ std::string serr_get_error();
 bool serr_check_error();
 
 // needed by the debug tools to get the serr buffer of a thread.
+// use serr_get_error if you want to clear and get the serr error.
 std::shared_ptr<std::string> internal_get_serr_buffer();
 
 void slog_raw(const char* msg, size_t len);

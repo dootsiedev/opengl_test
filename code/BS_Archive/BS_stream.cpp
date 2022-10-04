@@ -1,3 +1,4 @@
+#include "../global_pch.h"
 #include "../global.h"
 #include "BS_stream.h"
 #include "../RWops.h"

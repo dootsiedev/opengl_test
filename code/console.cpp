@@ -1,3 +1,4 @@
+#include "global_pch.h"
 #include "global.h"
 
 #include "console.h"
@@ -41,6 +42,12 @@ bool console_state::init(
 
 	console_font = console_font_;
 	console_batcher = console_batcher_;
+
+    // I don't use set_scale because it's expensiver.
+    // this must be done before init.
+    log_box.state.font_scale = 2;
+    prompt_cmd.state.font_scale = 2;
+    error_text.state.font_scale = 2;
 
 	//
 	// log
@@ -291,7 +298,7 @@ void console_state::resize_text_area()
 		60,
 		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_font->get_lineskip(1) + 1);
+		prompt_cmd.get_lineskip() + 1);
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
 	// but if it's too big it could potentially block UI elements in an annoying way
@@ -299,7 +306,7 @@ void console_state::resize_text_area()
 		60,
 		prompt_cmd.box_ymax + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		console_font->get_lineskip(1) * 10);
+		error_text.get_lineskip() * 10);
 }
 
 CONSOLE_RESULT console_state::input(SDL_Event& e)

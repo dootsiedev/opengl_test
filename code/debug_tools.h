@@ -1,6 +1,10 @@
 #pragma once
 
-#include <string>
+#include "global.h"
+
+#if defined(USE_LIBBACKTRACE) || (!defined(NDEBUG) && defined(__EMSCRIPTEN__))
+#define HAS_STACKTRACE_PROBABLY
+#endif
 
 #if defined(__EMSCRIPTEN__)
 
@@ -8,13 +12,13 @@
 // skip is ignored...
 inline int debug_str_stacktrace(std::string* out, int)
 {
-    // the problem with this is that there is no way to "skip" calls.
-    char buffer[10000];
-    // no error code, includes size of null terminator.
-    // there is no way to detect if truncation occurred.
-    int ret = emscripten_get_callstack(0, buffer, sizeof(buffer));
-    out->append(buffer, ret - 1);
-    return 0;
+	// the problem with this is that there is no way to "skip" calls.
+	char buffer[10000];
+	// no error code, includes size of null terminator.
+	// there is no way to detect if truncation occurred.
+	int ret = emscripten_get_callstack(0, buffer, sizeof(buffer));
+	out->append(buffer, ret - 1);
+	return 0;
 }
 #else
 

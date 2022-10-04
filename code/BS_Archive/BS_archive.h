@@ -151,6 +151,8 @@ but the problem is that your compiler might not optimize it as well.
 
 #include "../global.h"
 
+#include <sstream>
+
 #define BS_MAX_STRING_SIZE std::numeric_limits<uint16_t>::max()
 
 typedef bool (*BS_bool_cb)(bool, void*);

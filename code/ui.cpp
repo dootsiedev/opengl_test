@@ -1,3 +1,4 @@
+#include "global_pch.h"
 #include "global.h"
 
 #include "ui.h"
@@ -85,7 +86,9 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		hover_over = false;
 	}
 	break;
-	case SDL_MOUSEBUTTONDOWN: {
+	case SDL_MOUSEBUTTONDOWN: 
+	if(e.button.button == SDL_BUTTON_LEFT)
+	{
 		float mouse_x = static_cast<float>(e.button.x);
 		float mouse_y = static_cast<float>(e.button.y);
 
@@ -101,34 +104,35 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			set_event_leave(e);
 			return BUTTON_RESULT::CONTINUE;
 		}
-
-		clicked_on = false;
 	}
+    clicked_on = false;
 	break;
-	case SDL_MOUSEBUTTONUP: {
+	case SDL_MOUSEBUTTONUP:
 		if(clicked_on)
 		{
 			clicked_on = false;
+            if(e.button.button == SDL_BUTTON_LEFT)
+	        {
 
-			float mouse_x = static_cast<float>(e.button.x);
-			float mouse_y = static_cast<float>(e.button.y);
+			    float mouse_x = static_cast<float>(e.button.x);
+			    float mouse_y = static_cast<float>(e.button.y);
 
-			float xmin = button_rect[0];
-			float xmax = button_rect[0] + button_rect[2];
-			float ymin = button_rect[1];
-			float ymax = button_rect[1] + button_rect[3];
+			    float xmin = button_rect[0];
+			    float xmax = button_rect[0] + button_rect[2];
+			    float ymin = button_rect[1];
+			    float ymax = button_rect[1] + button_rect[3];
 
-			if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
-			{
-				// slog("click\n");
-				// reset the fade  to .5 for an effect
-				fade = 0.5;
-				// eat
-				set_event_unfocus(e);
-				return BUTTON_RESULT::TRIGGER;
-			}
-		}
-	}
+			    if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+			    {
+				    // slog("click\n");
+				    // reset the fade  to .5 for an effect
+				    fade = 0.5;
+				    // eat
+				    set_event_unfocus(e);
+				    return BUTTON_RESULT::TRIGGER;
+			    }
+		    }
+        }
 	break;
 	}
 
@@ -322,6 +326,8 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 		}
 		break;
 		case SDL_MOUSEBUTTONUP:
+            // TODO: I know that there are other places I treat SDL_BUTTON_RIGHT as LMB
+            // but I am thinking of making RMB used only for escaping out of hovered menus
 			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 			{
 				// float mouse_x = static_cast<float>(e.button.x);
@@ -489,6 +495,7 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 		// it will eat the motion event (slider wont move), but I actually want the slider to keep
 		// on sliding... it's fine, but it means you should sort your elements so all sliders are
 		// above all buttons.
+        // I could add in a update() function and just poll the mouse position
 		if(slider_held)
 		{
 			internal_move_to(mouse_x);

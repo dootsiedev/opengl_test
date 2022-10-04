@@ -1,6 +1,9 @@
+#include "../global_pch.h"
 #include "../global.h"
-#include "../app.h" // for the scroll cvar
+
 #include "text_prompt.h"
+
+#include "../app.h" // for the scroll cvar
 #include "utf8_stuff.h"
 #include "../ui.h"
 
@@ -291,7 +294,7 @@ bool text_prompt_wrapper::draw()
 	}
 
 // SDL_IsTextInputShown is available on the same verison TEXTEDIT_EXT is supported.
-#ifdef IME_TEXTEDIT_EXT
+#ifdef HAS_IME_TEXTEDIT_EXT
 	// SDL_IsTextInputShown doesn't work on linux mint SDL2 2.0.23 with Mozc IME
 	// when the IME prompt is empty. I probably NEED to call SDL_StartTextInput
 	// AFTER I set SDL_SetTextInputRect, which is tedious...
@@ -1020,7 +1023,7 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 
 	while(str_cur != str_end)
 	{
-#ifdef IME_TEXTEDIT_EXT
+#ifdef HAS_IME_TEXTEDIT_EXT
 		if(draw_caret && std::distance(markedText.begin(), str_cur) == marked_cursor_begin)
 		{
 			marked_caret_x = state.draw_x_pos;
@@ -1046,7 +1049,7 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 		case FONT_BASIC_RESULT::SUCCESS: break;
 		}
 	}
-#ifdef IME_TEXTEDIT_EXT
+#ifdef HAS_IME_TEXTEDIT_EXT
 	if(std::distance(markedText.begin(), str_cur) == marked_cursor_begin)
 	{
 		// get the caret at the end
@@ -1521,7 +1524,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		set_event_unfocus(e);
 		return TEXT_PROMPT_RESULT::CONTINUE;
 
-#ifdef IME_TEXTEDIT_EXT
+#ifdef HAS_IME_TEXTEDIT_EXT
 		// requires SDL_HINT_IME_SUPPORT_EXTENDED_TEXT
 		// this actually properly uses the cursor and selection because
 		// the old version had a limited string length.

@@ -1,4 +1,6 @@
+#include "../global_pch.h"
 #include "../global.h"
+
 #include "opengl_stuff.h"
 
 // for cv_debug_opengl

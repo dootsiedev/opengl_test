@@ -1,4 +1,6 @@
+#include "../global_pch.h"
 #include "../global.h"
+
 #include "options_cvar_template.h"
 
 #include "../ui.h"
@@ -323,8 +325,7 @@ OPTION_ELEMENT_RESULT cvar_button_multi_option::input(SDL_Event& e)
 	case BUTTON_RESULT::TRIGGER:
 		if(!value_changed)
 		{
-			if(cvar->cvar_type == CVAR_T::DEFFERRED || cvar->cvar_type == CVAR_T::STARTUP ||
-			   cvar->cvar_type == CVAR_T::DISABLED)
+			if(cvar->cvar_type != CVAR_T::RUNTIME)
 			{
 				// TODO: would be better if the prompt offerred some sort of word wrapping.
 				// I could do that if I used a prompt instead of a text painter.
@@ -976,8 +977,7 @@ OPTION_ELEMENT_RESULT cvar_prompt_option::input(SDL_Event& e)
 				value_changed = true;
 			}
 
-            if(cvar->cvar_type == CVAR_T::DEFFERRED || cvar->cvar_type == CVAR_T::STARTUP ||
-			   cvar->cvar_type == CVAR_T::DISABLED)
+			if(cvar->cvar_type != CVAR_T::RUNTIME)
 			{
 				// TODO: would be better if the prompt offerred some sort of word wrapping.
 				// I could do that if I used a prompt instead of a text painter.

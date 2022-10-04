@@ -1,11 +1,13 @@
+#include "../global_pch.h"
 #include "../global.h"
-#include "../cvar.h"
 
 #include "font_manager.h"
+
 #include "utf8_stuff.h"
 
 // for reading files, since I like the stream API.
 #include "../BS_Archive/BS_stream.h"
+#include "../cvar.h"
 
 #include <cmath>
 #include <cstddef>

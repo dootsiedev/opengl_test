@@ -29,9 +29,12 @@ extern cvar_key_bind cv_bind_move_forward;
 extern cvar_key_bind cv_bind_move_backward;
 extern cvar_key_bind cv_bind_move_left;
 extern cvar_key_bind cv_bind_move_right;
+extern cvar_key_bind cv_bind_move_jump;
+extern cvar_key_bind cv_bind_move_crouch;
 extern cvar_key_bind cv_bind_fullscreen;
 extern cvar_key_bind cv_bind_open_console;
 extern cvar_key_bind cv_bind_open_options;
+extern cvar_key_bind cv_bind_reset_window_size;
 
 // This is absolutely not the best way of doing this...
 struct bench_data
@@ -134,7 +137,7 @@ struct demo_state
 
 	bool update_screen_resize = true;
 
-	TIMER_U timer_last = 0;
+	TIMER_U timer_last = TIMER_NULL;
 
 	// this should be float or byte
 	// but ATM i use this as a incrementing number
@@ -146,6 +149,8 @@ struct demo_state
 		MOVE_BACKWARD,
 		MOVE_LEFT,
 		MOVE_RIGHT,
+        MOVE_JUMP,
+        MOVE_CROUCH,
 		MAX_MOVE
 	};
 

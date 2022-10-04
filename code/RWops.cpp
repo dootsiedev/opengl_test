@@ -1,4 +1,6 @@
+#include "global_pch.h"
 #include "global.h"
+
 #include "RWops.h"
 
 #include <cstdio>

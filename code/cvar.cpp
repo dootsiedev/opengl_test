@@ -1,3 +1,4 @@
+#include "global_pch.h"
 #include "global.h"
 
 #include <climits>
@@ -61,7 +62,7 @@ bool cvar_int::cvar_read(const char* buffer)
 	}
 	if(end_ptr == buffer)
 	{
-		serrf("+%s: cvar value not valid numeric input: \"+%s\"\n", cvar_key, buffer);
+		serrf("+%s: cvar value not valid numeric input: \"%s\"\n", cvar_key, buffer);
 		return false;
 	}
 

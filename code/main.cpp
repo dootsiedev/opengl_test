@@ -1,11 +1,14 @@
+#include "global_pch.h"
 #include "global.h"
 #include "app.h"
 #include "demo.h"
 #include <SDL2/SDL.h>
 
 #ifdef __EMSCRIPTEN__
-#include "emscripten.h"
+#include <emscripten.h>
 #endif
+
+// TODO: use emscripten_get_now, maybe it might fix the very bad timers
 
 int main(int argc, char** argv)
 {

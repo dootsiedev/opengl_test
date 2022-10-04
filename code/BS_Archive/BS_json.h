@@ -13,6 +13,8 @@
 
 #include <rapidjson/prettywriter.h>
 
+#include <algorithm>
+
 namespace rj = rapidjson;
 
 #ifdef BS_JSON_BASE64

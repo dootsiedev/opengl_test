@@ -23,6 +23,8 @@ NDSERR bool app_destroy(App_Info& app);
 
 extern App_Info g_app;
 
+extern cvar_int cv_startup_screen_width;
+extern cvar_int cv_startup_screen_height;
 extern cvar_int cv_screen_width;
 extern cvar_int cv_screen_height;
 extern cvar_int cv_debug_opengl;

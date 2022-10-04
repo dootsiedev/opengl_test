@@ -1,6 +1,8 @@
+#include "../global_pch.h"
 #include "../global.h"
 
 #include "options_list.h"
+
 #include "../app.h"
 
 bool options_list_state::init(shared_cvar_option_state* shared_state_)
@@ -55,7 +57,7 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 		case FOCUS_ELEMENT_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
 		}
 		// eat
-		set_event_leave(e);
+		//set_event_leave(e);
 	}
 
 	// scroll

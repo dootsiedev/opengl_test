@@ -1,18 +1,20 @@
+#include "global_pch.h"
 #include "global.h"
+
 #include "cvar.h"
+
 #include "debug_tools.h"
 
 // disabling the console for emscripten wouldn't be that bad of an idea
-// since I could make the console exist within the 
+// since I could make the console exist within the
 #ifndef DISABLE_CONSOLE
 #include "console.h"
 #endif
 
 #include <cstring>
 
-// USE_LIBBACKTRACE should imply debug information exists.
 static int has_stacktraces =
-#if defined(USE_LIBBACKTRACE) || defined(__EMSCRIPTEN__)
+#if defined(HAS_STACKTRACE_PROBABLY)
 	1;
 #else
 	0;
@@ -125,8 +127,8 @@ std::shared_ptr<std::string> internal_get_serr_buffer()
 
 static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 {
-    // NOTE: I am thinking of making the stacktrace only appear in stdout
-    // and in the console error section.
+	// NOTE: I am thinking of making the stacktrace only appear in stdout
+	// and in the console error section.
 	(void)skip;
 	if(cv_serr_bt.data == 2 || (cv_serr_bt.data == 1 && !serr_check_error()))
 	{
@@ -145,8 +147,8 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 		internal_get_serr_buffer()->append(msg);
 		fwrite(msg.c_str(), 1, msg.size(), stdout);
 // TODO(dootsie): would be better if I could combine this with the serr message
-// because the order could be scrambled by other threads.
-// but this only affects stdout/console order, serr is thread safe.
+// because other threads could print something inbetween in stdout/console, 
+// but serr_get_error wont be mangled, so it isn't a priority.
 #ifndef DISABLE_CONSOLE
 		// lovely, another allocation. thank god this pales in comparison
 		// to the actual cost of resolving debug information of a stacktrace.
@@ -185,8 +187,8 @@ bool serr_check_error()
 
 void slog_raw(const char* msg, size_t len)
 {
-    ASSERT(msg != NULL);
-    ASSERT(len != 0);
+	ASSERT(msg != NULL);
+	ASSERT(len != 0);
 	if(cv_disable_log.data != 0)
 	{
 		return;
@@ -208,8 +210,8 @@ void slog_raw(const char* msg, size_t len)
 }
 void serr_raw(const char* msg, size_t len)
 {
-    ASSERT(msg != NULL);
-    ASSERT(len != 0);
+	ASSERT(msg != NULL);
+	ASSERT(len != 0);
 	if(cv_disable_log.data == 2)
 	{
 		// if I didn't do this, there would be side effects
@@ -236,7 +238,7 @@ void serr_raw(const char* msg, size_t len)
 
 void slog(const char* msg)
 {
-    ASSERT(msg != NULL);
+	ASSERT(msg != NULL);
 	if(cv_disable_log.data != 0)
 	{
 		return;
@@ -251,7 +253,7 @@ void slog(const char* msg)
 
 void serr(const char* msg)
 {
-    ASSERT(msg != NULL);
+	ASSERT(msg != NULL);
 	if(cv_disable_log.data == 2)
 	{
 		// if I didn't do this, there would be side effects
@@ -279,7 +281,7 @@ void serr(const char* msg)
 
 void slogf(const char* fmt, ...)
 {
-    ASSERT(fmt != NULL);
+	ASSERT(fmt != NULL);
 	if(cv_disable_log.data != 0)
 	{
 		return;
@@ -312,7 +314,7 @@ void slogf(const char* fmt, ...)
 
 void serrf(const char* fmt, ...)
 {
-    ASSERT(fmt != NULL);
+	ASSERT(fmt != NULL);
 	if(cv_disable_log.data == 2)
 	{
 		// if I didn't do this, there would be side effects
@@ -346,7 +348,7 @@ void serrf(const char* fmt, ...)
 
 std::unique_ptr<char[]> unique_vasprintf(int* length, const char* fmt, va_list args)
 {
-    ASSERT(fmt != NULL);
+	ASSERT(fmt != NULL);
 	int ret;
 	va_list temp_args;
 	std::unique_ptr<char[]> buffer;

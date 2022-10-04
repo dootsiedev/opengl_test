@@ -1,4 +1,8 @@
+#include "global_pch.h"
+#include "global.h"
+
 #include "debug_tools.h"
+
 #include "cvar.h"
 
 #include <cinttypes>
@@ -23,7 +27,6 @@
 #include <signal.h>
 #endif
 
-
 static int has_libbacktrace
 #if defined(USE_LIBBACKTRACE)
 	= 1;
@@ -33,32 +36,31 @@ static int has_libbacktrace
 static REGISTER_CVAR_INT(
 	cv_has_libbacktrace, has_libbacktrace, "0 = not found, 1 = found", CVAR_T::READONLY);
 
-
 static int enable_bt_trap
 #if defined(_WIN32) && !defined(USE_LIBBACKTRACE)
-    // Libbacktrace isn't supported on Windows msvc.
-    // I know I can get msvc stacktraces, but sharing symbols a pain in the ass.
-    // So instead I use core dumps for any user crash reports.
-    // core dumps are inconvenient, but if a user has a problem they can reproduce,
-    // they can use the debug binary and give a very informational (100gig...) report.
-    // OR I could use msys2 which supports libbacktrace (but no core dumps...)
-    = 2;
+	// Libbacktrace isn't supported on Windows msvc.
+	// I know I can get msvc stacktraces, but sharing symbols a pain in the ass.
+	// So instead I use core dumps for any user crash reports.
+	// core dumps are inconvenient, but if a user has a problem they can reproduce,
+	// they can use the debug binary and give a very informational (100gig...) report.
+	// OR I could use msys2 which supports libbacktrace (but no core dumps...)
+	= 2;
 #elif defined(USE_LIBBACKTRACE) || defined(NDEBUG) || defined(__EMSCRIPTEN__)
-    // NDEBUG means optimizations, and trapping for a crappy backtrace is annoying.
-    // if you have libbacktrace, the trap would prevent the stacktrace from being shown.
+	// NDEBUG means optimizations, and trapping for a crappy backtrace is annoying.
+	// if you have libbacktrace, the trap would (usually) prevent the stacktrace from being shown.
 	= 0;
 #else
 	// sometimes a trap is better than nothing,
 	// and if you have debug information, you can inspect many variables.
-    // but the trap is annoying (especially from "cv_serr_bt")
-    // because without a debugger, it just causes your application to exit!
+	// but the trap is annoying (especially from "cv_serr_bt")
+	// because without a debugger, it just causes your application to exit!
 	= 1;
 #endif
 
 static CVAR_T cv_bt_trap_run
 #if defined(__EMSCRIPTEN__)
-    // the browser doesn't have gdb or lldb that works...
-    // no point in trapping....
+	// the browser doesn't have gdb or lldb that works...
+	// no point in trapping....
 	= CVAR_T::DISABLED;
 #else
 	= CVAR_T::RUNTIME;
@@ -79,7 +81,6 @@ static REGISTER_CVAR_INT(
 	cv_bt_demangle, 1, "stacktrace pretty function names, 0 (off), 1 (on)", has_libbacktrace_run);
 static REGISTER_CVAR_INT(
 	cv_bt_full_paths, 0, "stacktrace full file paths, 0 (off), 1 (on)", has_libbacktrace_run);
-
 
 #if !defined(__EMSCRIPTEN__)
 
@@ -359,7 +360,6 @@ err:
 }
 #else
 
-
 int raw_string_callback(debug_stacktrace_info*, const char*, void*)
 {
 	return 0;
@@ -368,10 +368,10 @@ int raw_string_callback(debug_stacktrace_info*, const char*, void*)
 bool debug_raw_stacktrace(debug_stacktrace_callback, void*, int)
 {
 #if defined(_WIN32)
-    if(cv_bt_trap.data == 1 || (cv_bt_trap.data == 2 && IsDebuggerPresent()))
-    {
+	if(cv_bt_trap.data == 1 || (cv_bt_trap.data == 2 && IsDebuggerPresent()))
+	{
 		__debugbreak();
-    }
+	}
 #else
 	if(cv_bt_trap.data == 1)
 	{
