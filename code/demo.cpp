@@ -884,23 +884,25 @@ bool demo_state::input(SDL_Event& e)
 			return false;
 		}
 		show_console = !show_console;
+		SDL_Event e2;
 		if(show_console)
 		{
 			g_console.focus();
-			// force the console to resize itself.
-			SDL_Event e2;
 			set_event_resize(e2);
-			if(g_console.input(e2) == CONSOLE_RESULT::ERROR)
-			{
-				return false;
-			}
 		}
+		else
+		{
+			set_event_hidden(e2);
+		}
+        if(g_console.input(e2) == CONSOLE_RESULT::ERROR)
+        {
+            return false;
+        }
+		
 	}
-
-	if(show_console)
+	else if(show_console)
 	{
-		CONSOLE_RESULT ret = g_console.input(e);
-		switch(ret)
+		switch(g_console.input(e))
 		{
 		case CONSOLE_RESULT::CONTINUE: break;
 		case CONSOLE_RESULT::ERROR: return false;
@@ -920,14 +922,20 @@ bool demo_state::input(SDL_Event& e)
 		show_options = !show_options;
 		// force resize.
 		SDL_Event e2;
-		set_event_resize(e2);
+		if(show_options)
+		{
+			set_event_resize(e2);
+		}
+		else
+		{
+			set_event_hidden(e2);
+		}
 		if(option_menu.input(e2) == OPTIONS_MENU_RESULT::ERROR)
 		{
 			return false;
 		}
 	}
-
-	if(show_options)
+	else if(show_options)
 	{
 		switch(option_menu.input(e))
 		{

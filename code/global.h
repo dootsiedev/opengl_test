@@ -91,7 +91,7 @@ typedef double TIMER_RESULT;
 // but QPC's shouldn't be used if timers from other threads are compared.
 // you can also try clang's __builtin_readcyclecounter
 // if you are measuring really tiny calculations.
-#ifdef __EMSCRIPTEN__
+#ifndef USE_SDL2_QPC_TIMER
 
 #include <chrono>
 

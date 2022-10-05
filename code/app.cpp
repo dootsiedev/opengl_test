@@ -31,6 +31,17 @@ REGISTER_CVAR_DOUBLE(cv_scroll_speed, 3, "scroll rate of the mouse wheel", CVAR_
 cvar_fullscreen cv_fullscreen;
 cvar_vysnc cv_vsync;
 
+// this will change the display resolution on windows 7 or linux (in very annoying effect)
+// also some people say that changing the resolution can damage your display
+// (but this only happened to certain CRT's with a faulty design)
+// on windows 10 SDL_WINDOW_FULLSCREEN is the same as SDL_WINDOW_FULLSCREEN_DESKTOP.
+// on emscripten this scales the resolution ONLY when you use soft_fullscreen (alt+enter)
+static REGISTER_CVAR_INT(
+	cv_stretch_fullscreen,
+	0,
+	"this tries to stretch the resolution (windows 10 wont work)",
+	CVAR_T::RUNTIME);
+
 #ifdef __EMSCRIPTEN__
 //  TODO: export the console so the web page has a backup prompt.
 //  TODO: some sort of hotkey to restart with startup cvars (or use php url thingy for it?)
@@ -99,21 +110,37 @@ const char* emscripten_result_to_string(EMSCRIPTEN_RESULT result)
 	return "Unknown EMSCRIPTEN_RESULT!";
 }
 
-#if 0
-EM_BOOL on_canvassize_changed(int eventType, const void *reserved, void *userData)
+EM_BOOL on_canvassize_changed(int eventType, const void* reserved, void* userData)
 {
-    // I don't know why but resize gets called twice
-    // I know it probably has to do with 
-  int w, h;
-  emscripten_get_canvas_element_size("#canvas", &w, &h);
-  //double cssW, cssH;
-  //emscripten_get_element_css_size(0, &cssW, &cssH);
-  //slogf("Canvas resized: WebGL RTT size: %dx%d, canvas CSS size: %02gx%02g\n", w, h, cssW, cssH);
-  //      SDL_SetWindowSize(g_app.window, w, h);
-  slogf("Canvas resized: WebGL RTT size: %dx%d\n", w, h);
-  return 0;
+	int w, h;
+	EMSCRIPTEN_RESULT em_ret = emscripten_get_canvas_element_size("#canvas", &w, &h);
+	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+	{
+		slogf(
+			"%s returned %s.\n",
+			"emscripten_get_canvas_element_size",
+			emscripten_result_to_string(em_ret));
+	}
+	SDL_SetWindowSize(g_app.window, w, h);
+
+	// I set the window size twice so that SDL will be forced to trigger a resize event.
+	// I also could do nothing, and create a fake resize event.
+	if(cv_stretch_fullscreen.data == 1)
+	{
+		SDL_SetWindowSize(
+			g_app.window, cv_startup_screen_width.data, cv_startup_screen_height.data);
+	}
+
+	// double cssW, cssH;
+	// emscripten_get_element_css_size(0, &cssW, &cssH);
+	// slogf("Canvas resized: WebGL RTT size: %dx%d, canvas CSS size: %02gx%02g\n", w, h, cssW,
+	// cssH);
+	//      SDL_SetWindowSize(g_app.window, w, h);
+	// slogf("Canvas resized: WebGL RTT size: %dx%d\n", w, h);
+	return 0;
 }
 
+#if 0
 EM_BOOL fullscreenchange_callback(int eventType, const EmscriptenFullscreenChangeEvent *e, void *userData)
 {
   slogf("%s, isFullscreen: %d, fullscreenEnabled: %d, fs element nodeName: \"%s\", fs element id: \"%s\". New size: %dx%d pixels. Screen size: %dx%d pixels.\n",
@@ -169,10 +196,13 @@ extern void enter_fullscreen()
 			emscripten_result_to_string(em_ret));
 	}
 #endif
-	if(SDL_SetWindowFullscreen(g_app.window, SDL_WINDOW_FULLSCREEN_DESKTOP) < 0)
-    {
+	if(SDL_SetWindowFullscreen(
+		   g_app.window,
+		   // I don't use SDL_WINDOW_FULLSCREEN, because it breaks everything
+		   SDL_WINDOW_FULLSCREEN_DESKTOP) < 0)
+	{
 		slogf("SDL_SetWindowFullscreen Error: %s", SDL_GetError());
-    }
+	}
 }
 }
 
@@ -275,7 +305,10 @@ bool app_init(App_Info& app)
 
 #undef SDL_CHECK
 
-	Uint32 fullscreen_mode = cv_fullscreen.data == 1 ? SDL_WINDOW_FULLSCREEN : 0;
+	Uint32 fullscreen_mode = cv_fullscreen.data == 1
+								 ? (cv_stretch_fullscreen.data == 1 ? SDL_WINDOW_FULLSCREEN
+																	: SDL_WINDOW_FULLSCREEN_DESKTOP)
+								 : 0;
 
 	app.window = SDL_CreateWindow(
 		"A Window",
@@ -447,7 +480,7 @@ bool cvar_fullscreen::cvar_read(const char* buffer)
 			s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_DEFAULT;
 			s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
 			s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
-			s.canvasResizedCallback = NULL; // on_canvassize_changed;
+			s.canvasResizedCallback = on_canvassize_changed;
 			em_ret = emscripten_enter_soft_fullscreen("#canvas", &s);
 			if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
 			{
@@ -455,21 +488,47 @@ bool cvar_fullscreen::cvar_read(const char* buffer)
 					"%s returned %s.\n",
 					"emscripten_enter_soft_fullscreen",
 					emscripten_result_to_string(em_ret));
-				data = 0;
 			}
-			int w, h;
-			emscripten_get_canvas_element_size("#canvas", &w, &h);
-			SDL_SetWindowSize(g_app.window, w, h);
+
+			if(cv_stretch_fullscreen.data == 1)
+			{
+				SDL_SetWindowSize(
+					g_app.window, cv_startup_screen_width.data, cv_startup_screen_height.data);
+			}
+			else
+			{
+				int w, h;
+				em_ret = emscripten_get_canvas_element_size("#canvas", &w, &h);
+				if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+				{
+					slogf(
+						"%s returned %s.\n",
+						"emscripten_get_canvas_element_size",
+						emscripten_result_to_string(em_ret));
+				}
+				SDL_SetWindowSize(g_app.window, w, h);
+			}
 		}
 		else
 		{
 			emscripten_exit_soft_fullscreen();
 			int w, h;
-			emscripten_get_canvas_element_size("#canvas", &w, &h);
+			em_ret = emscripten_get_canvas_element_size("#canvas", &w, &h);
+			if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+			{
+				slogf(
+					"%s returned %s.\n",
+					"emscripten_get_canvas_element_size",
+					emscripten_result_to_string(em_ret));
+			}
+
 			SDL_SetWindowSize(g_app.window, w, h);
 		}
 #else
-		Uint32 fullscreen_mode = data == 1 ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0;
+		Uint32 fullscreen_mode =
+			data == 1 ? (cv_stretch_fullscreen.data == 1 ? SDL_WINDOW_FULLSCREEN
+														 : SDL_WINDOW_FULLSCREEN_DESKTOP)
+					  : 0;
 		if(SDL_SetWindowFullscreen(g_app.window, fullscreen_mode) < 0)
 		{
 			slogf("info: SDL_SetWindowFullscreen failed: %s\n", SDL_GetError());

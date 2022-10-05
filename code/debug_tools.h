@@ -16,8 +16,9 @@ inline int debug_str_stacktrace(std::string* out, int)
 	char buffer[10000];
 	// no error code, includes size of null terminator.
 	// there is no way to detect if truncation occurred.
-	int ret = emscripten_get_callstack(0, buffer, sizeof(buffer));
+	int ret = emscripten_get_callstack(EM_LOG_NO_PATHS, buffer, sizeof(buffer));
 	out->append(buffer, ret - 1);
+    out += '\n';
 	return 0;
 }
 #else

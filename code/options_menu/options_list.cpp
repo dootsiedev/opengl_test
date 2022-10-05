@@ -49,15 +49,17 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 		switch(shared_state->focus_element->input(e))
 		{
 		case FOCUS_ELEMENT_RESULT::CONTINUE: break;
-		case FOCUS_ELEMENT_RESULT::CLOSE: shared_state->set_focus(NULL); break;
+		case FOCUS_ELEMENT_RESULT::CLOSE:
+			shared_state->set_focus(NULL);
+			// eat
+			set_event_leave(e);
+			break;
 		case FOCUS_ELEMENT_RESULT::MODIFIED:
 			shared_state->set_focus(NULL);
 			revert_button.set_disabled(false);
 			break;
 		case FOCUS_ELEMENT_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
 		}
-		// eat
-		//set_event_leave(e);
 	}
 
 	// scroll
@@ -96,6 +98,13 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 		}
 	}
 	break;
+		// NOTE: I don't clip SDL_MOUSEBUTTONUP even though it makes sense to do it,
+		// because if I hold onto a button it would eat the buttonup.
+		// This has absolutely zero functional benefit because all buttons require
+		// a SDL_MOUSEBUTTONDOWN before SDL_MOUSEBUTTONUP anyways.
+		// but maybe I REALLY want a down triggered button in the future.
+		// But that button absolutely cannot be inside of THIS scrollbox (because it's not clipped)
+		// A hack solution might be to give a bogus MOTION/UP/DOWN event, x = 999999, y = 999999
 	case SDL_MOUSEBUTTONDOWN:
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
@@ -105,6 +114,17 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 			if(!(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
 				 scroll_xmin <= mouse_x))
 			{
+				SDL_Event fake_event = e;
+
+				fake_event.button.x = 999999;
+				fake_event.button.y = 999999;
+				for(auto& entry : option_entries)
+				{
+					if(entry->input(fake_event) == OPTION_ELEMENT_RESULT::ERROR)
+					{
+						return OPTIONS_MENU_RESULT::ERROR;
+					}
+				}
 				// skip the buttons.
 				clip_scrollbox = true;
 			}

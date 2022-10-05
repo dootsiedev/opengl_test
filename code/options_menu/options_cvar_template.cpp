@@ -8,53 +8,74 @@
 #include "../font/utf8_stuff.h"
 #include "../app.h"
 
-bool option_error_prompt::init(shared_cvar_option_state* state_, std::string message)
+bool option_error_prompt::init(shared_cvar_option_state* state_, std::string_view message)
 {
 	ASSERT(state_ != NULL);
 
 	state = state_;
-	display_message = std::move(message);
-
-	// TODO: should be font_painter.init(state->font_painter)
-	font_painter.state = state->font_painter->state;
-	font_painter.set_flags(TEXT_FLAGS::NEWLINE);
 
 	ok_button_text = "ok";
-	ok_button.init(&font_painter);
+	ok_button.init(state->font_painter);
 
-	return font_painter.measure_text_bounds(
-		display_message.c_str(), display_message.size(), &text_width, &text_height);
+	prompt.state.font_scale = state->font_painter->state.font_scale;
+
+	if(!prompt.init(
+		   message,
+		   state->font_painter->state.batcher,
+		   state->font_painter->state.font,
+		   TEXTP_Y_SCROLL | TEXTP_WORD_WRAP | TEXTP_DRAW_BBOX | TEXTP_READ_ONLY |
+			   TEXTP_DRAW_BACKDROP))
+	{
+		return false;
+	}
+
+	prompt.backdrop_color = RGBA8_PREMULT(255, 0, 0, 200);
+	prompt.text_color = {255, 255, 255, 255};
+
+	resize_view();
+
+	return true;
 }
 
 void option_error_prompt::resize_view()
 {
 	ASSERT(state != NULL);
 
+	font_sprite_painter* font_painter = state->font_painter;
+
 	float font_padding = state->font_padding;
 	float element_padding = state->element_padding;
-
-	// for a 16px font I would want 60px
-	float button_width = 60 * (font_painter.get_lineskip() / 16.f);
-	float button_height = font_painter.get_lineskip() + font_padding;
-	float footer_width = button_width;
-	float footer_height = button_height;
-
-	// for a 16px font I would want 400px
-	float menu_width = std::max(text_width, footer_width);
-	float menu_height = text_height + element_padding + footer_height;
 
 	float screen_width = static_cast<float>(cv_screen_width.data);
 	float screen_height = static_cast<float>(cv_screen_height.data);
 
+	// 200px wide for 16px
+	float prompt_width = std::max(screen_width / 2, 200 * (font_painter->get_lineskip() / 16.f));
+	float prompt_height = std::max(screen_height / 2, font_painter->get_lineskip() * 20);
+
+	// for a 16px font I would want 60px
+	float button_width = 60 * (font_painter->get_lineskip() / 16.f);
+	float button_height = font_painter->get_lineskip() + font_padding;
+
+	float footer_height = button_height;
+	// float footer_width = button_width;
+
+	float max_menu_width = screen_width - edge_padding * 2;
+	float max_menu_height = screen_height - edge_padding * 2;
+
+	float menu_width = std::min(prompt_width, max_menu_width);
+	float menu_height = std::min(prompt_height + element_padding + footer_height, max_menu_height);
+
 	float x = std::floor((screen_width - menu_width) / 2.f);
 	float y = std::floor((screen_height - menu_height) / 2.f);
+
+	prompt.set_bbox(x, y, menu_width, menu_height - (footer_height + element_padding));
 
 	// footer buttons
 	{
 		float x_cursor = x + menu_width;
 		x_cursor -= button_width; //+ element_padding;
-		ok_button.set_rect(
-			x_cursor, y + text_height + element_padding, button_width, button_height);
+		ok_button.set_rect(x_cursor, y + menu_height - footer_height, button_width, button_height);
 	}
 
 	box_xmin = x - element_padding;
@@ -67,6 +88,7 @@ bool option_error_prompt::update(double delta_sec)
 {
 	ASSERT(state != NULL);
 	ok_button.update(delta_sec);
+	prompt.update(delta_sec);
 	return true;
 }
 FOCUS_ELEMENT_RESULT option_error_prompt::input(SDL_Event& e)
@@ -86,6 +108,14 @@ FOCUS_ELEMENT_RESULT option_error_prompt::input(SDL_Event& e)
 		case SDLK_ESCAPE:
 		case SDLK_RETURN: return FOCUS_ELEMENT_RESULT::CLOSE;
 		}
+	}
+
+	switch(prompt.input(e))
+	{
+	case TEXT_PROMPT_RESULT::CONTINUE:
+	case TEXT_PROMPT_RESULT::MODIFIED:
+	case TEXT_PROMPT_RESULT::UNFOCUS: break;
+	case TEXT_PROMPT_RESULT::ERROR: return FOCUS_ELEMENT_RESULT::ERROR;
 	}
 
 	// backdrop
@@ -127,8 +157,9 @@ bool option_error_prompt::draw_buffer()
 {
 	ASSERT(state != NULL);
 
-	mono_2d_batcher* batcher = font_painter.state.batcher;
-	auto white_uv = font_painter.state.font->get_font_atlas()->white_uv;
+	font_sprite_painter* font_painter = state->font_painter;
+	mono_2d_batcher* batcher = font_painter->state.batcher;
+	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 
 	gl_batch_buffer_offset = batcher->get_current_vertex_count();
@@ -151,36 +182,19 @@ bool option_error_prompt::draw_buffer()
 		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 	}
 
-	font_painter.begin();
-
-	float font_x = box_xmin + state->element_padding;
-	float font_y = box_ymin + state->element_padding;
-
-	font_painter.begin();
-	font_painter.set_style(FONT_STYLE_OUTLINE);
-	font_painter.set_color(0, 0, 0, 255);
-	font_painter.set_xy(font_x, font_y);
-	font_painter.set_anchor(TEXT_ANCHOR::TOP_LEFT);
-	if(!font_painter.draw_text(display_message.c_str(), display_message.size()))
-	{
-		return false;
-	}
-	font_painter.set_style(FONT_STYLE_NORMAL);
-	font_painter.set_color(255, 255, 255, 255);
-	font_painter.set_xy(font_x, font_y);
-	if(!font_painter.draw_text(display_message.c_str(), display_message.size()))
-	{
-		return false;
-	}
-	font_painter.end();
-
 	if(!ok_button.draw_buffer(ok_button_text.c_str(), ok_button_text.size()))
 	{
 		// NOLINTNEXTLINE
 		return false;
 	}
 
-	batch_vertex_count = batcher->get_current_vertex_count();
+	gl_batch_vertex_count = batcher->get_current_vertex_count();
+
+	if(!prompt.draw())
+	{
+		return false;
+	}
+	gl_batch_vertex_scroll_count = batcher->get_current_vertex_count();
 
 	return true;
 }
@@ -189,8 +203,13 @@ bool option_error_prompt::render()
 	ASSERT(state != NULL);
 	ASSERT(gl_batch_buffer_offset != -1);
 
-	if(batch_vertex_count - gl_batch_buffer_offset > 0)
+	GLint vertex_offset = gl_batch_buffer_offset;
+	GLsizei vertex_count = gl_batch_vertex_count;
+
+	if(vertex_count - vertex_offset > 0)
 	{
+		vertex_count -= vertex_offset;
+
 		// optimization: some render() calls use a draw call, and some dont,
 		// This is a microoptimization because focus_element isn't a hot path (only called once)
 		// but maybe I might want options to be more complex and elements could have multiple draw
@@ -200,8 +219,28 @@ bool option_error_prompt::render()
 		// using glScissor), then use your exclusive draw. and then after drawing do *offset +=
 		// *count; *count = 0; then when all the elements are draw, make sure to complete the last
 		// draw call.
-		ctx.glDrawArrays(
-			GL_TRIANGLES, gl_batch_buffer_offset, batch_vertex_count - gl_batch_buffer_offset);
+		ctx.glDrawArrays(GL_TRIANGLES, vertex_offset, vertex_count);
+		vertex_offset += vertex_count;
+	}
+	vertex_count = gl_batch_vertex_scroll_count;
+	if(vertex_count - vertex_offset > 0)
+	{
+		vertex_count -= vertex_offset;
+
+		// the scroll box
+		GLint scissor_x = static_cast<GLint>(prompt.box_xmin);
+		GLint scissor_y = static_cast<GLint>(prompt.box_ymin);
+		GLint scissor_w = static_cast<GLint>(prompt.box_xmax - prompt.box_xmin);
+		GLint scissor_h = static_cast<GLint>(prompt.box_ymax - prompt.box_ymin);
+		if(scissor_w > 0 && scissor_h > 0)
+		{
+			ctx.glEnable(GL_SCISSOR_TEST);
+			// don't forget that 0,0 is the bottom left corner...
+			ctx.glScissor(
+				scissor_x, cv_screen_height.data - scissor_y - scissor_h, scissor_w, scissor_h);
+			ctx.glDrawArrays(GL_TRIANGLES, vertex_offset, vertex_count);
+			ctx.glDisable(GL_SCISSOR_TEST);
+		}
 	}
 
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
@@ -210,7 +249,7 @@ bool option_error_prompt::draw_requested()
 {
 	ASSERT(state != NULL);
 
-	return ok_button.draw_requested();
+	return ok_button.draw_requested() || prompt.draw_requested();
 }
 
 // this is mainly for on or off buttons, but you can have more than 2 states to cycle.
@@ -236,6 +275,9 @@ struct cvar_button_multi_option : public abstract_option_element
 		V_cvar* cvar_,
 		size_t count,
 		multi_option_entry* entries);
+
+    //sets current_button_index
+    NDSERR bool find_current_index();
 
 	void set_error_button();
 
@@ -277,28 +319,40 @@ bool cvar_button_multi_option::init(
 
 	option_entries = std::make_unique<decltype(option_entries)::element_type[]>(count);
 	option_entries_size = count;
-	bool found = false;
-	for(size_t i = 0; i < option_entries_size; ++i)
+    for(size_t i = 0; i < option_entries_size; ++i)
 	{
 		option_entries[i] = std::move(entries[i]);
+    }
+
+    return find_current_index();
+}
+
+bool cvar_button_multi_option::find_current_index()
+{
+    int index = -1;
+
+    for(size_t i = 0; i < option_entries_size; ++i)
+	{
 		if(cvar->cvar_write() == option_entries[i].cvar_value)
 		{
-			ASSERT(!found);
-			found = true;
-			current_button_index = i;
+			ASSERT(index == -1);
+            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+			index = i;
 		}
 	}
-	ASSERT(found);
-	if(!found)
+	ASSERT(index != -1);
+	if(index == -1)
 	{
 		slogf(
 			"info: couldn't find a option with the current value of the cvar %s (%s).\n",
 			cvar->cvar_key,
 			cvar->cvar_write().c_str());
 		set_error_button();
+        return false;
 	}
+    current_button_index = index;
 
-	return true;
+    return true;
 }
 
 void cvar_button_multi_option::set_error_button()
@@ -325,47 +379,32 @@ OPTION_ELEMENT_RESULT cvar_button_multi_option::input(SDL_Event& e)
 	case BUTTON_RESULT::TRIGGER:
 		if(!value_changed)
 		{
+			previous_cvar_value = cvar->cvar_write();
+			value_changed = true;
+
 			if(cvar->cvar_type != CVAR_T::RUNTIME)
 			{
-				// TODO: would be better if the prompt offerred some sort of word wrapping.
-				// I could do that if I used a prompt instead of a text painter.
 				switch(cvar->cvar_type)
 				{
 				case CVAR_T::STARTUP:
-					if(!state->error_prompt.init(
-						   state,
-						   "Warning, this value is used in startup,\n"
-						   "which means that this change\n"
-						   "requires a restart take effect."))
-					{
-						return OPTION_ELEMENT_RESULT::ERROR;
-					}
+					slogf(
+						"info: +%s: this value is used in startup, which means that this change requires a restart take effect.\n",
+						cvar->cvar_key);
 					break;
 				case CVAR_T::DEFFERRED:
-					if(!state->error_prompt.init(
-						   state,
-						   "Warning, this value is deferred,\n"
-						   "which means that this change\n"
-						   "will not make immediately take effect."))
-					{
-						return OPTION_ELEMENT_RESULT::ERROR;
-					}
+					slogf(
+						"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+						cvar->cvar_key);
 					break;
-				default:
-					if(!state->error_prompt.init(state, "I don't know why this is here"))
-					{
-						return OPTION_ELEMENT_RESULT::ERROR;
-					}
-					break;
-				}
-				if(!state->set_focus(&state->error_prompt))
-				{
-					return OPTION_ELEMENT_RESULT::ERROR;
+				default: slogf("info +%s: I don't know why this is here\n", cvar->cvar_key); break;
 				}
 			}
-			previous_cvar_value = cvar->cvar_write();
-			value_changed = true;
 		}
+        //needs to be done because it's possible the value changed.
+        if(!find_current_index())
+        {
+            return OPTION_ELEMENT_RESULT::ERROR;
+        }
 		current_button_index = (current_button_index + 1) % option_entries_size;
 		if(!cvar->cvar_read(option_entries[current_button_index].cvar_value))
 		{
@@ -434,30 +473,7 @@ bool cvar_button_multi_option::set_default()
 		previous_cvar_value = cvar->cvar_write();
 		value_changed = true;
 	}
-	if(!cvar->cvar_read(cvar->cvar_default_value.c_str()))
-	{
-		return false;
-	}
-	bool found = false;
-	for(size_t i = 0; i < option_entries_size; ++i)
-	{
-		if(cvar->cvar_write() == option_entries[i].cvar_value)
-		{
-			ASSERT(!found);
-			found = true;
-			current_button_index = i;
-		}
-	}
-	ASSERT(found);
-	if(!found)
-	{
-		slogf(
-			"info: couldn't find a option with the current value of the cvar %s (%s).\n",
-			cvar->cvar_key,
-			cvar->cvar_write().c_str());
-		set_error_button();
-	}
-	return true;
+	return find_current_index();
 }
 bool cvar_button_multi_option::undo_changes()
 {
@@ -474,27 +490,7 @@ bool cvar_button_multi_option::undo_changes()
 		previous_cvar_value.clear();
 		value_changed = false;
 	}
-	bool found = false;
-	for(size_t i = 0; i < option_entries_size; ++i)
-	{
-		if(cvar->cvar_write() == option_entries[i].cvar_value)
-		{
-			ASSERT(!found);
-			found = true;
-			current_button_index = i;
-		}
-	}
-	ASSERT(found);
-	if(!found)
-	{
-		slogf(
-			"info: couldn't find a option with the current value of the cvar %s (%s).\n",
-			cvar->cvar_key,
-			cvar->cvar_write().c_str());
-		set_error_button();
-	}
-
-	return true;
+	return find_current_index();
 }
 bool cvar_button_multi_option::clear_history()
 {
@@ -546,15 +542,12 @@ struct cvar_slider_option : public abstract_option_element
 
 	float element_height = -1;
 
-	bool clamp_prompt = false;
-
 	NDSERR bool init(
 		shared_cvar_option_state* state_,
 		std::string label,
 		cvar_double* cvar_,
 		double min,
-		double max,
-		bool clamp);
+		double max);
 
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
@@ -577,12 +570,7 @@ struct cvar_slider_option : public abstract_option_element
 };
 
 bool cvar_slider_option::init(
-	shared_cvar_option_state* state_,
-	std::string label,
-	cvar_double* cvar_,
-	double min,
-	double max,
-	bool clamp)
+	shared_cvar_option_state* state_, std::string label, cvar_double* cvar_, double min, double max)
 {
 	ASSERT(state_ != NULL);
 	ASSERT(cvar_ != NULL);
@@ -593,7 +581,6 @@ bool cvar_slider_option::init(
 
 	min_value = min;
 	max_value = max;
-	clamp_prompt = clamp;
 
 	font_sprite_painter* font_painter = state->font_painter;
 
@@ -632,13 +619,48 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 	bool modified = false;
 	if(slider.input(e))
 	{
-		modified = true;
-		if(isnan(previous_value))
+		std::string number_text = std::to_string(slider.get_value());
+		if(!cvar->cvar_read(number_text.c_str()))
 		{
-			previous_value = cvar->data;
+			if(!state->error_prompt.init(state, serr_get_error()))
+			{
+				return OPTION_ELEMENT_RESULT::ERROR;
+			}
+			if(!state->set_focus(&state->error_prompt))
+			{
+				return OPTION_ELEMENT_RESULT::ERROR;
+			}
 		}
-		cvar->data = slider.get_value();
-		prompt.replace_string(std::to_string(cvar->data).c_str());
+		else
+		{
+			modified = true;
+			if(isnan(previous_value))
+			{
+				previous_value = cvar->data;
+				// I would only do this if I had a unfocus event
+#if 0
+            // TODO: this is copy pasted
+			if(cvar->cvar_type != CVAR_T::RUNTIME)
+			{
+				switch(cvar->cvar_type)
+				{
+				case CVAR_T::STARTUP:
+					slogf(
+						"info: +%s: this value is used in startup, which means that this change requires a restart take effect.\n",
+						cvar->cvar_key);
+					break;
+				case CVAR_T::DEFFERRED:
+					slogf(
+						"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+						cvar->cvar_key);
+					break;
+				default: slogf("info +%s: I don't know why this is here\n", cvar->cvar_key); break;
+				}
+			}
+#endif
+			}
+			prompt.replace_string(number_text.c_str());
+		}
 	}
 
 	bool parse_event = false;
@@ -664,6 +686,52 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 	}
 	if(parse_event)
 	{
+		double temp_double = cvar->data;
+		std::string prompt_text = prompt.get_string();
+		if(!cvar->cvar_read(prompt_text.c_str()))
+		{
+			if(!state->error_prompt.init(state, serr_get_error()))
+			{
+				return OPTION_ELEMENT_RESULT::ERROR;
+			}
+			if(!state->set_focus(&state->error_prompt))
+			{
+				return OPTION_ELEMENT_RESULT::ERROR;
+			}
+		}
+		else
+		{
+			modified = true;
+
+			if(isnan(previous_value))
+			{
+				previous_value = temp_double;
+
+				// TODO: this is copy pasted
+				if(cvar->cvar_type != CVAR_T::RUNTIME)
+				{
+					switch(cvar->cvar_type)
+					{
+					case CVAR_T::STARTUP:
+						slogf(
+							"info: +%s: this value is used in startup, which means that this change requires a restart take effect.\n",
+							cvar->cvar_key);
+						break;
+					case CVAR_T::DEFFERRED:
+						slogf(
+							"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+							cvar->cvar_key);
+						break;
+					default:
+						slogf("info +%s: I don't know why this is here\n", cvar->cvar_key);
+						break;
+					}
+				}
+			}
+
+			slider.set_value(cvar->data);
+		}
+#if 0
 		std::string prompt_text = prompt.get_string();
 		std::unique_ptr<char[]> error_buffer;
 		int error_buffer_len;
@@ -737,6 +805,7 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 		}
 
 		slider.unfocus();
+#endif
 	}
 	return modified ? OPTION_ELEMENT_RESULT::MODIFIED : OPTION_ELEMENT_RESULT::CONTINUE;
 }
@@ -837,15 +906,10 @@ bool cvar_slider_option::clear_history()
 // a slider + prompt for a floating point number
 // clamp will clamp numbers entered into the prompt.
 std::unique_ptr<abstract_option_element> create_slider_option(
-	shared_cvar_option_state* state,
-	std::string label,
-	cvar_double* cvar,
-	double min,
-	double max,
-	bool clamp)
+	shared_cvar_option_state* state, std::string label, cvar_double* cvar, double min, double max)
 {
 	auto output = std::make_unique<cvar_slider_option>();
-	if(!output->init(state, std::move(label), cvar, min, max, clamp))
+	if(!output->init(state, std::move(label), cvar, min, max))
 	{
 		return std::unique_ptr<abstract_option_element>();
 	}
@@ -952,10 +1016,11 @@ OPTION_ELEMENT_RESULT cvar_prompt_option::input(SDL_Event& e)
 	}
 	if(parse_event)
 	{
-		std::string prev_string;
+		std::string temp_string;
 		if(!value_changed)
 		{
-			prev_string = cvar->cvar_write();
+			// if the value is read.
+			temp_string = cvar->cvar_write();
 		}
 		std::string prompt_text = prompt.get_string();
 		if(!cvar->cvar_read(prompt_text.c_str()))
@@ -973,46 +1038,28 @@ OPTION_ELEMENT_RESULT cvar_prompt_option::input(SDL_Event& e)
 		{
 			if(!value_changed)
 			{
-				previous_value = std::move(prev_string);
+				previous_value = std::move(temp_string);
 				value_changed = true;
-			}
 
-			if(cvar->cvar_type != CVAR_T::RUNTIME)
-			{
-				// TODO: would be better if the prompt offerred some sort of word wrapping.
-				// I could do that if I used a prompt instead of a text painter.
-				switch(cvar->cvar_type)
+				// TODO: this is copy pasted
+				if(cvar->cvar_type != CVAR_T::RUNTIME)
 				{
-				case CVAR_T::STARTUP:
-					if(!state->error_prompt.init(
-						   state,
-						   "Warning, this value is used in startup,\n"
-						   "which means that this change\n"
-						   "requires a restart take effect."))
+					switch(cvar->cvar_type)
 					{
-						return OPTION_ELEMENT_RESULT::ERROR;
+					case CVAR_T::STARTUP:
+						slogf(
+							"info: +%s: this value is used in startup, which means that this change requires a restart take effect.\n",
+							cvar->cvar_key);
+						break;
+					case CVAR_T::DEFFERRED:
+						slogf(
+							"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+							cvar->cvar_key);
+						break;
+					default:
+						slogf("info +%s: I don't know why this is here\n", cvar->cvar_key);
+						break;
 					}
-					break;
-				case CVAR_T::DEFFERRED:
-					if(!state->error_prompt.init(
-						   state,
-						   "Warning, this value is deferred,\n"
-						   "which means that this change\n"
-						   "will not make immediately take effect."))
-					{
-						return OPTION_ELEMENT_RESULT::ERROR;
-					}
-					break;
-				default:
-					if(!state->error_prompt.init(state, "I don't know why this is here"))
-					{
-						return OPTION_ELEMENT_RESULT::ERROR;
-					}
-					break;
-				}
-				if(!state->set_focus(&state->error_prompt))
-				{
-					return OPTION_ELEMENT_RESULT::ERROR;
 				}
 			}
 		}

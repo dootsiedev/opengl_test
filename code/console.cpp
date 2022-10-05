@@ -153,7 +153,8 @@ bool console_state::init(
 		   "",
 		   console_batcher,
 		   console_font,
-		   TEXTP_READ_ONLY | TEXTP_DISABLE_CULL | TEXTP_DRAW_BACKDROP))
+		   TEXTP_Y_SCROLL | TEXTP_WORD_WRAP | TEXTP_DRAW_BBOX | TEXTP_READ_ONLY |
+			   TEXTP_DRAW_BACKDROP))
 	{
 		return false;
 	}
@@ -306,7 +307,7 @@ void console_state::resize_text_area()
 		60,
 		prompt_cmd.box_ymax + 10.f,
 		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		error_text.get_lineskip() * 10);
+		static_cast<float>(cv_screen_height.data) - 60 - (prompt_cmd.box_ymax + 10.f));
 }
 
 CONSOLE_RESULT console_state::input(SDL_Event& e)
@@ -638,26 +639,34 @@ bool console_state::render()
 	}
 	if(error_text.draw_requested())
 	{
-		console_batcher->clear();
-		// this requires the atlas texture to be bound with 1 byte packing
-		if(!error_text.draw())
-		{
-			// put the message into the console instead
-			post_error(serr_get_error());
-		}
-		error_vertex_count = console_batcher->get_current_vertex_count();
-		if(console_batcher->get_quad_count() != 0)
-		{
-			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
-			ctx.glBufferData(
-				GL_ARRAY_BUFFER, console_batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-			ctx.glBufferSubData(
-				GL_ARRAY_BUFFER,
-				0,
-				console_batcher->get_current_vertex_size(),
-				console_batcher->buffer);
-			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
-		}
+        // dont draw the bbox
+        if(error_text.text_data.empty())
+        {
+            error_vertex_count = 0;
+        }
+        else
+        {
+            console_batcher->clear();
+            // this requires the atlas texture to be bound with 1 byte packing
+            if(!error_text.draw())
+            {
+                // put the message into the console instead
+                post_error(serr_get_error());
+            }
+            error_vertex_count = console_batcher->get_current_vertex_count();
+            if(console_batcher->get_quad_count() != 0)
+            {
+                ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
+                ctx.glBufferData(
+                    GL_ARRAY_BUFFER, console_batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
+                ctx.glBufferSubData(
+                    GL_ARRAY_BUFFER,
+                    0,
+                    console_batcher->get_current_vertex_size(),
+                    console_batcher->buffer);
+                ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+            }
+        }
 	}
 
 	if(log_vertex_count != 0)
@@ -710,9 +719,26 @@ bool console_state::render()
 
 	if(error_vertex_count != 0)
 	{
-		ctx.glBindVertexArray(gl_error_vao_id);
-		ctx.glDrawArrays(GL_TRIANGLES, 0, error_vertex_count);
-		ctx.glBindVertexArray(0);
+        float x;
+		float y;
+		float w;
+		float h;
+		error_text.get_bbox(&x, &y, &w, &h);
+		GLint scissor_x = static_cast<GLint>(x);
+		GLint scissor_y = static_cast<GLint>(y);
+		GLint scissor_w = static_cast<GLint>(w);
+		GLint scissor_h = static_cast<GLint>(h);
+		if(scissor_w > 0 && scissor_h > 0)
+		{
+			ctx.glEnable(GL_SCISSOR_TEST);
+			// don't forget that 0,0 is the bottom left corner...
+			ctx.glScissor(
+				scissor_x, cv_screen_height.data - scissor_y - scissor_h, scissor_w, scissor_h);
+			ctx.glBindVertexArray(gl_error_vao_id);
+			ctx.glDrawArrays(GL_TRIANGLES, 0, error_vertex_count);
+			ctx.glBindVertexArray(0);
+			ctx.glDisable(GL_SCISSOR_TEST);
+		}
 	}
 
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;

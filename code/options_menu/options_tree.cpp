@@ -88,11 +88,11 @@ bool options_tree_state::init(
 
 		back.add_option(create_bool_option(&shared_menu_state, "invert mouse", &cv_mouse_invert));
 		back.add_option(create_slider_option(
-			&shared_menu_state, "mouse speed", &cv_mouse_sensitivity, 0, 1, false));
+			&shared_menu_state, "mouse speed", &cv_mouse_sensitivity, 0, 1));
 		back.add_option(create_slider_option(
-			&shared_menu_state, "scroll speed", &cv_scroll_speed, 0, 10, false));
+			&shared_menu_state, "scroll speed", &cv_scroll_speed, 0, 10));
 		back.add_option(create_slider_option(
-			&shared_menu_state, "camera speed", &cv_camera_speed, 0, 100, false));
+			&shared_menu_state, "camera speed", &cv_camera_speed, 0, 100));
 		// TODO: would be smart to have a dummy entry that is just text which says "key binds"
 		back.add_option(
 			create_keybind_option(&shared_menu_state, "bind forward", &cv_bind_move_forward));

@@ -8,8 +8,6 @@
 #include <emscripten.h>
 #endif
 
-// TODO: use emscripten_get_now, maybe it might fix the very bad timers
-
 int main(int argc, char** argv)
 {
 	slog("test\n");
@@ -39,7 +37,7 @@ int main(int argc, char** argv)
 	}
 	else
 	{
-		slogf("info: cvar file found: %s\n", path);
+		slogf("info: found cvar file: %s\n", path);
 		RWops_Stdio fp_raii(fp, path);
 		if(!cvar_file(CVAR_T::STARTUP, &fp_raii))
 		{
@@ -49,6 +47,7 @@ int main(int argc, char** argv)
 		{
 			success = false;
 		}
+		slogf("info: done reading cvar file.\n");
 	}
 
 	// load cvar arguments after I load the cvar file

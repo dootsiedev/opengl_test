@@ -114,17 +114,17 @@ bool text_prompt_wrapper::set_scale(float font_scale)
 		return false;
 	case FONT_BASIC_RESULT::ERROR: return false;
 	}
-    for(auto &c :text_data)
-    {
-        switch(state.font->get_advance(c.codepoint, &c.advance, state.font_scale))
-        {
-        case FONT_BASIC_RESULT::SUCCESS: break;
-        case FONT_BASIC_RESULT::NOT_FOUND:
-            serrf("%s: space not found???\n", state.font->get_name());
-            return false;
-        case FONT_BASIC_RESULT::ERROR: return false;
-        }
-    }
+	for(auto& c : text_data)
+	{
+		switch(state.font->get_advance(c.codepoint, &c.advance, state.font_scale))
+		{
+		case FONT_BASIC_RESULT::SUCCESS: break;
+		case FONT_BASIC_RESULT::NOT_FOUND:
+			serrf("%s: space not found???\n", state.font->get_name());
+			return false;
+		case FONT_BASIC_RESULT::ERROR: return false;
+		}
+	}
 	return true;
 }
 
@@ -1257,24 +1257,48 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		float mouse_y = static_cast<float>(e.motion.y);
 		if(mouse_held)
 		{
-			ASSERT(text_focus);
-			drag_x = mouse_x;
-			drag_y = mouse_y;
-			scroll_to_cursor = true;
-			blink_timer = timer_now();
-			update_buffer = true;
+			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			{
+				mouse_held = false;
+				drag_x = -1;
+				drag_y = -1;
+			}
+			else
+			{
+				ASSERT(text_focus);
+				drag_x = mouse_x;
+				drag_y = mouse_y;
+				scroll_to_cursor = true;
+				blink_timer = timer_now();
+				update_buffer = true;
+			}
 		}
 		if(y_scrollbar_held)
 		{
-			ASSERT(text_focus);
-			internal_scroll_y_to(mouse_y);
-			update_buffer = true;
+			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			{
+				// NOTE: This would need to update_buffer if this modified the color of the thumb.
+				y_scrollbar_held = false;
+			}
+			else
+			{
+				ASSERT(text_focus);
+				internal_scroll_y_to(mouse_y);
+				update_buffer = true;
+			}
 		}
 		if(x_scrollbar_held)
 		{
-			ASSERT(text_focus);
-			internal_scroll_x_to(mouse_x);
-			update_buffer = true;
+			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			{
+				x_scrollbar_held = false;
+			}
+			else
+			{
+				ASSERT(text_focus);
+				internal_scroll_x_to(mouse_x);
+				update_buffer = true;
+			}
 		}
 		// helps unfocus other elements.
 		// TODO(dootsie): probably should exclude the gap between the scrollbar....
@@ -1335,6 +1359,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 
+			/*
 			// helps unfocus other elements.
 			// TODO(dootsie): probably should exclude the gap between the scrollbar....
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
@@ -1343,7 +1368,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				// eat
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
-			}
+			}*/
 		}
 		break;
 	case SDL_MOUSEBUTTONDOWN:
@@ -1409,11 +1434,11 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
 			}
-            if(text_focus)
-            {
-                unfocus();
+			if(text_focus)
+			{
+				unfocus();
 				return TEXT_PROMPT_RESULT::UNFOCUS;
-            }
+			}
 		}
 		break;
 		// Special text input event
@@ -1492,30 +1517,29 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			// SDL_TEXTEDITING to be empty?
 			markedText.clear();
 		}
-        else
-        {
-            scroll_to_cursor = true;
-            mouse_held = false;
-            drag_x = -1;
-            drag_y = -1;
+		else
+		{
+			scroll_to_cursor = true;
+			mouse_held = false;
+			drag_x = -1;
+			drag_y = -1;
 
-            // IME text
-            if(stb_state.select_start != stb_state.select_end)
-            {
-                // I want the IME text to be at the beginning of the line.
-                if(stb_state.select_start < stb_state.select_end)
-                {
-                    stb_state.cursor = stb_state.select_start;
-                    int temp = stb_state.select_start;
-                    stb_state.select_start = stb_state.select_end;
-                    stb_state.select_end = temp;
-                }
-                // delete the selection.
-                stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_BACKSPACE);
-            }
-            markedText = e.edit.text;
-
-        }
+			// IME text
+			if(stb_state.select_start != stb_state.select_end)
+			{
+				// I want the IME text to be at the beginning of the line.
+				if(stb_state.select_start < stb_state.select_end)
+				{
+					stb_state.cursor = stb_state.select_start;
+					int temp = stb_state.select_start;
+					stb_state.select_start = stb_state.select_end;
+					stb_state.select_end = temp;
+				}
+				// delete the selection.
+				stb_textedit_key(this, &stb_state, STB_TEXTEDIT_K_BACKSPACE);
+			}
+			markedText = e.edit.text;
+		}
 
 		blink_timer = timer_now();
 		update_buffer = true;
@@ -1587,7 +1611,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 	case SDL_KEYDOWN: {
 		// maybe escape unfocus could be a flag if it causes problems
 		// or make escape cause the line to be cleared
-        // note this is done HERE because I don't want mouse_held = false
+		// note this is done HERE because I don't want mouse_held = false
 		if(text_focus && e.key.keysym.sym == SDLK_ESCAPE)
 		{
 			unfocus();
@@ -1610,12 +1634,12 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		switch(e.key.keysym.sym)
 		{
 		case SDLK_BACKSPACE:
-		//case SDLK_DELETE:
+		// case SDLK_DELETE:
 		case SDLK_TAB:
 		case SDLK_RETURN: {
 			if(read_only())
 			{
-                // should this be eaten?
+				// should this be eaten?
 				break;
 			}
 			// this isn't in the switch statement because "break" doesn't work.
@@ -1627,8 +1651,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			switch(e.key.keysym.sym)
 			{
 			case SDLK_BACKSPACE: stb_key = STB_TEXTEDIT_K_BACKSPACE; break;
-            // I disable DELETE because the cursor would move weird when I would undo.
-			//case SDLK_DELETE: stb_key = STB_TEXTEDIT_K_DELETE; break;
+			// I disable DELETE because the cursor would move weird when I would undo.
+			// case SDLK_DELETE: stb_key = STB_TEXTEDIT_K_DELETE; break;
 			case SDLK_TAB: stb_key = '\t'; break;
 			case SDLK_RETURN: stb_key = '\n'; break; // note SDLK_RETURN is '\r' for some reason.
 			}

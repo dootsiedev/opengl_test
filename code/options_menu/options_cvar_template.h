@@ -3,6 +3,7 @@
 #include "../cvar.h"
 #include "../ui.h"
 #include "../keybind.h"
+#include "../font/text_prompt.h"
 
 #include <SDL2/SDL.h>
 
@@ -77,18 +78,22 @@ struct option_error_prompt : public abstract_focus_element
 	shared_cvar_option_state* state = NULL;
 
 	// needs a independant painter because I need newlines, and the global one shouldn't have it.
-	font_sprite_painter font_painter;
+	//font_sprite_painter font_painter;
 
 	// maybe if the message was a serr message,
 	// I would use a prompt to allow selection, and a button for "copy to clipboard",
 	// because serr is more of a programmer diagnostic and not comprehensible.
-	std::string display_message;
+	//std::string display_message;
+    text_prompt_wrapper prompt;
 
 	std::string ok_button_text;
 	mono_button_object ok_button;
 
 	GLint gl_batch_buffer_offset = -1;
-	GLsizei batch_vertex_count = 0;
+	GLsizei gl_batch_vertex_count = 0;
+    GLsizei gl_batch_vertex_scroll_count = 0;
+
+    float edge_padding = 100;
 
 	// the dimensions of the whole backdrop
 	float box_xmin = -1;
@@ -96,10 +101,7 @@ struct option_error_prompt : public abstract_focus_element
 	float box_ymin = -1;
 	float box_ymax = -1;
 
-	float text_width = -1;
-	float text_height = -1;
-
-	NDSERR bool init(shared_cvar_option_state* state_, std::string message);
+	NDSERR bool init(shared_cvar_option_state* state_, std::string_view message);
 
 	void resize_view() override;
 
@@ -112,7 +114,7 @@ struct option_error_prompt : public abstract_focus_element
 	NDSERR bool close() override
 	{
 		gl_batch_buffer_offset = 0;
-		batch_vertex_count = 0;
+		gl_batch_vertex_count = 0;
 		return true;
 	}
 };
@@ -255,9 +257,6 @@ std::unique_ptr<abstract_option_element> create_prompt_option(
 
 // a slider + prompt for a floating point number
 // clamp will clamp numbers entered into the prompt.
-// WARNING, this modifies the .data value directly
-// if you have special cvar_read overload, it wont work.
-// TODO: I am just lazy, I should use cvar_read.
 // TODO: I feel like the cvar should have it's internal min/max, 
 // so I don't need "clamp", and the console should also give an error.
 std::unique_ptr<abstract_option_element> create_slider_option(
@@ -265,8 +264,7 @@ std::unique_ptr<abstract_option_element> create_slider_option(
 	std::string label,
 	cvar_double* cvar,
 	double min,
-	double max,
-	bool clamp);
+	double max);
 
 std::unique_ptr<abstract_option_element>
 	create_keybind_option(shared_cvar_option_state* state, std::string label, cvar_key_bind* cvar);

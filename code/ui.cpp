@@ -5,28 +5,34 @@
 
 #include "app.h"
 
+// TODO: maybe make the button get highlighted when you press down on it?
+
 void set_event_leave(SDL_Event& e)
 {
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_LEAVE;
+    e.window.windowID = 0;
 }
 
 void set_event_unfocus(SDL_Event& e)
 {
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
+    e.window.windowID = 0;
 }
 
 void set_event_resize(SDL_Event& e)
 {
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_SIZE_CHANGED;
+    e.window.windowID = 0;
 }
 
 void set_event_hidden(SDL_Event& e)
 {
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_HIDDEN;
+    e.window.windowID = 0;
 }
 
 BUTTON_RESULT mono_button_object::input(SDL_Event& e)
@@ -40,7 +46,6 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		{
 			// release "hover focus"
 		case SDL_WINDOWEVENT_LEAVE:
-			clicked_on = false;
 			hover_over = false;
 			return BUTTON_RESULT::CONTINUE;
 		case SDL_WINDOWEVENT_HIDDEN:
@@ -122,14 +127,15 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			    float ymin = button_rect[1];
 			    float ymax = button_rect[1] + button_rect[3];
 
+                // eat
+                set_event_unfocus(e);
+
 			    if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 			    {
 				    // slog("click\n");
 				    // reset the fade  to .5 for an effect
 				    fade = 0.5;
-				    // eat
-				    set_event_unfocus(e);
-				    return BUTTON_RESULT::TRIGGER;
+                    return BUTTON_RESULT::TRIGGER;
 			    }
 		    }
         }
@@ -313,8 +319,14 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 			float mouse_y = static_cast<float>(e.motion.y);
 			if(y_scrollbar_held)
 			{
-				internal_scroll_y_to(mouse_y);
-				break;
+                if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+                {
+                    y_scrollbar_held = false;
+                }
+                else
+                {
+                    internal_scroll_y_to(mouse_y);
+                }
 			}
 			// helps unfocus other elements.
 			if(internal_scroll_y_inside(mouse_x, mouse_y))
@@ -498,9 +510,16 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
         // I could add in a update() function and just poll the mouse position
 		if(slider_held)
 		{
-			internal_move_to(mouse_x);
-			// VALUE HAS CHANGED
-			return true;
+            if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			{
+				slider_held = false;
+			}
+            else
+            {
+                internal_move_to(mouse_x);
+                // VALUE HAS CHANGED
+                return true;
+            }
 		}
 		// helps unfocus other elements.
 		if(internal_slider_inside(mouse_x, mouse_y))
