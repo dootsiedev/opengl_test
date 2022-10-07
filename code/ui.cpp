@@ -9,30 +9,47 @@
 
 void set_event_leave(SDL_Event& e)
 {
+	if(e.type == SDL_MOUSEMOTION)
+	{
+        // this is a hack to allow dragging a slider to still work on top of "leave" events.
+		e.motion.windowID = CLIPPED_WINDOW_ID;
+		return;
+	}
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_LEAVE;
-    e.window.windowID = 0;
+	e.window.windowID = 0;
 }
 
 void set_event_unfocus(SDL_Event& e)
 {
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
-    e.window.windowID = 0;
+	e.window.windowID = 0;
 }
 
 void set_event_resize(SDL_Event& e)
 {
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_SIZE_CHANGED;
-    e.window.windowID = 0;
+	e.window.windowID = 0;
 }
 
 void set_event_hidden(SDL_Event& e)
 {
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_HIDDEN;
-    e.window.windowID = 0;
+	e.window.windowID = 0;
+}
+
+bool is_mouse_event_clipped(SDL_Event& e)
+{
+	switch(e.type)
+	{
+	case SDL_MOUSEMOTION: return e.motion.windowID == CLIPPED_WINDOW_ID;
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP: return e.button.windowID == CLIPPED_WINDOW_ID;
+	}
+	return false;
 }
 
 BUTTON_RESULT mono_button_object::input(SDL_Event& e)
@@ -45,9 +62,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		switch(e.window.event)
 		{
 			// release "hover focus"
-		case SDL_WINDOWEVENT_LEAVE:
-			hover_over = false;
-			return BUTTON_RESULT::CONTINUE;
+		case SDL_WINDOWEVENT_LEAVE: hover_over = false; return BUTTON_RESULT::CONTINUE;
 		case SDL_WINDOWEVENT_HIDDEN:
 			// if a UI element dissapears, use this.
 			clicked_on = false;
@@ -74,6 +89,12 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
+		if(is_mouse_event_clipped(e))
+		{
+			// clipped shouldn't cause hover
+			hover_over = false;
+			break;
+		}
 		float mouse_x = static_cast<float>(e.motion.x);
 		float mouse_y = static_cast<float>(e.motion.y);
 
@@ -91,55 +112,59 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		hover_over = false;
 	}
 	break;
-	case SDL_MOUSEBUTTONDOWN: 
-	if(e.button.button == SDL_BUTTON_LEFT)
-	{
-		float mouse_x = static_cast<float>(e.button.x);
-		float mouse_y = static_cast<float>(e.button.y);
-
-		float xmin = button_rect[0];
-		float xmax = button_rect[0] + button_rect[2];
-		float ymin = button_rect[1];
-		float ymax = button_rect[1] + button_rect[3];
-
-		if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+	case SDL_MOUSEBUTTONDOWN:
+		if(e.button.button == SDL_BUTTON_LEFT)
 		{
-			clicked_on = true;
-			// eat
-			set_event_leave(e);
-			return BUTTON_RESULT::CONTINUE;
+			if(is_mouse_event_clipped(e))
+			{
+				clicked_on = false;
+				break;
+			}
+			float mouse_x = static_cast<float>(e.button.x);
+			float mouse_y = static_cast<float>(e.button.y);
+
+			float xmin = button_rect[0];
+			float xmax = button_rect[0] + button_rect[2];
+			float ymin = button_rect[1];
+			float ymax = button_rect[1] + button_rect[3];
+
+			if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+			{
+				clicked_on = true;
+				// eat
+				set_event_leave(e);
+				return BUTTON_RESULT::CONTINUE;
+			}
 		}
-	}
-    clicked_on = false;
-	break;
+		clicked_on = false;
+		break;
 	case SDL_MOUSEBUTTONUP:
 		if(clicked_on)
 		{
 			clicked_on = false;
-            if(e.button.button == SDL_BUTTON_LEFT)
-	        {
+			if(e.button.button == SDL_BUTTON_LEFT)
+			{
+				float mouse_x = static_cast<float>(e.button.x);
+				float mouse_y = static_cast<float>(e.button.y);
 
-			    float mouse_x = static_cast<float>(e.button.x);
-			    float mouse_y = static_cast<float>(e.button.y);
+				float xmin = button_rect[0];
+				float xmax = button_rect[0] + button_rect[2];
+				float ymin = button_rect[1];
+				float ymax = button_rect[1] + button_rect[3];
 
-			    float xmin = button_rect[0];
-			    float xmax = button_rect[0] + button_rect[2];
-			    float ymin = button_rect[1];
-			    float ymax = button_rect[1] + button_rect[3];
+				// eat
+				set_event_unfocus(e);
 
-                // eat
-                set_event_unfocus(e);
-
-			    if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
-			    {
-				    // slog("click\n");
-				    // reset the fade  to .5 for an effect
-				    fade = 0.5;
-                    return BUTTON_RESULT::TRIGGER;
-			    }
-		    }
-        }
-	break;
+				if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+				{
+					// slog("click\n");
+					// reset the fade  to .5 for an effect
+					fade = 0.5;
+					return BUTTON_RESULT::TRIGGER;
+				}
+			}
+		}
+		break;
 	}
 
 	return BUTTON_RESULT::CONTINUE;
@@ -248,6 +273,8 @@ bool mono_button_object::draw_buffer(const char* button_text, size_t button_text
 	}
 
 	font_painter->end();
+    
+    update_buffer = false;
 
 	// there are not much gl calls here, but the text does modify the atlas.
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
@@ -270,9 +297,11 @@ void mono_y_scrollable_area::resize_view(float xmin, float xmax, float ymin, flo
 	box_inner_xmax = xmax - scrollbar_thickness - scrollbar_padding;
 	// clamp the scroll (when the screen resizes)
 	scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
+
+    update_buffer = true;
 }
 
-void mono_y_scrollable_area::input(SDL_Event& e)
+SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
 {
 	ASSERT(font_painter != NULL);
 
@@ -285,11 +314,13 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 		case SDL_WINDOWEVENT_FOCUS_LOST:
 		case SDL_WINDOWEVENT_HIDDEN:
 			unfocus();
-			return;
+			break;
 			// leave is only used for releasing "hover focus"
 			// case SDL_WINDOWEVENT_LEAVE:
 		}
 	}
+
+	bool modified = false;
 
 	if(content_h > (box_ymax - box_ymin))
 	{
@@ -312,6 +343,7 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 				// clamp
 				scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
 			}
+			modified = true;
 		}
 		break;
 		case SDL_MOUSEMOTION: {
@@ -319,45 +351,54 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 			float mouse_y = static_cast<float>(e.motion.y);
 			if(y_scrollbar_held)
 			{
-                if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
-                {
-                    y_scrollbar_held = false;
-                }
-                else
-                {
-                    internal_scroll_y_to(mouse_y);
-                }
+				if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+				{
+					y_scrollbar_held = false;
+				}
+				else
+				{
+					internal_scroll_y_to(mouse_y);
+					modified = true;
+				}
 			}
 			// helps unfocus other elements.
 			if(internal_scroll_y_inside(mouse_x, mouse_y))
 			{
 				// eat hover
 				set_event_leave(e);
-				return;
+				break;
 			}
 		}
 		break;
 		case SDL_MOUSEBUTTONUP:
-            // TODO: I know that there are other places I treat SDL_BUTTON_RIGHT as LMB
-            // but I am thinking of making RMB used only for escaping out of hovered menus
+			// TODO: I know that there are other places I treat SDL_BUTTON_RIGHT as LMB
+			// but I am thinking of making RMB used only for escaping out of hovered menus
 			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 			{
 				// float mouse_x = static_cast<float>(e.button.x);
 				float mouse_y = static_cast<float>(e.button.y);
 				if(y_scrollbar_held)
 				{
-					internal_scroll_y_to(mouse_y);
+					if(!is_mouse_event_clipped(e))
+					{
+						internal_scroll_y_to(mouse_y);
+						modified = true;
+					}
 					y_scrollbar_held = false;
 					scroll_thumb_click_offset = -1;
 					// eat
 					set_event_unfocus(e);
-					return;
 				}
 			}
 			break;
 		case SDL_MOUSEBUTTONDOWN:
 			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 			{
+				if(is_mouse_event_clipped(e))
+				{
+					unfocus();
+					break;
+				}
 				float mouse_x = static_cast<float>(e.button.x);
 				float mouse_y = static_cast<float>(e.button.y);
 
@@ -366,16 +407,15 @@ void mono_y_scrollable_area::input(SDL_Event& e)
 					y_scrollbar_held = true;
 					// eat
 					set_event_unfocus(e);
-					return;
+					break;
 				}
 
-				y_scrollbar_held = false;
-				scroll_thumb_click_offset = -1;
-				// unfocus();
+				unfocus();
 			}
 			break;
 		}
 	}
+	return modified ? SCROLLABLE_AREA_RETURN::MODIFIED : SCROLLABLE_AREA_RETURN::CONTINUE;
 }
 
 void mono_y_scrollable_area::draw_buffer()
@@ -421,6 +461,7 @@ void mono_y_scrollable_area::draw_buffer()
 			batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 		}
 	}
+    update_buffer = false;
 }
 
 bool mono_y_scrollable_area::internal_scroll_y_inside(float mouse_x, float mouse_y)
@@ -507,19 +548,19 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 		// it will eat the motion event (slider wont move), but I actually want the slider to keep
 		// on sliding... it's fine, but it means you should sort your elements so all sliders are
 		// above all buttons.
-        // I could add in a update() function and just poll the mouse position
+		// I could add in a update() function and just poll the mouse position
 		if(slider_held)
 		{
-            if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
 			{
 				slider_held = false;
 			}
-            else
-            {
-                internal_move_to(mouse_x);
-                // VALUE HAS CHANGED
-                return true;
-            }
+			else
+			{
+				internal_move_to(mouse_x);
+				// VALUE HAS CHANGED
+				return true;
+			}
 		}
 		// helps unfocus other elements.
 		if(internal_slider_inside(mouse_x, mouse_y))
@@ -537,7 +578,10 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 			// float mouse_y = static_cast<float>(e.button.y);
 			if(slider_held)
 			{
-				internal_move_to(mouse_x);
+				if(!is_mouse_event_clipped(e))
+				{
+					internal_move_to(mouse_x);
+				}
 				unfocus();
 				// eat
 				set_event_unfocus(e);
@@ -549,6 +593,11 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 	case SDL_MOUSEBUTTONDOWN:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
+			if(is_mouse_event_clipped(e))
+			{
+				unfocus();
+				break;
+			}
 			float mouse_x = static_cast<float>(e.button.x);
 			float mouse_y = static_cast<float>(e.button.y);
 
@@ -615,6 +664,7 @@ void mono_normalized_slider_object::draw_buffer()
 		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
 		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 	}
+    update_buffer = false;
 }
 void mono_normalized_slider_object::unfocus()
 {
@@ -627,6 +677,7 @@ void mono_normalized_slider_object::resize_view(float xmin, float xmax, float ym
 	box_xmax = xmax;
 	box_ymin = ymin;
 	box_ymax = ymax;
+    update_buffer = true;
 }
 bool mono_normalized_slider_object::internal_slider_inside(float mouse_x, float mouse_y)
 {
@@ -651,8 +702,8 @@ void mono_normalized_slider_object::internal_move_to(float mouse_x)
 	slider_value =
 		(mouse_x - slider_thumb_click_offset) / ((box_xmax - box_xmin) - slider_thumb_size);
 
-    // the value is currently 0-1, spread it to the range.
-    slider_value = (slider_value - slider_min) * (slider_max - slider_min);
+	// the value is currently 0-1, spread it to the range.
+	slider_value = (slider_value - slider_min) * (slider_max - slider_min);
 
 	// clamp
 	slider_value = std::max(slider_min, std::min(slider_max, slider_value));

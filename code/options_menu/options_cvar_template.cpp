@@ -263,9 +263,14 @@ struct cvar_button_multi_option : public abstract_option_element
 	bool value_changed = false;
 
 	std::unique_ptr<multi_option_entry[]> option_entries;
-	size_t option_entries_size = 0;
+	multi_option_entry error_entry;
+	int option_entries_size = -1;
 
-	size_t current_button_index = 0;
+	// if -1 use error_entry
+	int current_button_index = -1;
+
+	float font_x = -1;
+	float font_y = -1;
 
 	mono_button_object button;
 
@@ -276,15 +281,14 @@ struct cvar_button_multi_option : public abstract_option_element
 		size_t count,
 		multi_option_entry* entries);
 
-    //sets current_button_index
-    NDSERR bool find_current_index();
-
-	void set_error_button();
+	// sets current_button_index
+	NDSERR bool find_current_index();
 
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
 	NDSERR OPTION_ELEMENT_RESULT input(SDL_Event& e) override;
-	NDSERR bool draw_buffer(float x, float y, float menu_w) override;
+	NDSERR bool draw_buffer() override;
+	void resize(float x, float y, float menu_w) override;
 	bool draw_requested() override;
 	NDSERR bool close() override
 	{
@@ -295,6 +299,7 @@ struct cvar_button_multi_option : public abstract_option_element
 	NDSERR bool set_default() override;
 	NDSERR bool undo_changes() override;
 	NDSERR bool clear_history() override;
+	NDSERR bool reload_cvars() override;
 };
 
 bool cvar_button_multi_option::init(
@@ -318,50 +323,44 @@ bool cvar_button_multi_option::init(
 	element_height = state->font_painter->get_lineskip() + state->font_padding;
 
 	option_entries = std::make_unique<decltype(option_entries)::element_type[]>(count);
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	option_entries_size = count;
-    for(size_t i = 0; i < option_entries_size; ++i)
+	for(int i = 0; i < option_entries_size; ++i)
 	{
 		option_entries[i] = std::move(entries[i]);
-    }
+	}
 
-    return find_current_index();
+	return find_current_index();
 }
 
 bool cvar_button_multi_option::find_current_index()
 {
-    int index = -1;
+	int index = -1;
 
-    for(size_t i = 0; i < option_entries_size; ++i)
+	std::string current_cvar_value = cvar->cvar_write();
+
+	for(int i = 0; i < option_entries_size; ++i)
 	{
-		if(cvar->cvar_write() == option_entries[i].cvar_value)
+		if(current_cvar_value == option_entries[i].cvar_value)
 		{
-			ASSERT(index == -1);
-            // NOLINTNEXTLINE(bugprone-narrowing-conversions)
 			index = i;
 		}
 	}
-	ASSERT(index != -1);
 	if(index == -1)
 	{
+		error_entry.name = std::move(current_cvar_value);
 		slogf(
-			"info: couldn't find a option with the current value of the cvar %s (%s).\n",
+			"info: couldn't find a button label for the cvar: `+%s` (%s).\n",
 			cvar->cvar_key,
-			cvar->cvar_write().c_str());
-		set_error_button();
-        return false;
+			error_entry.name.c_str());
+		current_button_index = -1;
+		// TODO: could be a serr error, but there could be undocumented values that shouldn't
+		// trigger serr.
+		return true;
 	}
-    current_button_index = index;
+	current_button_index = index;
 
-    return true;
-}
-
-void cvar_button_multi_option::set_error_button()
-{
-	button.disabled = true;
-	current_button_index = 0;
-	option_entries_size = 1;
-	option_entries[0].cvar_value = "?";
-	option_entries[0].name = "?";
+	return true;
 }
 
 bool cvar_button_multi_option::update(double delta_sec)
@@ -400,12 +399,19 @@ OPTION_ELEMENT_RESULT cvar_button_multi_option::input(SDL_Event& e)
 				}
 			}
 		}
-        //needs to be done because it's possible the value changed.
-        if(!find_current_index())
-        {
-            return OPTION_ELEMENT_RESULT::ERROR;
-        }
-		current_button_index = (current_button_index + 1) % option_entries_size;
+		// needs to be done because it's possible the value changed.
+		if(!find_current_index())
+		{
+			return OPTION_ELEMENT_RESULT::ERROR;
+		}
+		if(current_button_index == -1)
+		{
+			current_button_index = 0;
+		}
+		else
+		{
+			current_button_index = (current_button_index + 1) % option_entries_size;
+		}
 		if(!cvar->cvar_read(option_entries[current_button_index].cvar_value))
 		{
 			return OPTION_ELEMENT_RESULT::ERROR;
@@ -415,19 +421,13 @@ OPTION_ELEMENT_RESULT cvar_button_multi_option::input(SDL_Event& e)
 	}
 	return OPTION_ELEMENT_RESULT::CONTINUE;
 }
-bool cvar_button_multi_option::draw_buffer(float x, float y, float menu_w)
+bool cvar_button_multi_option::draw_buffer()
 {
 	ASSERT(state != NULL);
 	font_sprite_painter* font_painter = state->font_painter;
 
-	float font_padding = state->font_padding;
-	float element_padding = state->element_padding;
-
 	// the description text
 	{
-		float font_x = x + font_padding / 2.f;
-		float font_y = y + font_padding / 2.f;
-
 		font_painter->begin();
 		font_painter->set_style(FONT_STYLE_OUTLINE);
 		font_painter->set_color(0, 0, 0, 255);
@@ -446,13 +446,36 @@ bool cvar_button_multi_option::draw_buffer(float x, float y, float menu_w)
 		}
 		font_painter->end();
 	}
+	const char* text;
+	size_t text_size;
+	if(current_button_index == -1)
+	{
+		text = error_entry.name.c_str();
+		text_size = error_entry.name.size();
+	}
+	else
+	{
+		ASSERT(current_button_index < option_entries_size);
+		ASSERT(current_button_index >= 0);
+		text = option_entries[current_button_index].name.c_str();
+		text_size = option_entries[current_button_index].name.size();
+	}
+	return button.draw_buffer(text, text_size);
+}
 
-	ASSERT(current_button_index < option_entries_size);
-	const char* text = option_entries[current_button_index].name.c_str();
-	size_t text_size = option_entries[current_button_index].name.size();
+void cvar_button_multi_option::resize(float x, float y, float menu_w)
+{
+	ASSERT(state != NULL);
+	// font_sprite_painter* font_painter = state->font_painter;
+
+	float font_padding = state->font_padding;
+	float element_padding = state->element_padding;
+
+	font_x = x + font_padding / 2.f;
+	font_y = y + font_padding / 2.f;
+
 	float cur_x = x + (menu_w - element_padding) / 2 + element_padding;
 	button.set_rect(cur_x, y, (x + menu_w) - cur_x, element_height);
-	return button.draw_buffer(text, text_size);
 }
 
 bool cvar_button_multi_option::draw_requested()
@@ -481,8 +504,6 @@ bool cvar_button_multi_option::undo_changes()
 
 	if(value_changed)
 	{
-		// TODO: for special inherited cvar_int cvars like vsync & fullscreen
-		// I could try to implement a on_modify() virtual function (or *operator= )
 		if(!cvar->cvar_read(previous_cvar_value.c_str()))
 		{
 			return false;
@@ -498,6 +519,11 @@ bool cvar_button_multi_option::clear_history()
 	previous_cvar_value.clear();
 	value_changed = false;
 	return true;
+}
+bool cvar_button_multi_option::reload_cvars()
+{
+	ASSERT(state != NULL);
+	return find_current_index();
 }
 
 std::unique_ptr<abstract_option_element>
@@ -542,6 +568,9 @@ struct cvar_slider_option : public abstract_option_element
 
 	float element_height = -1;
 
+	float font_x = -1;
+	float font_y = -1;
+
 	NDSERR bool init(
 		shared_cvar_option_state* state_,
 		std::string label,
@@ -552,7 +581,8 @@ struct cvar_slider_option : public abstract_option_element
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
 	NDSERR OPTION_ELEMENT_RESULT input(SDL_Event& e) override;
-	NDSERR bool draw_buffer(float x, float y, float menu_w) override;
+	NDSERR bool draw_buffer() override;
+	void resize(float x, float y, float menu_w) override;
 	bool draw_requested() override;
 	NDSERR bool close() override
 	{
@@ -567,6 +597,7 @@ struct cvar_slider_option : public abstract_option_element
 	NDSERR bool set_default() override;
 	NDSERR bool undo_changes() override;
 	NDSERR bool clear_history() override;
+	NDSERR bool reload_cvars() override;
 };
 
 bool cvar_slider_option::init(
@@ -731,97 +762,16 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 
 			slider.set_value(cvar->data);
 		}
-#if 0
-		std::string prompt_text = prompt.get_string();
-		std::unique_ptr<char[]> error_buffer;
-		int error_buffer_len;
-
-		char* end_ptr;
-
-		pop_errno_t pop_errno;
-		double value = strtod(prompt_text.c_str(), &end_ptr);
-		if(errno == ERANGE)
-		{
-			error_buffer = unique_asprintf(
-				&error_buffer_len, "value out of range: \"%s\"\n", prompt_text.c_str());
-		}
-		if(end_ptr == prompt_text.c_str())
-		{
-			error_buffer = unique_asprintf(
-				&error_buffer_len, "value not valid numeric input: \"%s\"\n", prompt_text.c_str());
-		}
-
-		if(clamp_prompt && (value < min_value || value > max_value))
-		{
-			error_buffer = unique_asprintf(
-				&error_buffer_len,
-				"value out of specified range\n"
-				"value: %f\n"
-				"minimum: %f\n"
-				"maximum: %f",
-				value,
-				min_value,
-				max_value);
-
-			// clamp the value automatically.
-			modified = true;
-			value = std::min(max_value, std::max(min_value, value));
-			std::ostringstream oss;
-			int len;
-			std::unique_ptr<char[]> prompt_buffer = unique_asprintf(&len, "%f", value);
-			prompt.replace_string(std::string_view(prompt_buffer.get(), len), false);
-		}
-
-		if(error_buffer)
-		{
-			slogf("info: convert error: `%s`\n", error_buffer.get());
-			if(!state->error_prompt.init(state, std::string(error_buffer.get(), error_buffer_len)))
-			{
-				return OPTION_ELEMENT_RESULT::ERROR;
-			}
-			if(!state->set_focus(&state->error_prompt))
-			{
-				return OPTION_ELEMENT_RESULT::ERROR;
-			}
-		}
-		else
-		{
-			modified = true;
-		}
-
-		if(*end_ptr != '\0')
-		{
-			slogf("info: value extra characters on input: \"%s\"\n", prompt_text.c_str());
-		}
-
-		if(modified)
-		{
-			if(isnan(previous_value))
-			{
-				previous_value = cvar->data;
-			}
-			cvar->data = value;
-			slider.set_value(value);
-		}
-
-		slider.unfocus();
-#endif
 	}
 	return modified ? OPTION_ELEMENT_RESULT::MODIFIED : OPTION_ELEMENT_RESULT::CONTINUE;
 }
-bool cvar_slider_option::draw_buffer(float x, float y, float menu_w)
+bool cvar_slider_option::draw_buffer()
 {
 	ASSERT(state != NULL);
 	font_sprite_painter* font_painter = state->font_painter;
 
-	float font_padding = state->font_padding;
-	float element_padding = state->element_padding;
-
 	// the description text
 	{
-		float font_x = x + font_padding / 2.f;
-		float font_y = y + font_padding / 2.f;
-
 		font_painter->begin();
 		font_painter->set_style(FONT_STYLE_OUTLINE);
 		font_painter->set_color(0, 0, 0, 255);
@@ -841,20 +791,34 @@ bool cvar_slider_option::draw_buffer(float x, float y, float menu_w)
 		font_painter->end();
 	}
 
+	if(!prompt.draw())
+	{
+		return false;
+	}
+
+	slider.draw_buffer();
+
+	return true;
+}
+
+void cvar_slider_option::resize(float x, float y, float menu_w)
+{
+	ASSERT(state != NULL);
+	font_sprite_painter* font_painter = state->font_painter;
+
+	float font_padding = state->font_padding;
+	float element_padding = state->element_padding;
+
+	font_x = x + font_padding / 2.f;
+	font_y = y + font_padding / 2.f;
+
 	float cur_x = x + (menu_w - element_padding) / 2;
 
 	float prompt_width = 80 * (font_painter->get_lineskip() / 16.f);
 	prompt.set_bbox(
 		cur_x - prompt_width, y + font_padding / 2, prompt_width, font_painter->get_lineskip());
 
-	if(!prompt.draw())
-	{
-		return false;
-	}
 	slider.resize_view(cur_x + element_padding, (x + menu_w), y, y + element_height);
-	slider.draw_buffer();
-
-	return true;
 }
 
 bool cvar_slider_option::draw_requested()
@@ -902,6 +866,13 @@ bool cvar_slider_option::clear_history()
 	previous_value = NAN;
 	return true;
 }
+bool cvar_slider_option::reload_cvars()
+{
+	ASSERT(state != NULL);
+	slider.set_value(cvar->data);
+	prompt.replace_string(std::to_string(cvar->data).c_str());
+	return true;
+}
 
 // a slider + prompt for a floating point number
 // clamp will clamp numbers entered into the prompt.
@@ -930,12 +901,16 @@ struct cvar_prompt_option : public abstract_option_element
 
 	float element_height = -1;
 
+	float font_x = -1;
+	float font_y = -1;
+
 	NDSERR bool init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_);
 
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
 	NDSERR OPTION_ELEMENT_RESULT input(SDL_Event& e) override;
-	NDSERR bool draw_buffer(float x, float y, float menu_w) override;
+	NDSERR bool draw_buffer() override;
+	void resize(float x, float y, float menu_w) override;
 	bool draw_requested() override;
 	NDSERR bool close() override
 	{
@@ -950,6 +925,7 @@ struct cvar_prompt_option : public abstract_option_element
 	NDSERR bool set_default() override;
 	NDSERR bool undo_changes() override;
 	NDSERR bool clear_history() override;
+	NDSERR bool reload_cvars() override;
 };
 
 bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_)
@@ -1066,19 +1042,13 @@ OPTION_ELEMENT_RESULT cvar_prompt_option::input(SDL_Event& e)
 	}
 	return modified ? OPTION_ELEMENT_RESULT::MODIFIED : OPTION_ELEMENT_RESULT::CONTINUE;
 }
-bool cvar_prompt_option::draw_buffer(float x, float y, float menu_w)
+bool cvar_prompt_option::draw_buffer()
 {
 	ASSERT(state != NULL);
 	font_sprite_painter* font_painter = state->font_painter;
 
-	float font_padding = state->font_padding;
-	float element_padding = state->element_padding;
-
 	// the description text
 	{
-		float font_x = x + font_padding / 2.f;
-		float font_y = y + font_padding / 2.f;
-
 		font_painter->begin();
 		font_painter->set_style(FONT_STYLE_OUTLINE);
 		font_painter->set_color(0, 0, 0, 255);
@@ -1098,13 +1068,25 @@ bool cvar_prompt_option::draw_buffer(float x, float y, float menu_w)
 		font_painter->end();
 	}
 
+	return prompt.draw();
+}
+
+void cvar_prompt_option::resize(float x, float y, float menu_w)
+{
+	ASSERT(state != NULL);
+	font_sprite_painter* font_painter = state->font_painter;
+
+	float font_padding = state->font_padding;
+	float element_padding = state->element_padding;
+
+	font_x = x + font_padding / 2.f;
+	font_y = y + font_padding / 2.f;
+
 	float cur_x = x + (menu_w - element_padding) / 2;
 
 	float prompt_width = 80 * (font_painter->get_lineskip() / 16.f);
 	prompt.set_bbox(
 		cur_x + element_padding, y + font_padding / 2, prompt_width, font_painter->get_lineskip());
-
-	return prompt.draw();
 }
 
 bool cvar_prompt_option::draw_requested()
@@ -1156,6 +1138,12 @@ bool cvar_prompt_option::clear_history()
 	value_changed = false;
 	return true;
 }
+bool cvar_prompt_option::reload_cvars()
+{
+	ASSERT(state != NULL);
+	prompt.replace_string(cvar->cvar_write());
+	return true;
+}
 
 std::unique_ptr<abstract_option_element>
 	create_prompt_option(shared_cvar_option_state* state, std::string label, V_cvar* cvar)
@@ -1175,6 +1163,9 @@ struct cvar_keybind_option : public abstract_option_element
 	std::string label_text;
 	float element_height = -1;
 
+	float font_x = -1;
+	float font_y = -1;
+
 	keybind_state previous_key_value;
 	bool value_changed = false;
 	bool update_buffer = true;
@@ -1187,7 +1178,8 @@ struct cvar_keybind_option : public abstract_option_element
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
 	NDSERR OPTION_ELEMENT_RESULT input(SDL_Event& e) override;
-	NDSERR bool draw_buffer(float x, float y, float menu_w) override;
+	NDSERR bool draw_buffer() override;
+	void resize(float x, float y, float menu_w) override;
 	bool draw_requested() override;
 	NDSERR bool close() override
 	{
@@ -1198,6 +1190,7 @@ struct cvar_keybind_option : public abstract_option_element
 	NDSERR bool set_default() override;
 	NDSERR bool undo_changes() override;
 	NDSERR bool clear_history() override;
+	NDSERR bool reload_cvars() override;
 };
 
 bool cvar_keybind_option::init(
@@ -1256,19 +1249,13 @@ OPTION_ELEMENT_RESULT cvar_keybind_option::input(SDL_Event& e)
 	}
 	return OPTION_ELEMENT_RESULT::CONTINUE;
 }
-bool cvar_keybind_option::draw_buffer(float x, float y, float menu_w)
+bool cvar_keybind_option::draw_buffer()
 {
 	ASSERT(state != NULL);
 	font_sprite_painter* font_painter = state->font_painter;
 
-	float font_padding = state->font_padding;
-	float element_padding = state->element_padding;
-
 	// the description text
 	{
-		float font_x = x + font_padding / 2.f;
-		float font_y = y + font_padding / 2.f;
-
 		font_painter->begin();
 		font_painter->set_style(FONT_STYLE_OUTLINE);
 		font_painter->set_color(0, 0, 0, 255);
@@ -1288,9 +1275,6 @@ bool cvar_keybind_option::draw_buffer(float x, float y, float menu_w)
 		font_painter->end();
 	}
 
-	float cur_x = x + (menu_w - element_padding) / 2 + element_padding;
-	button.set_rect(cur_x, y, (x + menu_w) - cur_x, element_height);
-
 	if(!button.draw_buffer(button_text.c_str(), button_text.size()))
 	{
 		return false;
@@ -1299,6 +1283,20 @@ bool cvar_keybind_option::draw_buffer(float x, float y, float menu_w)
 	update_buffer = false;
 
 	return true;
+}
+
+void cvar_keybind_option::resize(float x, float y, float menu_w)
+{
+	ASSERT(state != NULL);
+
+	float font_padding = state->font_padding;
+	float element_padding = state->element_padding;
+
+	font_x = x + font_padding / 2.f;
+	font_y = y + font_padding / 2.f;
+
+	float cur_x = x + (menu_w - element_padding) / 2 + element_padding;
+	button.set_rect(cur_x, y, (x + menu_w) - cur_x, element_height);
 }
 
 bool cvar_keybind_option::draw_requested()
@@ -1342,6 +1340,12 @@ bool cvar_keybind_option::clear_history()
 {
 	ASSERT(state != NULL);
 	value_changed = false;
+	return true;
+}
+bool cvar_keybind_option::reload_cvars()
+{
+	ASSERT(state != NULL);
+	button_text = cvar->cvar_write();
 	return true;
 }
 

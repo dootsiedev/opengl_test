@@ -23,7 +23,8 @@ struct abstract_option_element
 {
 	NDSERR virtual bool update(double delta_sec) = 0;
 	NDSERR virtual OPTION_ELEMENT_RESULT input(SDL_Event& e) = 0;
-	NDSERR virtual bool draw_buffer(float x, float y, float menu_w) = 0;
+	NDSERR virtual bool draw_buffer() = 0;
+	virtual void resize(float x, float y, float menu_w) = 0;
 	virtual bool draw_requested() = 0;
 	// reset to default state (if there is any)
 	// you don't need to clear the history, or treat this as set_hidden_event.
@@ -34,6 +35,9 @@ struct abstract_option_element
 	NDSERR virtual bool set_default() = 0;
 	NDSERR virtual bool undo_changes() = 0;
 	NDSERR virtual bool clear_history() = 0;
+	// deal with the fact that cvars that changed (like from the console) wont be displayed
+	// called before you open the menu.
+	NDSERR virtual bool reload_cvars() = 0;
 
 	virtual ~abstract_option_element() = default;
 };
@@ -78,22 +82,22 @@ struct option_error_prompt : public abstract_focus_element
 	shared_cvar_option_state* state = NULL;
 
 	// needs a independant painter because I need newlines, and the global one shouldn't have it.
-	//font_sprite_painter font_painter;
+	// font_sprite_painter font_painter;
 
 	// maybe if the message was a serr message,
 	// I would use a prompt to allow selection, and a button for "copy to clipboard",
 	// because serr is more of a programmer diagnostic and not comprehensible.
-	//std::string display_message;
-    text_prompt_wrapper prompt;
+	// std::string display_message;
+	text_prompt_wrapper prompt;
 
 	std::string ok_button_text;
 	mono_button_object ok_button;
 
 	GLint gl_batch_buffer_offset = -1;
 	GLsizei gl_batch_vertex_count = 0;
-    GLsizei gl_batch_vertex_scroll_count = 0;
+	GLsizei gl_batch_vertex_scroll_count = 0;
 
-    float edge_padding = 100;
+	float edge_padding = 100;
 
 	// the dimensions of the whole backdrop
 	float box_xmin = -1;
@@ -135,9 +139,6 @@ struct option_keybind_request : public abstract_focus_element
 	bool update_buffer = true;
 
 	cvar_keybind_option* option_state = NULL;
-	// cvar_key_bind* keybind = NULL;
-	// keybind_state* prev_value = NULL;
-	// bool* value_changed = NULL;
 
 	// maybe if the message was a serr message,
 	// I would use a prompt to allow selection, and a button for "copy to clipboard",
@@ -237,7 +238,7 @@ struct multi_option_entry
 {
 	// the value stored here will be MOVED out.
 	std::string name;
-	const char* cvar_value;
+	const char* cvar_value = NULL;
 };
 
 // note that this will use cvar_write and cvar_read for all modifications,
@@ -250,21 +251,15 @@ std::unique_ptr<abstract_option_element> create_multi_option(
 	multi_option_entry* entries);
 
 // a prompt with a string or whatever you want.
-std::unique_ptr<abstract_option_element> create_prompt_option(
-	shared_cvar_option_state* state,
-	std::string label,
-	V_cvar* cvar);
+std::unique_ptr<abstract_option_element>
+	create_prompt_option(shared_cvar_option_state* state, std::string label, V_cvar* cvar);
 
 // a slider + prompt for a floating point number
 // clamp will clamp numbers entered into the prompt.
-// TODO: I feel like the cvar should have it's internal min/max, 
+// TODO: I feel like the cvar should have it's internal min/max,
 // so I don't need "clamp", and the console should also give an error.
 std::unique_ptr<abstract_option_element> create_slider_option(
-	shared_cvar_option_state* state,
-	std::string label,
-	cvar_double* cvar,
-	double min,
-	double max);
+	shared_cvar_option_state* state, std::string label, cvar_double* cvar, double min, double max);
 
 std::unique_ptr<abstract_option_element>
 	create_keybind_option(shared_cvar_option_state* state, std::string label, cvar_key_bind* cvar);

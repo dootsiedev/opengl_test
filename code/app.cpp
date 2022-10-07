@@ -110,7 +110,7 @@ const char* emscripten_result_to_string(EMSCRIPTEN_RESULT result)
 	return "Unknown EMSCRIPTEN_RESULT!";
 }
 
-EM_BOOL on_canvassize_changed(int eventType, const void* reserved, void* userData)
+EM_BOOL on_canvassize_changed(int, const void*, void*)//(int eventType, const void* reserved, void* userData)
 {
 	int w, h;
 	EMSCRIPTEN_RESULT em_ret = emscripten_get_canvas_element_size("#canvas", &w, &h);
@@ -204,6 +204,22 @@ extern void enter_fullscreen()
 		slogf("SDL_SetWindowFullscreen Error: %s", SDL_GetError());
 	}
 }
+
+#if 0
+
+//returns 1 if the event was eaten
+extern int paste_clipboard()
+{
+}
+//returns 1 if the event was eaten
+extern int copy_clipboard()
+{
+}
+//returns 1 if the event was eaten
+extern int cut_clipboard()
+{
+}
+#endif
 }
 
 const char* fullscreen_button_string = "#fullscreen_button";

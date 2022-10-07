@@ -66,8 +66,8 @@ bool options_tree_state::init(
 			&shared_menu_state, "startup screen width", &cv_startup_screen_width));
 		back.add_option(create_prompt_option(
 			&shared_menu_state, "startup screen height", &cv_startup_screen_height));
-        // TODO: add a new option that is a one_shot button
-        // so that I can add in a "resize window", for people who want a specific resolution
+		// TODO: add a new option that is a one_shot button
+		// so that I can add in a "resize window", for people who want a specific resolution
 
 		if(!back.good())
 		{
@@ -87,12 +87,12 @@ bool options_tree_state::init(
 		back.button.init(&font_painter);
 
 		back.add_option(create_bool_option(&shared_menu_state, "invert mouse", &cv_mouse_invert));
-		back.add_option(create_slider_option(
-			&shared_menu_state, "mouse speed", &cv_mouse_sensitivity, 0, 1));
-		back.add_option(create_slider_option(
-			&shared_menu_state, "scroll speed", &cv_scroll_speed, 0, 10));
-		back.add_option(create_slider_option(
-			&shared_menu_state, "camera speed", &cv_camera_speed, 0, 100));
+		back.add_option(
+			create_slider_option(&shared_menu_state, "mouse speed", &cv_mouse_sensitivity, 0, 1));
+		back.add_option(
+			create_slider_option(&shared_menu_state, "camera speed", &cv_camera_speed, 0, 100));
+		back.add_option(
+			create_slider_option(&shared_menu_state, "scroll speed", &cv_scroll_speed, 0, 10));
 		// TODO: would be smart to have a dummy entry that is just text which says "key binds"
 		back.add_option(
 			create_keybind_option(&shared_menu_state, "bind forward", &cv_bind_move_forward));
@@ -262,6 +262,15 @@ bool options_tree_state::tree_render()
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 
+bool options_tree_state::refresh()
+{
+	if(current_menu_index != -1)
+	{
+		return menus.at(current_menu_index).menu_state.refresh();
+	}
+	return true;
+}
+
 OPTIONS_MENU_RESULT options_tree_state::input(SDL_Event& e)
 {
 	if(current_menu_index == -1)
@@ -287,6 +296,10 @@ OPTIONS_MENU_RESULT options_tree_state::input(SDL_Event& e)
 			set_event_resize(fake_event);
 			if(menus.at(current_menu_index).menu_state.input(fake_event) ==
 			   OPTIONS_MENU_RESULT::ERROR)
+			{
+				return OPTIONS_MENU_RESULT::ERROR;
+			}
+			if(!menus.at(current_menu_index).menu_state.refresh())
 			{
 				return OPTIONS_MENU_RESULT::ERROR;
 			}

@@ -81,5 +81,7 @@ struct options_tree_state
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool tree_render();
 
+    NDSERR bool refresh();
+
 	void tree_resize_view();
 };

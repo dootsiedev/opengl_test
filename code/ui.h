@@ -39,14 +39,13 @@
 void set_event_leave(SDL_Event& e);
 
 // set_event_unfocus
+// makes more sense if it was set_event_eat
 // converts the event to SDL_WINDOWEVENT_FOCUS_LOST
 // I use this to remove "input focus" from elements,
-// this has one job, which is to prevent an event
-// from being eaten multiple times
+// this has two jobs, prevent an event from being eaten (used) multiple times, 
+// and remove keyboard focus from elements that are processed AFTER this element.
+// (for elements before THIS element, non colliding LMB DOWN will remove focus)
 // NOTE: this only sets the type, so don't access any values.
-// this is used when you want to eat an input,
-// and force other elements with text focus to lose focus.
-// this does require all elements to handle this event.
 void set_event_unfocus(SDL_Event& e);
 
 // set_event_resize
@@ -65,6 +64,18 @@ void set_event_resize(SDL_Event& e);
 // this is basically set_event_leave + set_event_unfocus
 // NOTE: this only sets the type, so don't access any values.
 void set_event_hidden(SDL_Event& e);
+
+// with scrollable areas, if the mouse is hovering over a clipped area,
+// I will set the event for all elements inside the scroll area
+// to set the window id to CLIPPED_MOUSE_BUTTON_COORD
+// for SDL_MOUSEBUTTONUP and SDL_MOUSEBUTTONDOWN and SDL_MOUSEMOTION
+// it's a ugly hack. and you may need to handle this special case.
+enum
+{
+	CLIPPED_WINDOW_ID = 0
+};
+
+bool is_mouse_event_clipped(SDL_Event& e);
 
 enum class BUTTON_RESULT
 {
@@ -146,6 +157,12 @@ struct mono_button_object
 	NDSERR bool draw_buffer(const char* button_text, size_t button_text_len);
 };
 
+enum class SCROLLABLE_AREA_RETURN
+{
+	CONTINUE,
+	MODIFIED
+};
+
 // renders the scroll bar
 // only y scrollable because the design looks bad with an x axis.
 // and I think using an x axis without text is silly
@@ -200,7 +217,7 @@ struct mono_y_scrollable_area
 	// warning, this will only eat the scrollbar thumb being clicked,
 	// the area set with resize_view will not eat click events (clicks go through)
 	// so remember to catch backdrop clicks yourself.
-	void input(SDL_Event& e);
+	SCROLLABLE_AREA_RETURN input(SDL_Event& e);
 
 	void draw_buffer();
 	bool draw_requested() const

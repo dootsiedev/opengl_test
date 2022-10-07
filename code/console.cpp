@@ -576,6 +576,7 @@ bool console_state::update(double delta_sec)
 				}
 			}
 			log_box.set_readonly(false);
+            // TODO: this causes the selection to be bugged out...
 			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 			log_box.stb_delete_chars(0, std::distance(log_box.text_data.begin(), trim_cursor));
 			log_box.set_readonly(true);

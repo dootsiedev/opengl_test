@@ -124,6 +124,99 @@ static EM_BOOL on_mouse_callback(int eventType, const EmscriptenMouseEvent* e, v
 	slogf("%s: unhandled type\n", __func__);
 	return 0;
 }
+
+// exported functions called by JS
+// CTRL+C, CTRL+V, and CTRL+X will manually trigger these through "keydown" events
+// all return 1 if the event was eaten, 0 if nothing (MAYBE -1 for an error, but for what purpose?)
+
+// I don't really have a choice
+static demo_state* em_global_demo = NULL;
+extern "C" {
+extern int32_t paste_clipboard(const char* text)
+{
+	// slogf("pasted: %s\n", text);
+	{
+		if(SDL_SetClipboardText(text) != 0)
+		{
+			slogf("info: Failed to set clipboard! SDL Error: %s\n", SDL_GetError());
+		}
+	}
+	if(em_global_demo == NULL)
+	{
+		return 0;
+	}
+	SDL_Event fake_event;
+	fake_event.type = SDL_KEYDOWN;
+	fake_event.key.state = SDL_PRESSED;
+	fake_event.key.repeat = 0;
+	fake_event.key.keysym.sym = SDLK_v;
+	fake_event.key.keysym.mod = KMOD_CTRL;
+	fake_event.key.keysym.scancode = SDL_SCANCODE_UNKNOWN;
+	em_global_demo->input(fake_event);
+	if(fake_event.type != SDL_KEYDOWN)
+	{
+		// eaten
+		return 1;
+	}
+	return 0;
+}
+extern char* copy_clipboard()
+{
+	if(em_global_demo == NULL)
+	{
+		return NULL;
+	}
+	SDL_Event fake_event;
+	fake_event.type = SDL_KEYDOWN;
+	fake_event.key.state = SDL_PRESSED;
+	fake_event.key.repeat = 0;
+	fake_event.key.keysym.sym = SDLK_c;
+	fake_event.key.keysym.mod = KMOD_CTRL;
+	fake_event.key.keysym.scancode = SDL_SCANCODE_UNKNOWN;
+	em_global_demo->input(fake_event);
+	if(fake_event.type != SDL_KEYDOWN)
+	{
+		char* text = SDL_GetClipboardText();
+		if(text == NULL)
+		{
+			slogf("info: Failed to get clipboard! SDL Error: %s\n", SDL_GetError());
+			return NULL;
+		}
+		// slogf("copied:`%s`\n", text);
+		// eaten
+		return text;
+	}
+	return NULL;
+}
+// same as copy but it's cut
+extern char* cut_clipboard()
+{
+	if(em_global_demo == NULL)
+	{
+		return NULL;
+	}
+	SDL_Event fake_event;
+	fake_event.type = SDL_KEYDOWN;
+	fake_event.key.state = SDL_PRESSED;
+	fake_event.key.repeat = 0;
+	fake_event.key.keysym.sym = SDLK_x;
+	fake_event.key.keysym.mod = KMOD_CTRL;
+	fake_event.key.keysym.scancode = SDL_SCANCODE_UNKNOWN;
+	em_global_demo->input(fake_event);
+	if(fake_event.type != SDL_KEYDOWN)
+	{
+		char* text = SDL_GetClipboardText();
+		if(text == NULL)
+		{
+			slogf("info: Failed to get clipboard! SDL Error: %s\n", SDL_GetError());
+			return NULL;
+		}
+		// eaten
+		return text;
+	}
+	return NULL;
+}
+}
 #endif
 
 REGISTER_CVAR_DOUBLE(
@@ -348,6 +441,8 @@ bool demo_state::init()
 	}
 
 #ifdef __EMSCRIPTEN__
+	em_global_demo = this;
+
 #if 0    
 EMSCRIPTEN_RESULT em_ret = emscripten_set_pointerlockchange_callback("#canvas", 0, 0, on_pointerlockchange);
     if (em_ret != EMSCRIPTEN_RESULT_SUCCESS)
@@ -824,7 +919,7 @@ bool demo_state::input(SDL_Event& e)
 		SDL_SetWindowSize(
 			g_app.window, cv_startup_screen_width.data, cv_startup_screen_height.data);
 		// eat
-		set_event_unfocus(e);
+		// set_event_unfocus(e);
 	}
 
 	// TIMER_U t1 = timer_now();
@@ -874,68 +969,18 @@ bool demo_state::input(SDL_Event& e)
 		}
 	}
 
-	if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-	{
-		// eat
-		set_event_unfocus(e);
-		// unfocus ALL
-		if(!input(e))
-		{
-			return false;
-		}
-		show_console = !show_console;
-		SDL_Event e2;
-		if(show_console)
-		{
-			g_console.focus();
-			set_event_resize(e2);
-		}
-		else
-		{
-			set_event_hidden(e2);
-		}
-        if(g_console.input(e2) == CONSOLE_RESULT::ERROR)
-        {
-            return false;
-        }
-		
-	}
-	else if(show_console)
+	if(show_console)
 	{
 		switch(g_console.input(e))
 		{
+			// TODO: if the console opened automatically from an error, I would want to display a
+			// close button.
 		case CONSOLE_RESULT::CONTINUE: break;
 		case CONSOLE_RESULT::ERROR: return false;
 		}
 	}
 
-	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-	{
-		// eat
-		set_event_unfocus(e);
-		// unfocus ALL
-		if(!input(e))
-		{
-			return false;
-		}
-		// this isn't a toggle. only open, press escape or click close.
-		show_options = !show_options;
-		// force resize.
-		SDL_Event e2;
-		if(show_options)
-		{
-			set_event_resize(e2);
-		}
-		else
-		{
-			set_event_hidden(e2);
-		}
-		if(option_menu.input(e2) == OPTIONS_MENU_RESULT::ERROR)
-		{
-			return false;
-		}
-	}
-	else if(show_options)
+	if(show_options)
 	{
 		switch(option_menu.input(e))
 		{
@@ -946,6 +991,67 @@ bool demo_state::input(SDL_Event& e)
 			return true;
 		case OPTIONS_MENU_RESULT::ERROR: return false;
 		}
+	}
+
+	if(cv_bind_open_console.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+		SDL_Event fake_event;
+		// unfocus ALL
+		set_event_unfocus(fake_event);
+		// TODO: I could probably make this be triggered by adding a new input enum return?
+		if(!input(fake_event))
+		{
+			return false;
+		}
+		show_console = !show_console;
+		if(show_console)
+		{
+			// focus for the text input.
+			g_console.focus();
+			set_event_resize(fake_event);
+		}
+		else
+		{
+			set_event_hidden(fake_event);
+		}
+		if(g_console.input(fake_event) == CONSOLE_RESULT::ERROR)
+		{
+			return false;
+		}
+		// eat
+		set_event_unfocus(e);
+	}
+
+	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+	{
+		SDL_Event fake_event;
+		// unfocus ALL
+		set_event_unfocus(fake_event);
+		if(!input(fake_event))
+		{
+			return false;
+		}
+		// this isn't a toggle. only open, press escape or click close.
+		show_options = !show_options;
+		// force resize.
+		if(show_options)
+		{
+			if(!option_menu.refresh())
+			{
+				return false;
+			}
+			set_event_resize(fake_event);
+		}
+		else
+		{
+			set_event_hidden(fake_event);
+		}
+		if(option_menu.input(fake_event) == OPTIONS_MENU_RESULT::ERROR)
+		{
+			return false;
+		}
+		// eat
+		set_event_unfocus(e);
 	}
 
 	// start demo input
@@ -988,7 +1094,7 @@ bool demo_state::input(SDL_Event& e)
 			// will happen if this was not called in the correct handler. if true(1), it will
 			// attempt the request when the next time the handler is activated (the mouse button
 			// handler), which is janky.
-			EMSCRIPTEN_RESULT em_ret = emscripten_request_pointerlock("#canvas", 1);
+			em_ret = emscripten_request_pointerlock("#canvas", 1);
 			if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
 			{
 				slogf(

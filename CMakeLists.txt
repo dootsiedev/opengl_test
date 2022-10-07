@@ -360,6 +360,28 @@ endif()
 
 
 #
+# EMSCRIPTEN
+#
+if(EMSCRIPTEN)
+    #NOTE: for USE_ASAN I need -sINITIAL_MEMORY=159391744, and it only works when I use CMAKE_EXE_LINKER_FLAGS
+    #TODO: removing NDEBUG isn't enough to enable asserts for some reason. So don't use RelWithDebInfo, use Debug...
+    set(CMAKE_EXECUTABLE_SUFFIX ".html")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --preload-file ../pointsprite/demo_files@/ --shell-file ../pointsprite/demo_code/wasm_index.html")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sEXPORTED_FUNCTIONS=_main,_enter_fullscreen,_paste_clipboard,_copy_clipboard,_cut_clipboard -sEXPORTED_RUNTIME_METHODS=ccall,cwrap")
+    if(USE_OLD_SDL2)
+        # emscripten actually uses the newest SDL2 version
+        # but I repurpose USE_OLD_SDL2 to equal "let emscripten automatically build SDL2"
+        # it's stupid.
+        # the reason I do this is because I build SDL2 with MinSizeRel
+        # note that you probably want to call emcc --clear-ports to remove the port before building SDL2
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sUSE_SDL=2")
+    endif()
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sFULL_ES3")
+else()
+endif()
+
+
+#
 # start of project
 #
 
@@ -449,28 +471,6 @@ if(MSVC)
     endif()
 endif()
 
-
-#
-# EMSCRIPTEN
-#
-if(EMSCRIPTEN)
-    #NOTE: for USE_ASAN I need -sINITIAL_MEMORY=159391744, and it only works when I use CMAKE_EXE_LINKER_FLAGS
-    #TODO: removing NDEBUG isn't enough to enable asserts for some reason. So don't use RelWithDebInfo, use Debug...
-    set(CMAKE_EXECUTABLE_SUFFIX ".html")
-    #preload just doesn't work unless I do it for CMAKE_EXE_LINKER_FLAGS ????
-    #set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "--preload-file ../data_folder@/)
-    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sEXPORTED_FUNCTIONS=_main,_enter_fullscreen -sEXPORTED_RUNTIME_METHODS=ccall,cwrap")
-    if(USE_OLD_SDL2)
-        # emscripten actually uses the newest SDL2 version
-        # but I repurpose USE_OLD_SDL2 to equal "let emscripten automatically build SDL2"
-        # it's stupid.
-        # the reason I do this is because I build SDL2 with MinSizeRel
-        # note that you probably want to call emcc --clear-ports to remove the port before building SDL2
-        set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sUSE_SDL=2")
-    endif()
-    set_target_properties(${PROJECT_NAME} PROPERTIES LINK_FLAGS "-sFULL_ES3")
-else()
-endif()
 
 #
 # SDL2

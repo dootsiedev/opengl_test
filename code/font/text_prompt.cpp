@@ -1321,9 +1321,12 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				mouse_held = false;
 				drag_x = -1;
 				drag_y = -1;
-				scroll_to_cursor = true;
-				stb_textedit_drag(this, &stb_state, mouse_x, mouse_y);
-				update_buffer = true;
+                if(!is_mouse_event_clipped(e))
+                {
+                    scroll_to_cursor = true;
+                    stb_textedit_drag(this, &stb_state, mouse_x, mouse_y);
+                    update_buffer = true;
+                }
 				// eat
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
@@ -1333,8 +1336,11 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				ASSERT(text_focus);
 				y_scrollbar_held = false;
-				internal_scroll_y_to(mouse_y);
-				update_buffer = true;
+                if(!is_mouse_event_clipped(e))
+                {
+                    internal_scroll_y_to(mouse_y);
+                    update_buffer = true;
+                }
 				// eat
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
@@ -1343,8 +1349,11 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				ASSERT(text_focus);
 				x_scrollbar_held = false;
-				internal_scroll_x_to(mouse_x);
-				update_buffer = true;
+                if(!is_mouse_event_clipped(e))
+                {
+                    internal_scroll_x_to(mouse_x);
+                    update_buffer = true;
+                }
 				// eat
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
@@ -1374,6 +1383,15 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 	case SDL_MOUSEBUTTONDOWN:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
+            if(is_mouse_event_clipped(e))
+            {
+                if(text_focus)
+			    {
+                    unfocus();
+                    return TEXT_PROMPT_RESULT::UNFOCUS;
+                }
+                break;
+            }
 			float mouse_x = static_cast<float>(e.button.x);
 			float mouse_y = static_cast<float>(e.button.y);
 

@@ -46,6 +46,8 @@ struct options_list_state
 
 	NDSERR bool init(shared_cvar_option_state* shared_state_);
 
+	void resize_view();
+
 	NDSERR OPTIONS_MENU_RESULT input(SDL_Event& e);
 
 	// draw the backdrop and footer
@@ -59,7 +61,8 @@ struct options_list_state
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();
 
-	void resize_view();
+    NDSERR bool refresh();
+
 
 	NDSERR bool undo_history();
 	NDSERR bool clear_history();

@@ -33,6 +33,83 @@ bool options_list_state::init(shared_cvar_option_state* shared_state_)
 	return true;
 }
 
+void options_list_state::resize_view()
+{
+	font_sprite_painter* font_painter = shared_state->font_painter;
+
+	float font_padding = shared_state->font_padding;
+	float element_padding = shared_state->element_padding;
+
+	float button_height = font_painter->get_lineskip() + font_padding;
+	float footer_height = button_height;
+	float window_edge_padding = 60;
+
+	float screen_width = static_cast<float>(cv_screen_width.data);
+	float screen_height = static_cast<float>(cv_screen_height.data);
+
+	// for a 16px font I would want 400px
+	float menu_width = std::min(
+		400 * (font_painter->get_lineskip() / 16.f), screen_width - window_edge_padding * 2);
+
+	float button_area_height = 0;
+
+	for(auto& entry : option_entries)
+	{
+		button_area_height += entry->get_height() + element_padding;
+	}
+
+	scroll_state.content_h = button_area_height - element_padding;
+	// the footer has element_padding, but button_area_height needs to be trimmed by element_padding
+	// so it cancels itself out.
+	float menu_height =
+		std::min(button_area_height + footer_height, screen_height - window_edge_padding * 2);
+	float x = std::floor((screen_width - menu_width) / 2.f);
+	float y = std::floor((screen_height - menu_height) / 2.f);
+
+	// footer buttons
+	{
+		// for a 16px font I would want 60px
+		float button_width = 60 * (font_painter->get_lineskip() / 16.f);
+
+		float x_cursor = x + menu_width;
+		x_cursor -= button_width;
+		ok_button.set_rect(x_cursor, y + menu_height - footer_height, button_width, button_height);
+		x_cursor -= button_width + element_padding;
+		revert_button.set_rect(
+			x_cursor, y + menu_height - footer_height, button_width, button_height);
+		// note I double the width here
+		x_cursor -= (button_width * 2) + element_padding;
+		defaults_button.set_rect(
+			x_cursor, y + menu_height - footer_height, button_width * 2, button_height);
+	}
+
+	box_xmin = x - element_padding;
+	box_xmax = x + menu_width + element_padding;
+	box_ymin = y - element_padding;
+	box_ymax = y + menu_height + element_padding;
+
+	scroll_state.resize_view(
+		box_xmin + element_padding,
+		box_xmax - element_padding,
+		box_ymin + element_padding,
+		box_ymax - (footer_height + element_padding) - element_padding);
+
+	float scroll_width = scroll_state.box_inner_xmax - scroll_state.box_xmin;
+	float cur_y = scroll_state.box_ymin - scroll_state.scroll_y;
+	for(auto& entry : option_entries)
+	{
+		entry->resize(scroll_state.box_xmin, cur_y, scroll_width);
+		cur_y += entry->get_height() + element_padding;
+	}
+
+	if(shared_state->focus_element != NULL)
+	{
+		shared_state->focus_element->resize_view();
+	}
+
+	update_buffer = true;
+}
+
 OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 {
 	switch(e.type)
@@ -50,12 +127,18 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 		{
 		case FOCUS_ELEMENT_RESULT::CONTINUE: break;
 		case FOCUS_ELEMENT_RESULT::CLOSE:
-			shared_state->set_focus(NULL);
+			if(!shared_state->set_focus(NULL))
+            {
+                return OPTIONS_MENU_RESULT::ERROR;
+            }
 			// eat
 			set_event_leave(e);
 			break;
 		case FOCUS_ELEMENT_RESULT::MODIFIED:
-			shared_state->set_focus(NULL);
+			if(!shared_state->set_focus(NULL))
+            {
+                return OPTIONS_MENU_RESULT::ERROR;
+            }
 			revert_button.set_disabled(false);
 			break;
 		case FOCUS_ELEMENT_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
@@ -64,7 +147,19 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 
 	// scroll
 
-	scroll_state.input(e);
+	if(scroll_state.input(e) == SCROLLABLE_AREA_RETURN::MODIFIED)
+	{
+		resize_view();
+		/*float scroll_width = scroll_state.box_inner_xmax - scroll_state.box_xmin;
+		float cur_y = scroll_state.box_ymin - scroll_state.scroll_y;
+		for(auto& entry : option_entries)
+		{
+			entry->resize(scroll_state.box_xmin, cur_y, scroll_width);
+			cur_y += entry->get_height() + shared_state->element_padding;
+		}
+		*/
+		update_buffer = true;
+	}
 
 	float scroll_xmin = scroll_state.box_xmin;
 	float scroll_xmax = scroll_state.box_xmax;
@@ -83,15 +178,20 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 		if(!(scroll_ymax >= mouse_y && scroll_ymin <= mouse_y && scroll_xmax >= mouse_x &&
 			 scroll_xmin <= mouse_x))
 		{
-			// un hover all the elements.
-			SDL_Event e2;
-			set_event_leave(e2);
+			SDL_Event fake_event = e;
+
+			fake_event.motion.windowID = CLIPPED_WINDOW_ID;
 			for(auto& entry : option_entries)
 			{
-				if(entry->input(e2) == OPTION_ELEMENT_RESULT::ERROR)
+				if(entry->input(fake_event) == OPTION_ELEMENT_RESULT::ERROR)
 				{
 					return OPTIONS_MENU_RESULT::ERROR;
 				}
+			}
+			// if the event has been eaten.
+			if(fake_event.type != e.type)
+			{
+				e = fake_event;
 			}
 			// skip the buttons motion event.
 			clip_scrollbox = true;
@@ -116,14 +216,18 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 			{
 				SDL_Event fake_event = e;
 
-				fake_event.button.x = 999999;
-				fake_event.button.y = 999999;
+				fake_event.button.windowID = CLIPPED_WINDOW_ID;
 				for(auto& entry : option_entries)
 				{
 					if(entry->input(fake_event) == OPTION_ELEMENT_RESULT::ERROR)
 					{
 						return OPTIONS_MENU_RESULT::ERROR;
 					}
+				}
+				// if the event has been eaten.
+				if(fake_event.type != e.type)
+				{
+					e = fake_event;
 				}
 				// skip the buttons.
 				clip_scrollbox = true;
@@ -293,8 +397,6 @@ bool options_list_state::draw_menu()
 
 bool options_list_state::draw_scroll()
 {
-	// for a 16px font I would want 400px
-	float menu_width = scroll_state.box_inner_xmax - scroll_state.box_xmin;
 	float cur_y = scroll_state.box_ymin - scroll_state.scroll_y;
 
 	float scroll_ymin = scroll_state.box_ymin;
@@ -302,21 +404,19 @@ bool options_list_state::draw_scroll()
 
 	for(auto& entry : option_entries)
 	{
-		// too high
 		if(scroll_ymin >= cur_y + entry->get_height())
 		{
+			// too high
 		}
-		else
+
+		else if(scroll_ymax <= cur_y)
 		{
 			// too low
-			if(scroll_ymax <= cur_y)
-			{
-				break;
-			}
-			if(!entry->draw_buffer(scroll_state.box_xmin, cur_y, menu_width))
-			{
-				return false;
-			}
+			break;
+		}
+		if(!entry->draw_buffer())
+		{
+			return false;
 		}
 		cur_y += entry->get_height() + shared_state->element_padding;
 	}
@@ -339,13 +439,27 @@ bool options_list_state::render()
 		}
 	}
 
+	float cur_y = scroll_state.box_ymin - scroll_state.scroll_y;
+	float scroll_ymin = scroll_state.box_ymin;
+	float scroll_ymax = scroll_state.box_ymax;
 	for(auto& entry : option_entries)
 	{
+		if(scroll_ymin >= cur_y + entry->get_height())
+		{
+			// too high
+		}
+
+		else if(scroll_ymax <= cur_y)
+		{
+			// too low
+			break;
+		}
 		if(entry->draw_requested())
 		{
 			update_buffer = true;
 			break;
 		}
+		cur_y += entry->get_height() + shared_state->element_padding;
 	}
 	update_buffer = update_buffer || ok_button.draw_requested();
 	update_buffer = update_buffer || revert_button.draw_requested();
@@ -356,6 +470,7 @@ bool options_list_state::render()
 	// upload the data to the GPU
 	if(update_buffer)
 	{
+		// slogf(".");
 		batcher->clear();
 
 		if(!draw_menu())
@@ -443,72 +558,16 @@ bool options_list_state::render()
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 
-void options_list_state::resize_view()
+bool options_list_state::refresh()
 {
-	font_sprite_painter* font_painter = shared_state->font_painter;
-
-	float font_padding = shared_state->font_padding;
-	float element_padding = shared_state->element_padding;
-
-	float button_height = font_painter->get_lineskip() + font_padding;
-	float footer_height = button_height;
-	float window_edge_padding = 60;
-
-	float screen_width = static_cast<float>(cv_screen_width.data);
-	float screen_height = static_cast<float>(cv_screen_height.data);
-
-	// for a 16px font I would want 400px
-	float menu_width = std::min(
-		400 * (font_painter->get_lineskip() / 16.f), screen_width - window_edge_padding * 2);
-
-	float button_area_height = 0;
 	for(auto& entry : option_entries)
 	{
-		button_area_height += entry->get_height() + element_padding;
+		if(!entry->reload_cvars())
+		{
+			return false;
+		}
 	}
-
-	scroll_state.content_h = button_area_height - element_padding;
-	// the footer has element_padding, but button_area_height needs to be trimmed by element_padding
-	// so it cancels itself out.
-	float menu_height =
-		std::min(button_area_height + footer_height, screen_height - window_edge_padding * 2);
-	float x = std::floor((screen_width - menu_width) / 2.f);
-	float y = std::floor((screen_height - menu_height) / 2.f);
-
-	// footer buttons
-	{
-		// for a 16px font I would want 60px
-		float button_width = 60 * (font_painter->get_lineskip() / 16.f);
-
-		float x_cursor = x + menu_width;
-		x_cursor -= button_width;
-		ok_button.set_rect(x_cursor, y + menu_height - footer_height, button_width, button_height);
-		x_cursor -= button_width + element_padding;
-		revert_button.set_rect(
-			x_cursor, y + menu_height - footer_height, button_width, button_height);
-		// note I double the width here
-		x_cursor -= (button_width * 2) + element_padding;
-		defaults_button.set_rect(
-			x_cursor, y + menu_height - footer_height, button_width * 2, button_height);
-	}
-
-	box_xmin = x - element_padding;
-	box_xmax = x + menu_width + element_padding;
-	box_ymin = y - element_padding;
-	box_ymax = y + menu_height + element_padding;
-
-	scroll_state.resize_view(
-		box_xmin + element_padding,
-		box_xmax - element_padding,
-		box_ymin + element_padding,
-		box_ymax - (footer_height + element_padding) - element_padding);
-
-	if(shared_state->focus_element != NULL)
-	{
-		shared_state->focus_element->resize_view();
-	}
-
-	update_buffer = true;
+	return true;
 }
 
 bool options_list_state::undo_history()
@@ -554,6 +613,8 @@ bool options_list_state::set_defaults()
 
 	// allow revert
 	revert_button.set_disabled(false);
+
+	update_buffer = true;
 
 	return true;
 }
