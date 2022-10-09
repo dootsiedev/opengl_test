@@ -14,6 +14,8 @@
 //#include <charconv>
 
 // TODO: make each cvar type have a name, so when you get an error or whatever, you can see the type it expects.
+// TODO: I can still modify startup cvar values, because of "soft reboot", 
+// but I should store the value and load it later because it can sometimes cause bugs.
 
 std::map<const char*, V_cvar&, cmp_str>& get_convars()
 {
@@ -222,7 +224,7 @@ int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
 				slogf("warning: cvar must be set on startup to take effect: `%s`\n", name);
                 // TODO: some way to write the cvar into a startup file?
                 // maybe even a way to completely restart without forcing an exit?
-			    ignore = true;
+			    //ignore = true;
 				break;
 			}
 			[[fallthrough]];

@@ -51,8 +51,8 @@ int main(int argc, char** argv)
 	}
 
 	// load cvar arguments after I load the cvar file
-    // I probably shouldn't so the --help output could be cleaner,
-    // but it doesn't matter much.
+	// I probably shouldn't so the --help output could be cleaner,
+	// but it doesn't matter much.
 	if(success)
 	{
 		for(int i = 0; i < argc; ++i)
@@ -78,13 +78,13 @@ int main(int argc, char** argv)
 			}
 			if(argv[i][0] == '+')
 			{
-                int ret = cvar_arg(CVAR_T::STARTUP, argc - i, argv + i);
+				int ret = cvar_arg(CVAR_T::STARTUP, argc - i, argv + i);
 				if(ret == -1)
 				{
 					success = false;
 				}
-                argc -= ret;
-                argv += ret;
+				argc -= ret;
+				argv += ret;
 				continue;
 			}
 
@@ -101,54 +101,79 @@ int main(int argc, char** argv)
 		}
 		else
 		{
-			demo_state demo;
-			if(!demo.init())
+		    bool reboot;
+			do
 			{
-				success = false;
-			}
-			else
-			{
-#ifdef __EMSCRIPTEN__
-                //TODO: this should be changed to use not use simulate_infinite_loop
-                // because I think some profiling feature wont work or something.
-				struct shitty_payload
+				reboot = false;
+
+				demo_state demo;
+				if(!demo.init())
 				{
-					demo_state* p_demo;
-					bool* p_success;
-				} pay{&demo, &success};
-				auto loop = [](void* ud) {
-					shitty_payload* p_pay = static_cast<shitty_payload*>(ud);
-					switch(p_pay->p_demo->process())
-					{
-					case DEMO_RESULT::CONTINUE: break;
-					case DEMO_RESULT::EXIT: emscripten_cancel_main_loop(); break;
-					case DEMO_RESULT::ERROR:
-						emscripten_cancel_main_loop();
-						*p_pay->p_success = false;
-						break;
-					}
-				};
-				emscripten_set_main_loop_arg(loop, &pay, 0, 1);
-#else
-				bool quit = false;
-				while(!quit)
-				{
-					switch(demo.process())
-					{
-					case DEMO_RESULT::CONTINUE: break;
-					case DEMO_RESULT::EXIT: quit = true; break;
-					case DEMO_RESULT::ERROR:
-						quit = true;
-						success = false;
-						break;
-					}
+					success = false;
 				}
+				else
+				{
+#ifdef __EMSCRIPTEN__
+					// TODO: this should be changed to use not use simulate_infinite_loop
+					// because I think some profiling feature wont work or something.
+					struct shitty_payload
+					{
+						demo_state* p_demo = NULL;
+						int res = 0;
+					} pay;
+                    pay.p_demo = &demo;
+					auto loop = [](void* ud) {
+						shitty_payload* p_pay = static_cast<shitty_payload*>(ud);
+						switch(p_pay->p_demo->process())
+						{
+						case DEMO_RESULT::CONTINUE: break;
+						case DEMO_RESULT::SOFT_REBOOT:
+							p_pay->res = 2;
+							emscripten_cancel_main_loop();
+							break;
+						case DEMO_RESULT::EXIT: emscripten_cancel_main_loop(); break;
+						case DEMO_RESULT::ERROR:
+							emscripten_cancel_main_loop();
+							p_pay->res = 1;
+							break;
+						}
+					};
+					emscripten_set_main_loop_arg(loop, &pay, 0, 1);
+                    if(pay.res == 1)
+                    {
+                        success = false;
+                    }
+                    if(pay.res == 2)
+                    {
+                        // TODO: OK so this doesn't work.
+                        reboot = true;
+                    }
+#else
+
+					bool quit = false;
+					while(!quit)
+					{
+						switch(demo.process())
+						{
+						case DEMO_RESULT::CONTINUE: break;
+						case DEMO_RESULT::SOFT_REBOOT:
+							reboot = true;
+							quit = true;
+							break;
+						case DEMO_RESULT::EXIT: quit = true; break;
+						case DEMO_RESULT::ERROR:
+							quit = true;
+							success = false;
+							break;
+						}
+					}
 #endif
-			}
-			if(!demo.destroy())
-			{
-				success = false;
-			}
+				}
+				if(!demo.destroy())
+				{
+					success = false;
+				}
+			} while(reboot);
 		}
 		if(!app_destroy(g_app))
 		{
@@ -168,7 +193,7 @@ int main(int argc, char** argv)
 	// print a stacktrace.
 	if(serr_check_error())
 	{
-        // you probably want to use cv_serr_bt to find the location of the leak.
+		// you probably want to use cv_serr_bt to find the location of the leak.
 		serrf("\nUncaught error before exit\n");
 		SDL_ShowSimpleMessageBox(
 			SDL_MESSAGEBOX_WARNING, "Uncaught error", serr_get_error().c_str(), NULL);

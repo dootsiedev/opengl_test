@@ -43,12 +43,6 @@ bool console_state::init(
 	console_font = console_font_;
 	console_batcher = console_batcher_;
 
-    // I don't use set_scale because it's expensiver.
-    // this must be done before init.
-    log_box.state.font_scale = 2;
-    prompt_cmd.state.font_scale = 2;
-    error_text.state.font_scale = 2;
-
 	//
 	// log
 	//
@@ -745,10 +739,6 @@ bool console_state::render()
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
 
-void console_state::focus()
-{
-	prompt_cmd.focus();
-}
 
 void console_state::post_error(std::string_view msg)
 {

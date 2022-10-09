@@ -26,7 +26,30 @@ REGISTER_CVAR_INT(
 	"0 = off, 1 = show detailed opengl errors, 2 = stacktrace per call",
 	CVAR_T::STARTUP);
 
+static CVAR_T opengl_gamma_correct_type = 
+#ifdef __EMSCRIPTEN__
+CVAR_T::DISABLED;
+#else
+CVAR_T::STARTUP;
+#endif
+
+static REGISTER_CVAR_INT(
+	cv_opengl_gamma_correct, 0, "0 = off, 1 = request gamma correction", opengl_gamma_correct_type);
+
+// this is for GL_FRAMEBUFFER_SRGB_EXT
+// I probably shouldn't use it, and opt for doing it in the shader or use SRGB_ALPHA_EXT
+static REGISTER_CVAR_INT(cv_has_gl_srgb, -1, "0 = off, 1 = on, -1 = unknown", CVAR_T::READONLY);
+
 REGISTER_CVAR_DOUBLE(cv_scroll_speed, 3, "scroll rate of the mouse wheel", CVAR_T::RUNTIME);
+
+// modifying cv_ui_scale will not look good because it's hard to update everything perfectly.
+// most elements can fix their sizes by triggering a resize event
+// some ui menus will not be fixed by resize because I cache the size
+// not sure if I care enough to actually fix that.
+// maybe I could do a trick where I allow the font size to be resized in the options menu,
+// but until you restart the font will use cv_ui_scale?
+REGISTER_CVAR_DOUBLE(
+	cv_ui_scale, 1, "scale the fonts, but the font will look upscaled", CVAR_T::DEFFERRED);
 
 cvar_fullscreen cv_fullscreen;
 cvar_vysnc cv_vsync;
@@ -110,7 +133,8 @@ const char* emscripten_result_to_string(EMSCRIPTEN_RESULT result)
 	return "Unknown EMSCRIPTEN_RESULT!";
 }
 
-EM_BOOL on_canvassize_changed(int, const void*, void*)//(int eventType, const void* reserved, void* userData)
+EM_BOOL on_canvassize_changed(
+	int, const void*, void*) //(int eventType, const void* reserved, void* userData)
 {
 	int w, h;
 	EMSCRIPTEN_RESULT em_ret = emscripten_get_canvas_element_size("#canvas", &w, &h);
@@ -179,22 +203,22 @@ extern "C" {
 extern void enter_fullscreen()
 {
 #if 0
-	EmscriptenFullscreenStrategy s;
-	memset(&s, 0, sizeof(s));
-	s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_STRETCH;
-	s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
-	s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
-	s.canvasResizedCallback = 0; // on_canvassize_changed;
-	// deferred means to my understanding that if this fails,
-	// the next event will fullscreen (so the next click would trigger fullscreen)
-	EMSCRIPTEN_RESULT em_ret = emscripten_request_fullscreen_strategy("#canvas", 1, &s);
-	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-	{
-		slogf(
-			"%s returned %s.\n",
-			"emscripten_request_fullscreen_strategy",
-			emscripten_result_to_string(em_ret));
-	}
+        EmscriptenFullscreenStrategy s;
+        memset(&s, 0, sizeof(s));
+        s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_STRETCH;
+        s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
+        s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
+        s.canvasResizedCallback = 0; // on_canvassize_changed;
+        // deferred means to my understanding that if this fails,
+        // the next event will fullscreen (so the next click would trigger fullscreen)
+        EMSCRIPTEN_RESULT em_ret = emscripten_request_fullscreen_strategy("#canvas", 1, &s);
+        if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+        {
+            slogf(
+                "%s returned %s.\n",
+                "emscripten_request_fullscreen_strategy",
+                emscripten_result_to_string(em_ret));
+        }
 #endif
 	if(SDL_SetWindowFullscreen(
 		   g_app.window,
@@ -204,25 +228,9 @@ extern void enter_fullscreen()
 		slogf("SDL_SetWindowFullscreen Error: %s", SDL_GetError());
 	}
 }
-
-#if 0
-
-//returns 1 if the event was eaten
-extern int paste_clipboard()
-{
-}
-//returns 1 if the event was eaten
-extern int copy_clipboard()
-{
-}
-//returns 1 if the event was eaten
-extern int cut_clipboard()
-{
-}
-#endif
 }
 
-const char* fullscreen_button_string = "#fullscreen_button";
+static const char* fullscreen_button_string = "#fullscreen_button";
 static int on_fullscreen_button_click(
 	int eventType, const EmscriptenMouseEvent* mouseEvent, void* userData)
 {
@@ -317,8 +325,10 @@ bool app_init(App_Info& app)
 
 	// SDL_CHECK(SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG |
 	// SDL_GL_CONTEXT_ROBUST_ACCESS_FLAG));
-	// SDL_CHECK(SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1));
-
+	if(cv_opengl_gamma_correct.data == 1)
+	{
+		SDL_CHECK(SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1));
+	}
 #undef SDL_CHECK
 
 	Uint32 fullscreen_mode = cv_fullscreen.data == 1
@@ -372,6 +382,27 @@ bool app_init(App_Info& app)
 		slogf("SDL_GL_CONTEXT_FLAGS Warning: %s", SDL_GetError());
 	}
 
+	cv_has_gl_srgb.data =
+		(SDL_GL_ExtensionSupported("GL_EXT_sRGB_write_control") == SDL_FALSE) ? 0 : 1;
+
+	if(cv_opengl_gamma_correct.data == 1)
+	{
+		if(cv_has_gl_srgb.data != 1)
+		{
+			slog("warning cv_opengl_gamma_correct: GL_EXT_sRGB_write_control unsupported\n");
+		}
+		else
+		{
+			if((gl_context_flags & SDL_GL_FRAMEBUFFER_SRGB_CAPABLE) == 0)
+			{
+				slog("warning: SDL_GL_FRAMEBUFFER_SRGB_CAPABLE failed to set\n");
+			}
+			ctx.glEnable(GL_FRAMEBUFFER_SRGB_EXT);
+		}
+	}
+
+	// note I already check cv_has_GL_KHR_debug inside LoadGLContext
+	// maybe I should bring that here?
 	if(cv_debug_opengl.data == 1 && cv_has_GL_KHR_debug.data == 1)
 	{
 		if((gl_context_flags & SDL_GL_CONTEXT_DEBUG_FLAG) == 0)

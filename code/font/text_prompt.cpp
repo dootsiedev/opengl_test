@@ -90,7 +90,7 @@ bool text_prompt_wrapper::init(
 	// space_advance_cache = painter->font->GetAdvance(' ');
 
 	// set the space cache value.
-	switch(state.font->get_advance(' ', &space_advance_cache, state.font_scale))
+	switch(state.font->get_advance(' ', &space_advance_cache, 1))
 	{
 	case FONT_BASIC_RESULT::SUCCESS: break;
 	case FONT_BASIC_RESULT::NOT_FOUND:
@@ -102,30 +102,49 @@ bool text_prompt_wrapper::init(
 	return true;
 }
 
-bool text_prompt_wrapper::set_scale(float font_scale)
+float text_prompt_wrapper::get_scale() const
 {
-	state.font_scale = font_scale;
-	// fix the cached size of the space.
-	switch(state.font->get_advance(' ', &space_advance_cache, state.font_scale))
+	return raw_font_scale * static_cast<float>(cv_ui_scale.data);
+}
+
+void text_prompt_wrapper::set_scale(float font_scale)
+{
+	raw_font_scale = font_scale;
+}
+
+void text_prompt_wrapper::unfocus(bool stop_text_input)
+{
+	if(text_focus)
 	{
-	case FONT_BASIC_RESULT::SUCCESS: break;
-	case FONT_BASIC_RESULT::NOT_FOUND:
-		serrf("%s: space not found???\n", state.font->get_name());
-		return false;
-	case FONT_BASIC_RESULT::ERROR: return false;
-	}
-	for(auto& c : text_data)
-	{
-		switch(state.font->get_advance(c.codepoint, &c.advance, state.font_scale))
+		if(stop_text_input && !read_only())
 		{
-		case FONT_BASIC_RESULT::SUCCESS: break;
-		case FONT_BASIC_RESULT::NOT_FOUND:
-			serrf("%s: space not found???\n", state.font->get_name());
-			return false;
-		case FONT_BASIC_RESULT::ERROR: return false;
+			SDL_StopTextInput();
 		}
+		text_focus = false;
+		mouse_held = false;
+		x_scrollbar_held = false;
+		y_scrollbar_held = false;
+		drag_x = -1;
+		drag_y = -1;
+		update_buffer = true;
+		markedText.clear();
 	}
-	return true;
+}
+
+void text_prompt_wrapper::focus(SDL_Event& e)
+{
+	set_event_unfocus(e);
+	if(!text_focus)
+	{
+		if(!read_only())
+		{
+			SDL_StartTextInput();
+			e.window.windowID = TEXT_INPUT_STOLEN_WINDOW_ID;
+		}
+		text_focus = true;
+		update_buffer = true;
+	}
+	blink_timer = timer_now();
 }
 
 void text_prompt_wrapper::replace_string(std::string_view contents, bool clear_history)
@@ -498,7 +517,7 @@ bool text_prompt_wrapper::internal_draw_pretext()
 					prompt_char c = text_data.at(cur + i);
 					if(c.codepoint != '\n')
 					{
-						width += c.advance;
+						width += c.advance * get_scale();
 					}
 				}
 				scroll_w = std::max(scroll_w, width);
@@ -527,7 +546,7 @@ bool text_prompt_wrapper::internal_draw_pretext()
 							}
 							if(text_data.at(cur + i).codepoint != '\n')
 							{
-								cur_x += text_data.at(cur + i).advance;
+								cur_x += text_data.at(cur + i).advance * get_scale();
 							}
 						}
 						if(i == r.num_chars && ((static_cast<int>(cur + i) == stb_state.cursor)))
@@ -830,7 +849,7 @@ bool text_prompt_wrapper::internal_draw_text(
 			if(ret.codepoint == '\t')
 			{
 				// state.insert_padding(space_advance_cache * 4);
-				state.draw_x_pos += space_advance_cache * 4;
+				state.draw_x_pos += space_advance_cache * 4 * get_scale();
 			}
 			else if(!single_line() && ret.codepoint == '\n')
 			{
@@ -838,16 +857,16 @@ bool text_prompt_wrapper::internal_draw_text(
 				// NOTE: the backdrop looks ugly with this on, so I removed it if you use it.
 				if(!draw_backdrop())
 				{
-					state.draw_x_pos += space_advance_cache;
+					state.draw_x_pos += space_advance_cache * get_scale();
 				}
 			}
 			else
 			{
-				if(cull_box() &&
-				   (state.draw_x_pos + ret.advance < box_xmin || state.draw_x_pos >= box_xmax))
+				if(cull_box() && (state.draw_x_pos + ret.advance * get_scale() < box_xmin ||
+								  state.draw_x_pos >= box_xmax))
 				{
 					// state.insert_padding(ret.advance);
-					state.draw_x_pos += ret.advance;
+					state.draw_x_pos += ret.advance * get_scale();
 				}
 				else
 				{
@@ -880,7 +899,7 @@ bool text_prompt_wrapper::internal_draw_text(
 					}
                     state.draw_x_pos = peek_x;
 #endif
-					switch(state.load_glyph_verts(ret.codepoint, color, ret.style))
+					switch(state.load_glyph_verts(ret.codepoint, color, ret.style, get_scale()))
 					{
 					case FONT_BASIC_RESULT::NOT_FOUND:
 						serrf("%s glyph not found: U+%X\n", __func__, ret.codepoint);
@@ -1040,7 +1059,7 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 			break;
 		}
 
-		switch(state.load_glyph_verts(codepoint, text_color, FONT_STYLE_NORMAL))
+		switch(state.load_glyph_verts(codepoint, text_color, FONT_STYLE_NORMAL, get_scale()))
 		{
 		case FONT_BASIC_RESULT::NOT_FOUND:
 			serrf("%s glyph not found: U+%X\n", __func__, codepoint);
@@ -1207,6 +1226,16 @@ void text_prompt_wrapper::internal_scroll_x_to(float mouse_x)
 
 TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 {
+	if(!read_only() && text_focus)
+	{
+		// this should be an assert, but there isn't much debug...
+		// what I need is to find out what called SDL_StopTextInput!
+		if(SDL_IsTextInputActive() != SDL_TRUE)
+		{
+			slogf("info: %s SDL_IsTextInputActive() = false, prompt unfocused.\n", __func__);
+			unfocus();
+		}
+	}
 	switch(e.type)
 	{
 	case SDL_WINDOWEVENT:
@@ -1216,7 +1245,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		case SDL_WINDOWEVENT_HIDDEN:
 			if(text_focus)
 			{
-				unfocus();
+				unfocus(!is_unfocus_event_text_input_stolen(e));
 				return TEXT_PROMPT_RESULT::UNFOCUS;
 			}
 			return TEXT_PROMPT_RESULT::CONTINUE;
@@ -1321,12 +1350,12 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				mouse_held = false;
 				drag_x = -1;
 				drag_y = -1;
-                if(!is_mouse_event_clipped(e))
-                {
-                    scroll_to_cursor = true;
-                    stb_textedit_drag(this, &stb_state, mouse_x, mouse_y);
-                    update_buffer = true;
-                }
+				if(!is_mouse_event_clipped(e))
+				{
+					scroll_to_cursor = true;
+					stb_textedit_drag(this, &stb_state, mouse_x, mouse_y);
+					update_buffer = true;
+				}
 				// eat
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
@@ -1336,11 +1365,11 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				ASSERT(text_focus);
 				y_scrollbar_held = false;
-                if(!is_mouse_event_clipped(e))
-                {
-                    internal_scroll_y_to(mouse_y);
-                    update_buffer = true;
-                }
+				if(!is_mouse_event_clipped(e))
+				{
+					internal_scroll_y_to(mouse_y);
+					update_buffer = true;
+				}
 				// eat
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
@@ -1349,11 +1378,11 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				ASSERT(text_focus);
 				x_scrollbar_held = false;
-                if(!is_mouse_event_clipped(e))
-                {
-                    internal_scroll_x_to(mouse_x);
-                    update_buffer = true;
-                }
+				if(!is_mouse_event_clipped(e))
+				{
+					internal_scroll_x_to(mouse_x);
+					update_buffer = true;
+				}
 				// eat
 				set_event_unfocus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
@@ -1383,15 +1412,15 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 	case SDL_MOUSEBUTTONDOWN:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
-            if(is_mouse_event_clipped(e))
-            {
-                if(text_focus)
-			    {
-                    unfocus();
-                    return TEXT_PROMPT_RESULT::UNFOCUS;
-                }
-                break;
-            }
+			if(is_mouse_event_clipped(e))
+			{
+				if(text_focus)
+				{
+					unfocus();
+					return TEXT_PROMPT_RESULT::UNFOCUS;
+				}
+				break;
+			}
 			float mouse_x = static_cast<float>(e.button.x);
 			float mouse_y = static_cast<float>(e.button.y);
 
@@ -1399,9 +1428,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				y_scrollbar_held = true;
 				internal_scroll_y_to(mouse_y);
-				focus();
-				// eat
-				set_event_unfocus(e);
+				// this will eat
+				focus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 
@@ -1409,9 +1437,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			{
 				x_scrollbar_held = true;
 				internal_scroll_x_to(mouse_x);
-				focus();
-				// eat
-				set_event_unfocus(e);
+				// this will eat
+				focus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 
@@ -1420,8 +1447,6 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
 			   box_xmin <= mouse_x)
 			{
-				focus();
-
 				scroll_to_cursor = true;
 				// this is neccessary!
 				update_buffer = true;
@@ -1448,8 +1473,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				{
 					stb_textedit_click(this, &stb_state, mouse_x, mouse_y);
 				}
-				// eat
-				set_event_unfocus(e);
+				// this will eat
+				focus(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 			if(text_focus)
@@ -1673,6 +1698,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 			// case SDLK_DELETE: stb_key = STB_TEXTEDIT_K_DELETE; break;
 			case SDLK_TAB: stb_key = '\t'; break;
 			case SDLK_RETURN: stb_key = '\n'; break; // note SDLK_RETURN is '\r' for some reason.
+			default: CHECK(false && "unreachable"); return TEXT_PROMPT_RESULT::ERROR;
 			}
 			stb_textedit_key(this, &stb_state, stb_key);
 
@@ -1966,7 +1992,7 @@ void text_prompt_wrapper::stb_layout_func(StbTexteditRow* row, int i)
 		if(word_wrap() && cur->codepoint == ' ')
 		{
 			cur->advance = space_advance_cache;
-			total_advance += cur->advance;
+			total_advance += cur->advance * get_scale();
 			last_space = cur;
 			last_space_advance = total_advance;
 		}
@@ -1974,11 +2000,11 @@ void text_prompt_wrapper::stb_layout_func(StbTexteditRow* row, int i)
 		{
 			if(cur->codepoint == '\t')
 			{
-				total_advance += space_advance_cache * 4;
+				total_advance += space_advance_cache * 4 * get_scale();
 			}
 			else
 			{
-				total_advance += cur->advance;
+				total_advance += cur->advance * get_scale();
 			}
 			// I can't remove the padding for the scrollbar because this function is
 			// used to calculate scroll_h, which means scroll_h will be incorrect.
@@ -2030,7 +2056,6 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 		{
 			it->codepoint = text[i];
 		}
-		// this requires the atlas texture to be bound and GL_UNPACK_ALIGNMENT
 		if(it->codepoint == '\t')
 		{
 			it->advance = space_advance_cache * 4;
@@ -2041,11 +2066,13 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 		}
 		else
 		{
-			switch(state.font->get_advance(it->codepoint, &it->advance, state.font_scale))
+			switch(state.font->get_advance(it->codepoint, &it->advance, 1))
 			{
 			case FONT_BASIC_RESULT::SUCCESS: break;
 			case FONT_BASIC_RESULT::NOT_FOUND:
-				serrf("%s: codepoint not found: U+%X\n", state.font->get_name(), it->codepoint);
+				// I SHOULD handle this, but I can't.
+				// the error should reappear and be handled when I actually render
+				// serrf("%s: codepoint not found: U+%X\n", state.font->get_name(), it->codepoint);
 				return 0;
 			case FONT_BASIC_RESULT::ERROR:
 				// TODO: handle this error???
@@ -2076,7 +2103,7 @@ float text_prompt_wrapper::stb_get_width(int linestart, int index)
 		// more bugs that are caused by this...
 		return STB_TEXTEDIT_GETWIDTH_NEWLINE;
 	}
-	return text_data.at(linestart + index).advance;
+	return text_data.at(linestart + index).advance * get_scale();
 }
 
 STB_TEXTEDIT_CHARTYPE text_prompt_wrapper::stb_get_char(int index)

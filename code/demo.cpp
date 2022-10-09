@@ -24,6 +24,70 @@
 #include <limits>
 #include <string>
 
+REGISTER_CVAR_DOUBLE(
+	cv_mouse_sensitivity, 0.4, "mouse move speed while in first person", CVAR_T::RUNTIME);
+REGISTER_CVAR_DOUBLE(
+	cv_camera_speed, 20.0, "direction move speed while in first person", CVAR_T::RUNTIME);
+REGISTER_CVAR_INT(
+	cv_mouse_invert, 0, "invert while in first person, 0 = off, 1 = invert", CVAR_T::RUNTIME);
+
+static REGISTER_CVAR_STRING(
+	cv_string,
+	"test\n"
+	"f1 - open console\n"
+	"alt+enter - fullscreen\n"
+	"wasd - move\n"
+	"/?- open options",
+	"the string to display",
+	CVAR_T::STARTUP);
+REGISTER_CVAR_DOUBLE(cv_string_pt, 16.0, "the point size of the string", CVAR_T::STARTUP);
+REGISTER_CVAR_STRING(
+	cv_string_font,
+	"seguiemj.ttf",
+	"the font of the string, \"unifont\" is a special font.",
+	CVAR_T::STARTUP);
+REGISTER_CVAR_DOUBLE(
+	cv_string_outline, 1, "outline thickness in pixels (if there is an outline)", CVAR_T::STARTUP);
+REGISTER_CVAR_INT(cv_string_mono, 0, "0 = off, 1 = use mono rasterizer", CVAR_T::STARTUP);
+REGISTER_CVAR_INT(
+	cv_string_force_bitmap,
+	0,
+	"0 = off, 1 = on, can't bold or italics, but looks different",
+	CVAR_T::STARTUP);
+
+// keybinds
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, false, "move forward");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, false, "move backward");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, false, "move left");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, false, "move right");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_jump, SDLK_SPACE, false, "jump");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_crouch, SDLK_c, false, "crouch");
+REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
+	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, false, "toggle fullscreen");
+
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_console, SDLK_F1, false, "open console overlay");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_options, SDLK_SLASH, false, "open option menu");
+REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_reset_window_size, SDLK_F5, false, "set the window to cv_startup_screen_width/height");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_toggle_text, SDLK_F2, false, "hide the help and fps text");
+REGISTER_CVAR_KEY_BIND_KEY(
+	cv_bind_soft_reboot,
+	SDLK_F6,
+	false,
+	"if you need to restart to change font settings or something, you can use this.");
+
+// TODO: emscripten code should really be in "app".
+// maybe I should split the state between app / base / "demo"
+// -app = owns the SDL_Init, SDL window, freetype state?, openal state?,
+//      maybe split the console between the UI and data, and store log data in app,
+//      because on soft reboot the console data disappears.
+// -base = owns the opengl context, font atlas, console, prompt, options menu, fps text,
+//      deals with emscripten specific code
+//      controls the SDL_PollEvent and feeds it into "demo".
+//      the difference between app and base is that on a "soft reboot", only the base gets
+//      destroyed.
+// -"demo" = the main content of the application.
+// ALSO split the cvar type for STARTUP into SOFT_STARTUP and HARD_STARTUP
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/html5.h>
@@ -160,6 +224,7 @@ extern int32_t paste_clipboard(const char* text)
 	}
 	return 0;
 }
+// you must call free() on the returned pointer.
 extern char* copy_clipboard()
 {
 	if(em_global_demo == NULL)
@@ -176,6 +241,15 @@ extern char* copy_clipboard()
 	em_global_demo->input(fake_event);
 	if(fake_event.type != SDL_KEYDOWN)
 	{
+#ifndef HAVE_MALLOC
+#error SDL sets HAVE_MALLOC if it uses malloc() and free() for SDL_malloc and SDL_free, I depend on this behavior.
+#endif
+		// NOTE: I assume SDL_Free is just an alias for free() in javascript.
+		// one of the solutions is to just write my own SDL_Set/GetClipboard that uses malloc.
+		// since SDL is doing absolutely nothing here.
+		// and ATM this assumes that SDL's clipboard uses a fake clipboard (it can't access the real
+		// clipboard) if it gets fixed, I could just remove this whole hack (but it's very unlikely
+		// due to security contexts)
 		char* text = SDL_GetClipboardText();
 		if(text == NULL)
 		{
@@ -218,59 +292,6 @@ extern char* cut_clipboard()
 }
 }
 #endif
-
-REGISTER_CVAR_DOUBLE(
-	cv_mouse_sensitivity, 0.4, "mouse move speed while in first person", CVAR_T::RUNTIME);
-REGISTER_CVAR_DOUBLE(
-	cv_camera_speed, 20.0, "direction move speed while in first person", CVAR_T::RUNTIME);
-REGISTER_CVAR_INT(
-	cv_mouse_invert, 0, "invert while in first person, 0 = off, 1 = invert", CVAR_T::RUNTIME);
-
-static REGISTER_CVAR_STRING(
-	cv_string,
-	"test\n"
-	"f1 - open console\n"
-	"alt+enter - fullscreen\n"
-	"wasd - move\n"
-	"/?- open options",
-	"the string to display",
-	CVAR_T::STARTUP);
-static REGISTER_CVAR_DOUBLE(cv_string_pt, 16.0, "the point size of the string", CVAR_T::STARTUP);
-static REGISTER_CVAR_STRING(
-	cv_string_font,
-	"seguiemj.ttf",
-	"the font of the string, \"unifont\" is a special font.",
-	CVAR_T::STARTUP);
-static REGISTER_CVAR_DOUBLE(
-	cv_string_outline, 1, "outline thickness in pixels (if there is an outline)", CVAR_T::STARTUP);
-static REGISTER_CVAR_INT(cv_string_mono, 0, "0 = off, 1 = use mono rasterizer", CVAR_T::STARTUP);
-static REGISTER_CVAR_INT(
-	cv_string_force_bitmap,
-	0,
-	"0 = off, 1 = on, can't bold or italics, but looks different",
-	CVAR_T::STARTUP);
-
-// keybinds
-
-REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, false, "move forward", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, false, "move backward", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, false, "move left", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, false, "move right", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_jump, SDLK_SPACE, false, "jump", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_crouch, SDLK_c, false, "crouch", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
-	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, false, "toggle fullscreen", CVAR_T::RUNTIME);
-
-REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_open_console, SDLK_F1, false, "open console overlay", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_open_options, SDLK_SLASH, false, "open option menu", CVAR_T::RUNTIME);
-REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_reset_window_size,
-	SDLK_F5,
-	false,
-	"set the window to cv_startup_screen_width/height",
-	CVAR_T::RUNTIME);
 
 struct gl_point_vertex
 {
@@ -796,7 +817,7 @@ bool demo_state::init_gl_font()
 	font_batcher.init(font_batcher_buffer.get(), max_quads);
 
 	font_painter.init(&font_batcher, current_font);
-	font_painter.set_scale(2);
+	// font_painter.set_scale(2);
 
 	if(!g_console.init(current_font, &font_batcher, mono_shader))
 	{
@@ -914,14 +935,6 @@ bool demo_state::input(SDL_Event& e)
 		}
 	}
 
-	if(cv_bind_reset_window_size.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
-	{
-		SDL_SetWindowSize(
-			g_app.window, cv_startup_screen_width.data, cv_startup_screen_height.data);
-		// eat
-		// set_event_unfocus(e);
-	}
-
 	// TIMER_U t1 = timer_now();
 	// bool input_eaten = false;
 	// is the mouse currently locked?
@@ -1007,19 +1020,20 @@ bool demo_state::input(SDL_Event& e)
 		if(show_console)
 		{
 			// focus for the text input.
-			g_console.focus();
+			// this will call set_event_unfocus(e);
+			g_console.prompt_cmd.focus(e);
+
 			set_event_resize(fake_event);
 		}
 		else
 		{
+			set_event_unfocus(e);
 			set_event_hidden(fake_event);
 		}
 		if(g_console.input(fake_event) == CONSOLE_RESULT::ERROR)
 		{
 			return false;
 		}
-		// eat
-		set_event_unfocus(e);
 	}
 
 	if(cv_bind_open_options.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
@@ -1067,14 +1081,6 @@ bool demo_state::input(SDL_Event& e)
 		switch(e.key.keysym.sym)
 		{
 		case SDLK_ESCAPE: unfocus_demo(); break;
-		case SDLK_F10: {
-			std::string msg;
-			msg += "StackTrace (f10):\n";
-			debug_str_stacktrace(&msg, 0);
-			msg += '\n';
-			slog_raw(msg.data(), msg.length());
-		}
-		break;
 		}
 		break;
 	case SDL_MOUSEBUTTONUP:
@@ -1112,7 +1118,7 @@ bool demo_state::input(SDL_Event& e)
 		break;
 	}
 
-	// unfocus the buttons if you pressed a button that could open something.
+	// release motion if certain window events are triggerred
 	if(e.type == SDL_WINDOWEVENT)
 	{
 		switch(e.window.event)
@@ -1231,6 +1237,8 @@ bool demo_state::render()
 	TIMER_U tick2;
 	tick1 = timer_now();
 
+	// ctx.glClearColor(0, 1, 0, 1.f);
+
 	ctx.glClearColor(
 		static_cast<float>((sin(colors[0]) + 1.0) / 2.0),
 		static_cast<float>((sin(colors[1]) + 1.0) / 2.0),
@@ -1306,7 +1314,7 @@ bool demo_state::render()
 	// I would need to pad each row to align to 4, but I don't.
 	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-	if(gl_font_vertex_count != 0)
+	if(show_text && gl_font_vertex_count != 0)
 	{
 		ctx.glBindVertexArray(gl_font_vao_id);
 		ctx.glDrawArrays(GL_TRIANGLES, 0, gl_font_vertex_count);
@@ -1336,15 +1344,17 @@ bool demo_state::render()
 
 	tick2 = timer_now();
 
+	perf_render.test(timer_delta_ms(tick1, tick2));
+
 #ifndef __EMSCRIPTEN__
 	if(cv_vsync.data == 0)
 	{
 		// this isn't ideal, but it saves the CPU and GPU.
 		SDL_Delay(1);
 	}
-#endif
-	perf_render.test(timer_delta_ms(tick1, tick2));
-	tick1 = tick2;
+
+	tick1 = timer_now();
+	// tick1 = tick2;
 
 	SDL_GL_SwapWindow(g_app.window);
 
@@ -1353,6 +1363,7 @@ bool demo_state::render()
 	// ctx.glFinish();
 	tick2 = timer_now();
 	perf_swap.test(timer_delta_ms(tick1, tick2));
+#endif
 
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
@@ -1411,6 +1422,17 @@ DEMO_RESULT demo_state::process()
 				*/
 			}
 			break;
+		case SDL_KEYDOWN:
+			if(e.key.keysym.sym == SDLK_F10)
+			{
+				std::string().at(0);
+				std::string msg;
+				msg += "StackTrace (f10):\n";
+				debug_str_stacktrace(&msg, 0);
+				msg += '\n';
+				slog_raw(msg.data(), msg.length());
+			}
+			break;
 #ifdef __EMSCRIPTEN__
 		// this should already be registered using a callback.
 		case SDL_MOUSEBUTTONUP: continue;
@@ -1423,10 +1445,30 @@ DEMO_RESULT demo_state::process()
 			{
 				return DEMO_RESULT::ERROR;
 			}
-			// note if I set LMB for fullscreen,
-			// I can't undo the change because it would be eaten!
-			set_event_unfocus(e);
+			// dont "unfocus", but make this event invisible.
+			continue;
 		}
+
+		if(cv_bind_reset_window_size.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+		{
+			SDL_SetWindowSize(
+				g_app.window, cv_startup_screen_width.data, cv_startup_screen_height.data);
+			// dont "unfocus", but make this event invisible.
+			continue;
+		}
+
+		if(cv_bind_soft_reboot.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+		{
+			return DEMO_RESULT::SOFT_REBOOT;
+		}
+
+		if(cv_bind_toggle_text.compare_sdl_event(e, KEYBIND_BUTTON_DOWN) != KEYBIND_NULL)
+		{
+			show_text = !show_text;
+			// dont "unfocus", but make this event invisible.
+			continue;
+		}
+
 		if(!input(e))
 		{
 			return DEMO_RESULT::ERROR;
@@ -1446,6 +1488,7 @@ DEMO_RESULT demo_state::process()
 	}
 
 	tick2 = timer_now();
+
 	perf_update.test(timer_delta_ms(tick1, tick2));
 
 	if(!render())
@@ -1453,7 +1496,15 @@ DEMO_RESULT demo_state::process()
 		return DEMO_RESULT::ERROR;
 	}
 
-	return perf_time() ? DEMO_RESULT::CONTINUE : DEMO_RESULT::ERROR;
+	if(show_text)
+	{
+		if(!perf_time())
+		{
+			return DEMO_RESULT::ERROR;
+		}
+	}
+
+	return DEMO_RESULT::CONTINUE;
 }
 
 bool demo_state::perf_time()
@@ -1470,6 +1521,7 @@ bool demo_state::perf_time()
 
 	static TIMER_U display_timer = tick_now;
 
+	// TODO: I should also draw from SDL_WINDOWEVENT_SIZE_CHANGED!
 	if(timer_delta_ms(display_timer, tick_now) > 100)
 	{
 		bool success = true;
@@ -1531,7 +1583,9 @@ bool demo_state::perf_time()
 		perf_input.reset();
 		perf_update.reset();
 		perf_render.reset();
+#ifndef __EMSCRIPTEN__
 		perf_swap.reset();
+#endif
 
 #if 0
         static bool first_sample = false;
@@ -1578,7 +1632,9 @@ bool demo_state::display_perf_text()
 	success = success && perf_input.display("input", &font_painter);
 	success = success && perf_update.display("update", &font_painter);
 	success = success && perf_render.display("render", &font_painter);
+#ifndef __EMSCRIPTEN__
 	success = success && perf_swap.display("swap", &font_painter);
+#endif
 	return success;
 }
 

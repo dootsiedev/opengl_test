@@ -180,23 +180,29 @@
 
         if (!document.getElementById('canvas').getContext('webgl2')) alert('Your browser does not support WebGL 2!');
 
+
         var Module = {
             onRuntimeInitialized: (function () {
+
+                var c_paste_clipboard = Module.cwrap("paste_clipboard", "number", ["string"]);
+                var c_copy_clipboard = Module.cwrap("copy_clipboard", "number");
+                var c_cut_clipboard = Module.cwrap("cut_clipboard", "number");
 
                 document.addEventListener('paste', (event) => {
                     let paste = (event.clipboardData || window.clipboardData).getData('text');
                     console.log(paste);
-                    if (Module.ccall("paste_clipboard", "number", ["string"], [paste]) == 1) {
+                    if (c_paste_clipboard(paste) == 1) {
                         //console.log("pasted");
                         event.preventDefault();
                     }
                 });
                 document.addEventListener('copy', (event) => {
                     // this is a string, but since we need to free it, it needs to be a pointer (number).
-                    let selection = Module.ccall("copy_clipboard", "number");
+                    let selection = c_copy_clipboard();
                     if (selection != 0) {
                         //console.log("copy triggerred");
                         let js_string = UTF8ToString(selection);
+                        Module._free(selection);
                         navigator.clipboard.writeText(js_string).then(() => {
                             // clipboard successfully set
                             //console.log("paste good");
@@ -205,16 +211,16 @@
                             //console.log("paste bad");
                         });
                         //console.log(selection);
-                        Module._free(selection);
                         event.preventDefault();
                     }
                 });
                 document.addEventListener('cut', (event) => {
                     // this is a string, but since we need to free it, it needs to be a pointer (number).
-                    let selection = Module.ccall("cut_clipboard", "number");
+                    let selection = c_cut_clipboard();
                     if (selection != 0) {
                         //console.log("cut triggerred");
                         let js_string = UTF8ToString(selection);
+                        Module._free(selection);
                         navigator.clipboard.writeText(js_string).then(() => {
                             // clipboard successfully set
                             //console.log("cut good");
@@ -223,12 +229,11 @@
                             //console.log("cut bad");
                         });
                         //console.log(selection);
-                        Module._free(selection);
                         event.preventDefault();
                     }
                 });
 
-                // Don't trigger the emscripten copy and paste events
+                // Don't trigger the emscripten copy and paste events key inputs
                 // because I create fake ones to replace them.
                 document.addEventListener("keydown", (event) => {
                     if (event.ctrlKey == true && event.code == "KeyV") {
@@ -301,6 +306,18 @@
         };
         Module.setStatus('Downloading...');
         window.onerror = function (event) {
+            if(typeof event === 'number')
+            {
+                console.log('got C++ exception!');
+                let c_getExceptionMessage = Module.cwrap("getExceptionMessage", "number");
+                let cexception = c_getExceptionMessage();
+                if (cexception != 0) {
+                    //console.log("copy triggerred");
+                    let js_string = UTF8ToString(cexception);
+                    Module._free(cexception);
+                    console.log(js_string);
+                }
+            }
             // TODO: do not warn on ok events like simulating an infinite loop or exitStatus
             Module.setStatus('Exception thrown, see JavaScript console');
             spinnerElement.style.display = 'none';

@@ -345,15 +345,15 @@ struct hex_font_placeholder : public font_style_interface
 		ASSERT(hex_font != NULL);
 		return hex_font->atlas;
 	}
-	float get_ascent(float) override
+	float get_ascent(float font_scale) override
 	{
 		ASSERT(hex_font != NULL);
-		return height;
+		return height * font_scale;
 	}
-	float get_lineskip(float) override
+	float get_lineskip(float font_scale) override
 	{
 		ASSERT(hex_font != NULL);
-		return height;
+		return height * font_scale;
 	}
 	NDSERR FONT_BASIC_RESULT
 		get_advance(char32_t codepoint, float* advance, float font_scale) override
@@ -582,8 +582,6 @@ struct internal_font_painter_state
 	float draw_x_pos = 0;
 	float draw_y_pos = 0;
 
-	float font_scale = 1;
-
 	void init(mono_2d_batcher* batcher_, font_style_interface* font_)
 	{
 		ASSERT(font_ != NULL);
@@ -599,7 +597,7 @@ struct internal_font_painter_state
 	}
 
 	NDSERR FONT_BASIC_RESULT
-		load_glyph_verts(char32_t codepoint, std::array<uint8_t, 4> color, font_style_type style);
+		load_glyph_verts(char32_t codepoint, std::array<uint8_t, 4> color, font_style_type style, float font_scale);
 };
 
 // the anchor for which side to align to.
@@ -667,10 +665,10 @@ struct font_sprite_painter
 		state.init(batcher_, font_);
 	}
 
-    void set_scale(float font_scale)
-    {
-        state.font_scale = font_scale;
-    }
+	float raw_font_scale = 1;
+
+    float get_scale() const;
+    void set_scale(float font_scale);
 
 	void set_anchor(TEXT_ANCHOR anchor)
 	{
@@ -689,7 +687,7 @@ struct font_sprite_painter
 
 	float get_lineskip() const
 	{
-		return state.font->get_lineskip(state.font_scale);
+		return state.font->get_lineskip(get_scale());
 	}
 
 	// start drawing at a new position.

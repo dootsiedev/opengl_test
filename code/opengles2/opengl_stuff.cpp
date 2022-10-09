@@ -11,8 +11,13 @@
 
 GLES2_Context ctx;
 
-REGISTER_CVAR_INT(cv_has_EXT_disjoint_timer_query, 0, "0 = not found, 1 = found", CVAR_T::READONLY);
-REGISTER_CVAR_INT(cv_has_GL_KHR_debug, 0, "0 = not found, 1 = found", CVAR_T::READONLY);
+REGISTER_CVAR_INT(
+	cv_has_EXT_disjoint_timer_query,
+	-1,
+	"0 = not found, 1 = found, -1 = unknown",
+	CVAR_T::READONLY);
+REGISTER_CVAR_INT(
+	cv_has_GL_KHR_debug, -1, "0 = not found, 1 = found, -1 = unknown", CVAR_T::READONLY);
 
 GLenum implement_GL_RUNTIME(const char* msg, const char* file, int line)
 {
@@ -184,9 +189,11 @@ bool LoadGLContext(GLES2_Context* data)
 #undef NULL_PROC
 #undef SDL_PROC
 
+	cv_has_GL_KHR_debug.data = (SDL_GL_ExtensionSupported("GL_KHR_debug") == SDL_FALSE) ? 0 : 1;
+
 	if(cv_debug_opengl.data == 1)
 	{
-		if(SDL_GL_ExtensionSupported("GL_KHR_debug") == SDL_FALSE)
+		if(cv_has_GL_KHR_debug.data != 1)
 		{
 			slog("warning cv_opengl_debug: GL_KHR_debug unsupported\n");
 		}
@@ -197,14 +204,14 @@ bool LoadGLContext(GLES2_Context* data)
 			ctx.glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
 			ctx.glDebugMessageCallback(ErrorCallback, nullptr);
 			ctx.glEnable(GL_DEBUG_OUTPUT_KHR);
-			cv_has_GL_KHR_debug.data = 1;
 		}
 	}
 
 	if(SDL_GL_ExtensionSupported("GL_EXT_disjoint_timer_query") == SDL_FALSE)
 	{
-        // I don't use this for anything, I only use this for mini benchmarking.
-		//slog("warning GL_EXT_disjoint_timer_query unsupported\n");
+		// I don't use this for anything, I only use this for mini benchmarking.
+		// slog("warning GL_EXT_disjoint_timer_query unsupported\n");
+		cv_has_EXT_disjoint_timer_query.data = 0;
 	}
 	else
 	{

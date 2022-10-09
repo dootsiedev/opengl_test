@@ -42,7 +42,7 @@ void set_event_leave(SDL_Event& e);
 // makes more sense if it was set_event_eat
 // converts the event to SDL_WINDOWEVENT_FOCUS_LOST
 // I use this to remove "input focus" from elements,
-// this has two jobs, prevent an event from being eaten (used) multiple times, 
+// this has two jobs, prevent an event from being eaten (used) multiple times,
 // and remove keyboard focus from elements that are processed AFTER this element.
 // (for elements before THIS element, non colliding LMB DOWN will remove focus)
 // NOTE: this only sets the type, so don't access any values.
@@ -65,17 +65,23 @@ void set_event_resize(SDL_Event& e);
 // NOTE: this only sets the type, so don't access any values.
 void set_event_hidden(SDL_Event& e);
 
-// with scrollable areas, if the mouse is hovering over a clipped area,
-// I will set the event for all elements inside the scroll area
-// to set the window id to CLIPPED_MOUSE_BUTTON_COORD
-// for SDL_MOUSEBUTTONUP and SDL_MOUSEBUTTONDOWN and SDL_MOUSEMOTION
-// it's a ugly hack. and you may need to handle this special case.
-enum
+enum : Uint32
 {
-	CLIPPED_WINDOW_ID = 0
+	CLIPPED_WINDOW_ID = (1 << 30),
+	TEXT_INPUT_STOLEN_WINDOW_ID = (1 << 29)
 };
 
+// with scrollable areas, if the mouse is hovering over a clipped area,
+// I will set the event for all elements inside the scroll area
+// to activate is_mouse_event_clipped
+// for SDL_MOUSEBUTTONUP and SDL_MOUSEBUTTONDOWN and SDL_MOUSEMOTION
+// it's a ugly hack but you need to handle this special case.
 bool is_mouse_event_clipped(SDL_Event& e);
+
+// if you click into a prompt (SDL_StartTextInput),
+// it will could cause another prompt down the line to unfocus (SDL_StopTextInput),
+// and then you have a prompt that is focused, but can't take input.
+bool is_unfocus_event_text_input_stolen(SDL_Event& e);
 
 enum class BUTTON_RESULT
 {

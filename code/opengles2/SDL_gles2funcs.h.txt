@@ -51,8 +51,11 @@ SDL_PROC(void, glDrawArraysInstanced, (GLenum, GLint, GLsizei,GLsizei))
 SDL_PROC(void, glDrawElementsInstanced, (GLenum, GLsizei, GLenum, const void *, GLsizei))
 SDL_PROC(void, glVertexAttribDivisor, (GLuint, GLuint))
 SDL_PROC(void, glTexStorage2D, (GLenum target, GLsizei levels, GLenum internalformat, GLsizei width, GLsizei height))
-// needed for query timer
-SDL_PROC(void, glGetInteger64v, (GLenum pname, GLint64 *data))
+SDL_PROC(void, glDrawBuffers, (GLsizei n, const GLenum *bufs))
+SDL_PROC(void, glClearBufferuiv, (GLenum buffer, GLint drawbuffer, const GLuint *value))
+SDL_PROC(void, glClearBufferfv, (GLenum buffer, GLint drawbuffer, const GLfloat *value))
+SDL_PROC(void, glGetInteger64v, (GLenum pname, GLint64 *data)) // needed for query timer
+
 
 //things missing from sdl's list
 SDL_PROC(void, glBlendFunc, (GLenum, GLenum))

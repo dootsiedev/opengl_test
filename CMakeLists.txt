@@ -368,6 +368,7 @@ if(EMSCRIPTEN)
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --preload-file ../pointsprite/demo_files@/ --shell-file ../pointsprite/demo_code/wasm_index.html")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sEXPORTED_FUNCTIONS=_main,_enter_fullscreen,_paste_clipboard,_copy_clipboard,_cut_clipboard -sEXPORTED_RUNTIME_METHODS=ccall,cwrap")
+    #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sASSERTIONS=1")
     if(USE_OLD_SDL2)
         # emscripten actually uses the newest SDL2 version
         # but I repurpose USE_OLD_SDL2 to equal "let emscripten automatically build SDL2"

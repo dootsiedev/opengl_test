@@ -52,6 +52,15 @@ bool is_mouse_event_clipped(SDL_Event& e)
 	return false;
 }
 
+bool is_unfocus_event_text_input_stolen(SDL_Event& e)
+{
+	if(e.type ==SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+    {
+        return e.window.windowID == TEXT_INPUT_STOLEN_WINDOW_ID;
+    }
+	return false;
+}
+
 BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 {
 	ASSERT(font_painter != NULL);
@@ -379,11 +388,8 @@ SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
 				float mouse_y = static_cast<float>(e.button.y);
 				if(y_scrollbar_held)
 				{
-					if(!is_mouse_event_clipped(e))
-					{
-						internal_scroll_y_to(mouse_y);
-						modified = true;
-					}
+                    internal_scroll_y_to(mouse_y);
+                    modified = true;
 					y_scrollbar_held = false;
 					scroll_thumb_click_offset = -1;
 					// eat
@@ -578,10 +584,8 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 			// float mouse_y = static_cast<float>(e.button.y);
 			if(slider_held)
 			{
-				if(!is_mouse_event_clipped(e))
-				{
-					internal_move_to(mouse_x);
-				}
+				internal_move_to(mouse_x);
+				
 				unfocus();
 				// eat
 				set_event_unfocus(e);
@@ -702,8 +706,8 @@ void mono_normalized_slider_object::internal_move_to(float mouse_x)
 	slider_value =
 		(mouse_x - slider_thumb_click_offset) / ((box_xmax - box_xmin) - slider_thumb_size);
 
-	// the value is currently 0-1, spread it to the range.
-	slider_value = (slider_value - slider_min) * (slider_max - slider_min);
+	// the value is currently 0-1, do linear interpolation to find the value.
+    slider_value = (slider_min*(1-slider_value)+slider_max*slider_value);
 
 	// clamp
 	slider_value = std::max(slider_min, std::min(slider_max, slider_value));

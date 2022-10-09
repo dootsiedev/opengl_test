@@ -115,9 +115,6 @@ struct console_state
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();
 
-	// this will make the prompt focused.
-	void focus();
-
 	// put the error on the error section.
 	// this is a nice place to put a non-fatal serr error
 	void post_error(std::string_view msg);

@@ -2,7 +2,8 @@
 // first install emsdk
 // then make sure emsdk commands are available
 // (linux):
-// source ./emsdk_env.sh
+source ./emsdk_env.sh
+
 // I install the libraries into emsdk's default install directory using 
 // "emcmake cmake" or the toolchain file (note with emcmake, you build without emcmake)
 // see the build instructions for building native code if you need them.
@@ -12,7 +13,7 @@ cmake --build wasm_build
 // then to test you use  (you can also specifiy the browser you installed using the docs)
 emrun wasm_build/gltest.html
 
-// implementation details:
+// details:
 
 // to publish I rename the html file to index.html
 // note that ATM the hexfont-full.hex file in demo_files is truncated to "U+1FFF" for size, 
@@ -25,8 +26,12 @@ emrun wasm_build/gltest.html
 // for clipboards I use a external (paste/copy/cut)_clipboard functions,
 // (because in SDL2, the clipboard is fake because of security context problems)
 // and in javascript I would steal the ctrl+v/c/x event,
-// and I would use the async API for clipboards (not sure if asyncify is worth it)
+// and I would use the async API for clipboards
 // which will generate a fake SDL event for CTRL+v/c/x
-// the only problem is that the event will be "late", 
-// not sure if it's better to block all events, or send the event late.
-// currently it's impossible to get IME's running... (the only way would be to replace my prompts with HTML ones)
+// (I could use asyncify, but I am worried about perf)
+// the only problem is that the event will be "late" and possibly out of order, 
+// but the only way to save the order is by replacing SDL's pull event system
+// with a push event system (callbacks over polling, a lot of work, maybe use glfw?), 
+// or using asyncify and just freeze the main loop for the clipboard.
+
+// currently it's impossible to get IME's running... (the only way would be to replace my prompts with HTML DOM ones)

@@ -8,6 +8,7 @@
 // for reading files, since I like the stream API.
 #include "../BS_Archive/BS_stream.h"
 #include "../cvar.h"
+#include "../app.h" //for cv_ui_scale for the font painter
 
 #include <cmath>
 #include <cstddef>
@@ -30,6 +31,12 @@
 
 #define FT_CEIL(X) ((((X) + 63) & -64) / 64)
 #define FT_FLOOR(X) (((X) & -64) / 64)
+
+static REGISTER_CVAR_INT(
+	cv_font_linear_filtering,
+	0,
+	"0 = nearest filtering, 1 = linear filtering, only noticable if you scale the fonts",
+	CVAR_T::STARTUP);
 
 static REGISTER_CVAR_INT(
 	cv_font_atlas_size, 16384, "the texture size, must be a power of 2", CVAR_T::STARTUP);
@@ -180,29 +187,92 @@ bool font_manager_state::create()
 		NULL);
 
 	// Set texture parameters
-	ctx.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	ctx.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	ctx.glTexParameteri(
+		GL_TEXTURE_2D,
+		GL_TEXTURE_MAG_FILTER,
+		(cv_font_linear_filtering.data == 1 ? GL_LINEAR : GL_NEAREST));
+	ctx.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	ctx.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	ctx.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	ctx.glBindTexture(GL_TEXTURE_2D, 0);
+
+// webgl will always clear the texture for security reasons.
+#ifndef __EMSCRIPTEN__
+#if 0
+	static GLuint query = 0;
+	TIMER_U t1 = timer_now();
+	if(cv_has_EXT_disjoint_timer_query.data == 1)
+	{
+		// static GLuint query = 0;
+		if(query == 0)
+		{
+			ctx.glGenQueriesEXT(1, &query);
+		}
+		ctx.glBeginQueryEXT(GL_TIME_ELAPSED_EXT, query);
+	}
+#endif
+
+	// clear the texture data because there will be garbage data left over.
+	unsigned int fbo;
+	ctx.glGenFramebuffers(1, &fbo);
+	if(fbo == 0)
+	{
+		serrf("%s error: glGenFramebuffers failed\n", __func__);
+		return false;
+	}
+	ctx.glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo);
+	ctx.glFramebufferTexture2D(
+		GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gl_atlas_tex_id, 0);
+	GLenum color_attachment = GL_COLOR_ATTACHMENT0;
+	ctx.glDrawBuffers(1, &color_attachment);
+	// note this is a GL_RED texture, and only the RED value matters.
+	GLfloat clearColor[4] = {0, 0, 0, 0};
+	ctx.glClearBufferfv(GL_COLOR, 0, clearColor);
+	ctx.glDrawBuffers(0, NULL);
+	ctx.glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	ctx.glDeleteFramebuffers(1, &fbo);
+	fbo = 0;
+
+#if 0
+    // yes this takes a long time...
+	if(cv_has_EXT_disjoint_timer_query.data == 1)
+	{
+		TIMER_U t2 = timer_now();
+		ctx.glEndQueryEXT(GL_TIME_ELAPSED_EXT);
+
+		GLuint64 elapsed_time;
+		ctx.glGetQueryObjectui64vEXT(query, GL_QUERY_RESULT, &elapsed_time);
+		slogf(
+			"atlas fbo time: %f, cpu: %f\n",
+			static_cast<double>(elapsed_time) / 1000000.0,
+			timer_delta_ms(t1, t2));
+	}
+#endif
+#endif
+
+	// because of linear filtering, and padding, I need to clear the texture to be zero's.
 
 	uint32_t x_out;
 	uint32_t y_out;
-	if(!atlas.find_atlas_slot(1, 1, &x_out, &y_out))
+    // 2x2 for the colors of the corners, and +1 because of cv_font_linear_filtering
+	if(!atlas.find_atlas_slot(3, 3, &x_out, &y_out))
 	{
 		return false;
 	}
 
 	float atlas_size = static_cast<float>(atlas.atlas_size);
-	atlas.white_uv[0] = static_cast<float>(x_out) / atlas_size;
-	atlas.white_uv[2] = static_cast<float>(x_out + 1) / atlas_size;
-	atlas.white_uv[1] = static_cast<float>(y_out) / atlas_size;
-	atlas.white_uv[3] = static_cast<float>(y_out + 1) / atlas_size;
+	atlas.white_uv[0] = (static_cast<float>(x_out) + 0.5f) / atlas_size;
+	atlas.white_uv[2] = (static_cast<float>(x_out) + 1.5f) / atlas_size;
+	atlas.white_uv[1] = (static_cast<float>(y_out) + 0.5f) / atlas_size;
+	atlas.white_uv[3] = (static_cast<float>(y_out) + 1.5f) / atlas_size;
 
-	// upload 1 pixel
-	uint8_t pixel = 255;
+	// upload 4 pixels for padding
+	uint8_t pixel[4] = {255, 255, 200, 200};
+	ctx.glBindTexture(GL_TEXTURE_2D, gl_atlas_tex_id);
+	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-	ctx.glTexSubImage2D(GL_TEXTURE_2D, 0, x_out, y_out, 1, 1, GL_RED, GL_UNSIGNED_BYTE, &pixel);
-
+	ctx.glTexSubImage2D(GL_TEXTURE_2D, 0, x_out, y_out, 2, 2, GL_RED, GL_UNSIGNED_BYTE, pixel);
+	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 	ctx.glBindTexture(GL_TEXTURE_2D, 0);
 
 	return GL_CHECK(__func__) == GL_NO_ERROR;
@@ -739,9 +809,9 @@ hex_font_data::get_glyph(
 		return FONT_RESULT::NOT_FOUND;
 	}
 
-    // there isn't any flag in hex that says this is a blank glyph.
-    // I could try to check if the glyph is just zeros, but too lazy.
-    // there might be more space characters, but only these really matter.
+	// there isn't any flag in hex that says this is a blank glyph.
+	// I could try to check if the glyph is just zeros, but too lazy.
+	// there might be more space characters, but only these really matter.
 	if(codepoint == ' ')
 	{
 		glyph->advance = HEX_HALF_WIDTH;
@@ -849,9 +919,19 @@ hex_font_data::get_glyph(
 		}
 	}
 
+	// needs one pixel of padding for nearest neighbor filtering (if scaled)
+	uint32_t padding = 1;
+	int32_t offset = 0;
+
+	if(cv_font_linear_filtering.data == 1)
+	{
+		padding = 2;
+		offset = 1;
+	}
+
 	uint32_t x_out;
 	uint32_t y_out;
-	if(!atlas->find_atlas_slot(width, height, &x_out, &y_out))
+	if(!atlas->find_atlas_slot(width + padding, height + padding, &x_out, &y_out))
 	{
 		return FONT_RESULT::ERROR;
 	}
@@ -859,7 +939,8 @@ hex_font_data::get_glyph(
 	uint32_t outline_x_out;
 	uint32_t outline_y_out;
 
-	if(!atlas->find_atlas_slot(width + 2, height + 2, &outline_x_out, &outline_y_out))
+	if(!atlas->find_atlas_slot(
+		   width + padding + 2, height + padding + 2, &outline_x_out, &outline_y_out))
 	{
 		return FONT_RESULT::ERROR;
 	}
@@ -869,8 +950,8 @@ hex_font_data::get_glyph(
 	ctx.glTexSubImage2D(
 		GL_TEXTURE_2D,
 		0,
-		x_out, // NOLINT(bugprone-narrowing-conversions)
-		y_out, // NOLINT(bugprone-narrowing-conversions)
+		x_out + offset, // NOLINT(bugprone-narrowing-conversions)
+		y_out + offset, // NOLINT(bugprone-narrowing-conversions)
 		width,
 		height,
 		GL_RED,
@@ -880,8 +961,8 @@ hex_font_data::get_glyph(
 	ctx.glTexSubImage2D(
 		GL_TEXTURE_2D,
 		0,
-		outline_x_out, // NOLINT(bugprone-narrowing-conversions)
-		outline_y_out, // NOLINT(bugprone-narrowing-conversions)
+		outline_x_out + offset, // NOLINT(bugprone-narrowing-conversions)
+		outline_y_out + offset, // NOLINT(bugprone-narrowing-conversions)
 		width + 2,
 		height + 2,
 		GL_RED,
@@ -898,22 +979,22 @@ hex_font_data::get_glyph(
 		FONT_ENTRY::GLYPH,
 		x_out,
 		y_out,
-		width,
-		height,
+		width + padding,
+		height + padding,
 		width, // NOLINT(bugprone-narrowing-conversions)
-		0, // xmin
-		height // ymin //NOLINT(bugprone-narrowing-conversions)
+		-offset, // xmin  // NOLINT(bugprone-narrowing-conversions)
+		height + offset // ymin //NOLINT(bugprone-narrowing-conversions)
 	);
 
 	current.u.hex_glyph.outline = font_glyph_entry(
 		FONT_ENTRY::GLYPH,
 		outline_x_out,
 		outline_y_out,
-		width + 2,
-		height + 2,
+		width + padding + 2,
+		height + padding + 2,
 		width, // NOLINT(bugprone-narrowing-conversions)
-		-1, // xmin
-		height + 1 // ymin //NOLINT(bugprone-narrowing-conversions)
+		-offset - 1, // xmin  // NOLINT(bugprone-narrowing-conversions)
+		height + 1 + offset // ymin //NOLINT(bugprone-narrowing-conversions)
 	);
 
 	//*glyph = (outline ? current.u.hex_glyph.outline : current.u.hex_glyph.normal);
@@ -1147,9 +1228,8 @@ void font_bitmap_cache::init(font_manager_state* font_manager, font_ttf_rasteriz
 	current_rasterizer = rasterizer;
 	fallback = &font_manager->hex_font;
 
-
 	FT_Face face = current_rasterizer->face;
-    const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
+	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
 	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
 	{
 		int bitmap_height = FT_CEIL(face->size->metrics.height);
@@ -1423,8 +1503,8 @@ font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_sc
 #endif
 
 	*advance = std::ceil(
-		static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) *
-		font_scale * bitmap_scale);
+		static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) * font_scale *
+		bitmap_scale);
 
 	return FONT_BASIC_RESULT::SUCCESS;
 }
@@ -1473,7 +1553,8 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 			convert_glyph_format(this, glyph_in, glyph_out, font_scale * bitmap_scale);
 			return FONT_RESULT::SUCCESS;
 		case FONT_ENTRY::SPACE:
-			glyph_out->advance = std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
+			glyph_out->advance =
+				std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
 			return FONT_RESULT::SPACE;
 		}
 	}
@@ -1540,27 +1621,39 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 		// use this to signal this is a space
 		glyph_in->type = FONT_ENTRY::SPACE;
 
-        // NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		glyph_in->advance = (current_rasterizer->face->glyph->advance.x >> 6);
 
 		// glyph_convert(glyph_in, glyph_out, font_scale);
-		glyph_out->advance = std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
+		glyph_out->advance =
+			std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
 		return FONT_RESULT::SPACE;
 	}
-    unsigned int x_out;
-    unsigned int y_out;
-    if(!atlas->find_atlas_slot(bitmap->pitch, bitmap->rows, &x_out, &y_out))
-    {
-        // I could use the fallback, but I want to only use it to show the glyph
-        // isn't found.
-        serrf(
-            "%s atlas out of space: U+%X\n", current_rasterizer->font_file->name(), codepoint);
-        // it->second[raster_mask] = font_manager.error_glyph;
-        //*glyph = it->second[raster_mask];
-        // next time just load the fallback
-        block.bad_indexes.set(block_index);
-        return FONT_RESULT::ERROR;
-    }
+
+
+	// needs one pixel of padding for nearest neighbor filtering (if scaled)
+	uint32_t padding = 1;
+	int32_t offset = 0;
+
+	if(cv_font_linear_filtering.data == 1)
+	{
+		padding = 2;
+		offset = 1;
+	}
+
+	unsigned int x_out;
+	unsigned int y_out;
+	if(!atlas->find_atlas_slot(bitmap->pitch + padding, bitmap->rows + padding, &x_out, &y_out))
+	{
+		// I could use the fallback, but I want to only use it to show the glyph
+		// isn't found.
+		serrf("%s atlas out of space: U+%X\n", current_rasterizer->font_file->name(), codepoint);
+		// it->second[raster_mask] = font_manager.error_glyph;
+		//*glyph = it->second[raster_mask];
+		// next time just load the fallback
+		block.bad_indexes.set(block_index);
+		return FONT_RESULT::ERROR;
+	}
 #if 0
     if(cv_has_EXT_disjoint_timer_query.data == 1)
     {
@@ -1573,16 +1666,16 @@ FONT_RESULT font_bitmap_cache::get_glyph(
         TIMER_U t1 = timer_now();
     }
 #endif
-    ctx.glTexSubImage2D(
-        GL_TEXTURE_2D,
-        0,
-        x_out, // NOLINT(bugprone-narrowing-conversions)
-        y_out, // NOLINT(bugprone-narrowing-conversions)
-        bitmap->pitch,
-        bitmap->rows, // NOLINT(bugprone-narrowing-conversions)
-        GL_RED,
-        GL_UNSIGNED_BYTE,
-        bitmap->buffer);
+	ctx.glTexSubImage2D(
+		GL_TEXTURE_2D,
+		0,
+		x_out + offset, // NOLINT(bugprone-narrowing-conversions)
+		y_out + offset, // NOLINT(bugprone-narrowing-conversions)
+		bitmap->pitch,
+		bitmap->rows, // NOLINT(bugprone-narrowing-conversions)
+		GL_RED,
+		GL_UNSIGNED_BYTE,
+		bitmap->buffer);
 #if 0
     if(cv_has_EXT_disjoint_timer_query.data == 1)
     {
@@ -1594,31 +1687,31 @@ FONT_RESULT font_bitmap_cache::get_glyph(
         slogf("glTexSubImage2D time: %f, wait: %f\n", elapsed_time / 1000000.0, timer_delta_ms(t1, t2));
     }
 #endif
-    if(GL_RUNTIME(__func__) != GL_NO_ERROR)
-    {
-        return FONT_RESULT::ERROR;
-    }
+	if(GL_RUNTIME(__func__) != GL_NO_ERROR)
+	{
+		return FONT_RESULT::ERROR;
+	}
 
-    glyph_in->rect_x = x_out;
-    glyph_in->rect_y = y_out;
-    glyph_in->rect_w = bitmap->width;
-    glyph_in->rect_h = bitmap->rows;
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-    glyph_in->advance = (current_rasterizer->face->glyph->advance.x >> 6);
-    FT_BitmapGlyph ftglyph_bitmap = reinterpret_cast<FT_BitmapGlyph>(ftglyph.get());
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-    glyph_in->xmin = (ftglyph_bitmap->left);
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions)
-    glyph_in->ymin = (ftglyph_bitmap->top);
-    glyph_in->type = FONT_ENTRY::GLYPH;
-    convert_glyph_format(this, glyph_in, glyph_out, font_scale * bitmap_scale);
+	glyph_in->rect_x = x_out;
+	glyph_in->rect_y = y_out;
+	glyph_in->rect_w = bitmap->width + padding;
+	glyph_in->rect_h = bitmap->rows + padding;
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	glyph_in->advance = (current_rasterizer->face->glyph->advance.x >> 6);
+	FT_BitmapGlyph ftglyph_bitmap = reinterpret_cast<FT_BitmapGlyph>(ftglyph.get());
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	glyph_in->xmin = (ftglyph_bitmap->left) - offset;
+	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+	glyph_in->ymin = (ftglyph_bitmap->top) + offset;
+	glyph_in->type = FONT_ENTRY::GLYPH;
+	convert_glyph_format(this, glyph_in, glyph_out, font_scale * bitmap_scale);
 
 	return FONT_RESULT::SUCCESS;
 }
 
 FONT_BASIC_RESULT
 internal_font_painter_state::load_glyph_verts(
-	char32_t codepoint, std::array<uint8_t, 4> color, font_style_type style)
+	char32_t codepoint, std::array<uint8_t, 4> color, font_style_type style, float font_scale)
 {
 	ASSERT(font != NULL);
 	ASSERT(batcher != NULL);
@@ -1646,6 +1739,16 @@ internal_font_painter_state::load_glyph_verts(
 	}
 
 	return FONT_BASIC_RESULT::SUCCESS;
+}
+
+float font_sprite_painter::get_scale() const
+{
+	return raw_font_scale * static_cast<float>(cv_ui_scale.data);
+}
+
+void font_sprite_painter::set_scale(float font_scale)
+{
+	raw_font_scale = font_scale;
 }
 
 void font_sprite_painter::begin()
@@ -1769,7 +1872,7 @@ bool font_sprite_painter::measure_text_bounds(
 		else
 		{
 			float advance = 0;
-			switch(state.font->get_advance(codepoint, &advance, state.font_scale))
+			switch(state.font->get_advance(codepoint, &advance, get_scale()))
 			{
 			case FONT_BASIC_RESULT::NOT_FOUND:
 				serrf("%s glyph not found: U+%X\n", __func__, codepoint);
@@ -1824,7 +1927,7 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 		}
 		else
 		{
-			switch(state.load_glyph_verts(codepoint, cur_color, current_style))
+			switch(state.load_glyph_verts(codepoint, cur_color, current_style, get_scale()))
 			{
 			case FONT_BASIC_RESULT::NOT_FOUND:
 				serrf("%s glyph not found: U+%X\n", __func__, codepoint);

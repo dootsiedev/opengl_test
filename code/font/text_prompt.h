@@ -129,6 +129,8 @@ struct text_prompt_wrapper
 	// this is padding to help show the cursor at the right side of the screen
 	float horizontal_padding = 30;
 
+    float raw_font_scale = 1;
+
 	struct color_pair
 	{
 		// foreground color (the text)
@@ -203,15 +205,15 @@ struct text_prompt_wrapper
 
 	// this draws into the batcher
 	// this requires the atlas texture to be bound with 1 byte packing
-	// you should check draw_requested() before binding
 	NDSERR bool draw();
 
     float get_lineskip() const
     {
-        return state.font->get_lineskip(state.font_scale);
+        return state.font->get_lineskip(get_scale());
     }
 
-    NDSERR bool set_scale(float font_scale);
+    void set_scale(float font_scale);
+    float get_scale() const;
 
 	void clear_selection()
 	{
@@ -264,38 +266,11 @@ struct text_prompt_wrapper
 		*h = box_ymax - box_ymin;
 	}
 
-	void unfocus()
-	{
-		if(text_focus)
-		{
-			if(!read_only())
-			{
-				SDL_StopTextInput();
-			}
-			text_focus = false;
-			mouse_held = false;
-			x_scrollbar_held = false;
-			y_scrollbar_held = false;
-			drag_x = -1;
-			drag_y = -1;
-			update_buffer = true;
-			markedText.clear();
-		}
-	}
+    // stop text input is VERY important
+	void unfocus(bool stop_text_input = true);
 
-	void focus()
-	{
-		if(!text_focus)
-		{
-			if(!read_only())
-			{
-				SDL_StartTextInput();
-			}
-			text_focus = true;
-			update_buffer = true;
-		}
-		blink_timer = timer_now();
-	}
+    // will call set_event_unfocus (with special flag if text edit is stolen)
+	void focus(SDL_Event& e);
 
 	// this function is currently used to modify a read only prompt
 	// (useful for text that can be selected and copied)

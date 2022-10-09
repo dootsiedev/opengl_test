@@ -18,13 +18,18 @@
 #include <glm/vec3.hpp> // vec3
 #include <limits>
 
+extern cvar_double cv_string_pt;
+extern cvar_string cv_string_font;
+extern cvar_double cv_string_outline;
+extern cvar_int cv_string_mono;
+extern cvar_int cv_string_force_bitmap;
 
 extern cvar_double cv_mouse_sensitivity;
 extern cvar_double cv_camera_speed;
 extern cvar_int cv_mouse_invert;
 
 #include "keybind.h"
-//keybinds
+// keybinds
 extern cvar_key_bind cv_bind_move_forward;
 extern cvar_key_bind cv_bind_move_backward;
 extern cvar_key_bind cv_bind_move_left;
@@ -35,6 +40,8 @@ extern cvar_key_bind cv_bind_fullscreen;
 extern cvar_key_bind cv_bind_open_console;
 extern cvar_key_bind cv_bind_open_options;
 extern cvar_key_bind cv_bind_reset_window_size;
+extern cvar_key_bind cv_bind_toggle_text;
+extern cvar_key_bind cv_bind_soft_reboot;
 
 // This is absolutely not the best way of doing this...
 struct bench_data
@@ -78,6 +85,7 @@ struct bench_data
 enum class DEMO_RESULT
 {
 	CONTINUE,
+    SOFT_REBOOT,
 	EXIT,
 	ERROR
 };
@@ -129,8 +137,10 @@ struct demo_state
 	mono_2d_batcher font_batcher;
 	std::unique_ptr<gl_mono_vertex[]> font_batcher_buffer;
 
-    options_tree_state option_menu;
-    bool show_options = false;
+    bool show_text = true;
+
+	options_tree_state option_menu;
+	bool show_options = false;
 
 	// show g_console
 	bool show_console = false;
@@ -149,8 +159,8 @@ struct demo_state
 		MOVE_BACKWARD,
 		MOVE_LEFT,
 		MOVE_RIGHT,
-        MOVE_JUMP,
-        MOVE_CROUCH,
+		MOVE_JUMP,
+		MOVE_CROUCH,
 		MAX_MOVE
 	};
 
@@ -168,17 +178,19 @@ struct demo_state
 	bench_data perf_input;
 	bench_data perf_update;
 	bench_data perf_render;
+#ifndef __EMSCRIPTEN__
 	bench_data perf_swap;
+#endif
 
 	NDSERR bool init();
 	NDSERR bool init_gl_font();
 
 	NDSERR bool destroy();
 	NDSERR bool destroy_gl_font();
-    NDSERR bool update(double delta_sec);
+	NDSERR bool update(double delta_sec);
 	NDSERR bool input(SDL_Event& e);
 	void unfocus_demo();
-    bool unfocus_all();
+	bool unfocus_all();
 	NDSERR bool render();
 
 	NDSERR DEMO_RESULT process();

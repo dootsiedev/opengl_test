@@ -5,20 +5,20 @@
 #include <SDL2/SDL.h>
 
 // keyboard
-#define REGISTER_CVAR_KEY_BIND_KEY(key, value, allow_mouse, comment, type) \
+#define REGISTER_CVAR_KEY_BIND_KEY(key, value, allow_mouse, comment) \
 	cvar_key_bind key(                                                \
-		#key, {KEYBIND_T::KEY, 0, value, 0}, allow_mouse, comment, type, __FILE__, __LINE__)
+		#key, {KEYBIND_T::KEY, 0, value, 0}, allow_mouse, comment, CVAR_T::RUNTIME, __FILE__, __LINE__)
 // mouse
-#define REGISTER_CVAR_KEY_BIND_MOUSE(key, value, allow_mouse, comment, type) \
+#define REGISTER_CVAR_KEY_BIND_MOUSE(key, value, allow_mouse, comment) \
 	cvar_key_bind key(                                                  \
-		#key, {KEYBIND_T::MOUSE, value, 0, 0}, allow_mouse, comment, type, __FILE__, __LINE__)
+		#key, {KEYBIND_T::MOUSE, value, 0, 0}, allow_mouse, comment, CVAR_T::RUNTIME, __FILE__, __LINE__)
 // this is used for fullscreen alt + enter.
-#define REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(key, value, mod, allow_mouse, comment, type) \
+#define REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(key, value, mod, allow_mouse, comment) \
 	cvar_key_bind key(                                                             \
-		#key, {KEYBIND_T::KEY, 0, value, mod}, allow_mouse, comment, type, __FILE__, __LINE__)
+		#key, {KEYBIND_T::KEY, 0, value, mod}, allow_mouse, comment, CVAR_T::RUNTIME, __FILE__, __LINE__)
 // unbound key.
-#define REGISTER_CVAR_KEY_BIND_NONE(key, allow_mouse, comment, type) \
-	cvar_key_bind key(#key, {KEYBIND_T::NONE, 0, 0, 0}, allow_mouse, comment, type, __FILE__, __LINE__)
+#define REGISTER_CVAR_KEY_BIND_NONE(key, allow_mouse, comment) \
+	cvar_key_bind key(#key, {KEYBIND_T::NONE, 0, 0, 0}, allow_mouse, comment, CVAR_T::RUNTIME, __FILE__, __LINE__)
 
 // used for registry
 enum class KEYBIND_T : uint8_t
@@ -27,6 +27,8 @@ enum class KEYBIND_T : uint8_t
 	KEY,
 	MOUSE
 	// TODO: scroll wheel, maybe controller?
+    // I think the controller analog sticks should use a custom keybind cvar class
+    // one custom class for WASD movement, and one for mouse look.
 };
 // used for registry
 struct keybind_state

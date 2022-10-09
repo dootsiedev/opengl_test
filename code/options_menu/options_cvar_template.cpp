@@ -17,7 +17,8 @@ bool option_error_prompt::init(shared_cvar_option_state* state_, std::string_vie
 	ok_button_text = "ok";
 	ok_button.init(state->font_painter);
 
-	prompt.state.font_scale = state->font_painter->state.font_scale;
+	// why not propagate the value.
+	prompt.raw_font_scale = state->font_painter->raw_font_scale;
 
 	if(!prompt.init(
 		   message,
@@ -619,8 +620,8 @@ bool cvar_slider_option::init(
 
 	slider.init(font_painter, cvar->data, min, max);
 
-	// note this only works if you do it before init
-	prompt.state.font_scale = font_painter->state.font_scale;
+	// why not propagate the value.
+	prompt.raw_font_scale = font_painter->raw_font_scale;
 
 	// TODO(dootsie): I would make the prompt select all the text when you click up without
 	// dragging. or just implement double / triple clicking...
@@ -941,8 +942,8 @@ bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string labe
 
 	element_height = font_painter->get_lineskip() + state->font_padding;
 
-	// note this only works if you do it before init
-	prompt.state.font_scale = font_painter->state.font_scale;
+	// why not propagate the value.
+	prompt.raw_font_scale = font_painter->raw_font_scale;
 
 	// TODO(dootsie): I would make the prompt select all the text when you click up without
 	// dragging. or just implement double / triple clicking...
