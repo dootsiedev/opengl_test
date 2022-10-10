@@ -669,27 +669,26 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 			if(isnan(previous_value))
 			{
 				previous_value = cvar->data;
-				// I would only do this if I had a unfocus event
-#if 0
-            // TODO: this is copy pasted
-			if(cvar->cvar_type != CVAR_T::RUNTIME)
-			{
-				switch(cvar->cvar_type)
+				// TODO: this is copy pasted
+				if(cvar->cvar_type != CVAR_T::RUNTIME)
 				{
-				case CVAR_T::STARTUP:
-					slogf(
-						"info: +%s: this value is used in startup, which means that this change requires a restart take effect.\n",
-						cvar->cvar_key);
-					break;
-				case CVAR_T::DEFFERRED:
-					slogf(
-						"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
-						cvar->cvar_key);
-					break;
-				default: slogf("info +%s: I don't know why this is here\n", cvar->cvar_key); break;
+					switch(cvar->cvar_type)
+					{
+					case CVAR_T::STARTUP:
+						slogf(
+							"info: +%s: this value is used in startup, which means that this change requires a restart take effect.\n",
+							cvar->cvar_key);
+						break;
+					case CVAR_T::DEFFERRED:
+						slogf(
+							"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+							cvar->cvar_key);
+						break;
+					default:
+						slogf("info +%s: I don't know why this is here\n", cvar->cvar_key);
+						break;
+					}
 				}
-			}
-#endif
 			}
 			prompt.replace_string(number_text.c_str());
 		}
@@ -899,13 +898,14 @@ struct cvar_prompt_option : public abstract_option_element
 
 	std::string previous_value;
 	bool value_changed = false;
+    bool long_prompt = false;
 
 	float element_height = -1;
 
 	float font_x = -1;
 	float font_y = -1;
 
-	NDSERR bool init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_);
+	NDSERR bool init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_, bool long_prompt_);
 
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
@@ -929,7 +929,7 @@ struct cvar_prompt_option : public abstract_option_element
 	NDSERR bool reload_cvars() override;
 };
 
-bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_)
+bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_, bool long_prompt_)
 {
 	ASSERT(state_ != NULL);
 	ASSERT(cvar_ != NULL);
@@ -937,6 +937,7 @@ bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string labe
 	state = state_;
 	label_text = std::move(label);
 	cvar = cvar_;
+    long_prompt = long_prompt_;
 
 	font_sprite_painter* font_painter = state->font_painter;
 
@@ -1083,11 +1084,12 @@ void cvar_prompt_option::resize(float x, float y, float menu_w)
 	font_x = x + font_padding / 2.f;
 	font_y = y + font_padding / 2.f;
 
-	float cur_x = x + (menu_w - element_padding) / 2;
+	float cur_x = x + (menu_w - element_padding) / 2 + element_padding;
+	float max_x = x + menu_w;
 
 	float prompt_width = 80 * (font_painter->get_lineskip() / 16.f);
 	prompt.set_bbox(
-		cur_x + element_padding, y + font_padding / 2, prompt_width, font_painter->get_lineskip());
+		cur_x, y + font_padding / 2, (long_prompt ? max_x-cur_x : prompt_width), font_painter->get_lineskip());
 }
 
 bool cvar_prompt_option::draw_requested()
@@ -1147,10 +1149,10 @@ bool cvar_prompt_option::reload_cvars()
 }
 
 std::unique_ptr<abstract_option_element>
-	create_prompt_option(shared_cvar_option_state* state, std::string label, V_cvar* cvar)
+	create_prompt_option(shared_cvar_option_state* state, std::string label, V_cvar* cvar, bool long_prompt)
 {
 	auto output = std::make_unique<cvar_prompt_option>();
-	if(!output->init(state, std::move(label), cvar))
+	if(!output->init(state, std::move(label), cvar, long_prompt))
 	{
 		return std::unique_ptr<abstract_option_element>();
 	}

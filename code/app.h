@@ -30,6 +30,7 @@ extern cvar_int cv_screen_height;
 extern cvar_int cv_debug_opengl;
 extern cvar_double cv_scroll_speed;
 extern cvar_double cv_ui_scale;
+extern cvar_int cv_font_linear_filtering;
 
 class cvar_fullscreen : public cvar_int
 {

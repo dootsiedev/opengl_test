@@ -257,13 +257,13 @@ bool mono_button_object::draw_buffer(const char* button_text, size_t button_text
 
 	// font
 	font_painter->begin();
+	font_painter->set_anchor(TEXT_ANCHOR::CENTER_PERFECT);
 
 	if(color_state.text_outline)
 	{
 		// outline
 		font_painter->set_style(FONT_STYLE_OUTLINE);
 		font_painter->set_color(color_state.text_outline_color);
-		font_painter->set_anchor(TEXT_ANCHOR::CENTER_PERFECT);
 		font_painter->set_xy(
 			button_rect[0] + (button_rect[2] / 2.f), button_rect[1] + (button_rect[3] / 2.f));
 		if(!font_painter->draw_text(button_text, button_text_len))

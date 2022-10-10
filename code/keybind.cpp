@@ -21,7 +21,7 @@ const char* get_sdl_key_name(SDL_Keycode key);
 cvar_key_bind::cvar_key_bind(
 	const char* key,
 	keybind_state value,
-    bool allow_mouse_,
+	bool allow_mouse_,
 	const char* comment,
 	CVAR_T type,
 	const char* file,

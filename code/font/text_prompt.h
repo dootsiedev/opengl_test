@@ -129,7 +129,7 @@ struct text_prompt_wrapper
 	// this is padding to help show the cursor at the right side of the screen
 	float horizontal_padding = 30;
 
-    float raw_font_scale = 1;
+	float raw_font_scale = 1;
 
 	struct color_pair
 	{
@@ -207,13 +207,13 @@ struct text_prompt_wrapper
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool draw();
 
-    float get_lineskip() const
-    {
-        return state.font->get_lineskip(get_scale());
-    }
+	float get_lineskip() const
+	{
+		return state.font->get_lineskip(get_scale());
+	}
 
-    void set_scale(float font_scale);
-    float get_scale() const;
+	void set_scale(float font_scale);
+	float get_scale() const;
 
 	void clear_selection()
 	{
@@ -266,10 +266,10 @@ struct text_prompt_wrapper
 		*h = box_ymax - box_ymin;
 	}
 
-    // stop text input is VERY important
+	// stop text input is VERY important
 	void unfocus(bool stop_text_input = true);
 
-    // will call set_event_unfocus (with special flag if text edit is stolen)
+	// will call set_event_unfocus (with special flag if text edit is stolen)
 	void focus(SDL_Event& e);
 
 	// this function is currently used to modify a read only prompt

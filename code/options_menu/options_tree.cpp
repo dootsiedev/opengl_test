@@ -62,21 +62,28 @@ bool options_tree_state::init(
 
 		back.add_option(create_bool_option(&shared_menu_state, "fullscreen", &cv_fullscreen));
 		back.add_option(create_bool_option(&shared_menu_state, "vsync", &cv_vsync));
-		back.add_option(create_slider_option(&shared_menu_state, "scale font", &cv_ui_scale, 1, 4));
+		back.add_option(
+			create_slider_option(&shared_menu_state, "scale font*", &cv_ui_scale, 1, 4));
 		// TODO: add a new option that is a one_shot button
 		// so that I can add in a "resize window", for people who want a specific resolution
 		back.add_option(create_prompt_option(
-			&shared_menu_state, "startup screen width", &cv_startup_screen_width));
+			&shared_menu_state, "startup screen width*", &cv_startup_screen_width));
 		back.add_option(create_prompt_option(
-			&shared_menu_state, "startup screen height", &cv_startup_screen_height));
+			&shared_menu_state, "startup screen height*", &cv_startup_screen_height));
+		back.add_option(create_bool_option(
+			&shared_menu_state, "font linear filtering*", &cv_font_linear_filtering));
 
-		back.add_option(create_prompt_option(&shared_menu_state, "font path", &cv_string_font));
-		back.add_option(create_prompt_option(&shared_menu_state, "font size", &cv_string_pt));
+		back.add_option(create_prompt_option(&shared_menu_state, "font path*", &cv_string_font, true));
+		back.add_option(create_prompt_option(&shared_menu_state, "font size*", &cv_string_pt));
 		back.add_option(
-			create_prompt_option(&shared_menu_state, "font outline", &cv_string_outline));
-		back.add_option(create_prompt_option(&shared_menu_state, "font mono", &cv_string_mono));
-		back.add_option(create_prompt_option(
-			&shared_menu_state, "font bitmap outline", &cv_string_force_bitmap));
+			create_prompt_option(&shared_menu_state, "font outline*", &cv_string_outline));
+		back.add_option(create_bool_option(&shared_menu_state, "font mono*", &cv_string_mono));
+		back.add_option(create_bool_option(
+			&shared_menu_state, "font bitmap outline*", &cv_string_force_bitmap));
+
+        
+        back.menu_state.show_footer_text = true;
+        back.menu_state.footer_text = "(*) restart required";
 
 		if(!back.good())
 		{
@@ -95,7 +102,8 @@ bool options_tree_state::init(
 		back.text = "Controls";
 		back.button.init(&font_painter);
 
-        // TODO: if you hover your mouse over, show the cvar string and the description in a tooltip.
+		// TODO: if you hover your mouse over, show the cvar string and the description in a
+		// tooltip.
 
 		back.add_option(create_bool_option(&shared_menu_state, "invert mouse", &cv_mouse_invert));
 		back.add_option(

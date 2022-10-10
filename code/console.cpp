@@ -76,12 +76,12 @@ bool console_state::init(
 	{
 		return false;
 	}
-    /*
-    if(!log_box.set_scale(2))
-    {
-        return false;
-    }
-    */
+	/*
+	if(!log_box.set_scale(2))
+	{
+		return false;
+	}
+	*/
 	// set the color table so we can print errors with a different color
 	log_box.color_table = log_color_table.data();
 	log_box.color_table_size = log_color_table.size();
@@ -308,7 +308,7 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 {
 	if(e.type == SDL_WINDOWEVENT)
 	{
-        switch(e.window.event)
+		switch(e.window.event)
 		{
 		case SDL_WINDOWEVENT_SIZE_CHANGED: resize_text_area(); break;
 		}
@@ -570,7 +570,7 @@ bool console_state::update(double delta_sec)
 				}
 			}
 			log_box.set_readonly(false);
-            // TODO: this causes the selection to be bugged out...
+			// TODO: this causes the selection to be bugged out...
 			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 			log_box.stb_delete_chars(0, std::distance(log_box.text_data.begin(), trim_cursor));
 			log_box.set_readonly(true);
@@ -634,34 +634,37 @@ bool console_state::render()
 	}
 	if(error_text.draw_requested())
 	{
-        // dont draw the bbox
-        if(error_text.text_data.empty())
-        {
-            error_vertex_count = 0;
-        }
-        else
-        {
-            console_batcher->clear();
-            // this requires the atlas texture to be bound with 1 byte packing
-            if(!error_text.draw())
-            {
-                // put the message into the console instead
-                post_error(serr_get_error());
-            }
-            error_vertex_count = console_batcher->get_current_vertex_count();
-            if(console_batcher->get_quad_count() != 0)
-            {
-                ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
-                ctx.glBufferData(
-                    GL_ARRAY_BUFFER, console_batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-                ctx.glBufferSubData(
-                    GL_ARRAY_BUFFER,
-                    0,
-                    console_batcher->get_current_vertex_size(),
-                    console_batcher->buffer);
-                ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
-            }
-        }
+		// dont draw the bbox
+		if(error_text.text_data.empty())
+		{
+			error_vertex_count = 0;
+		}
+		else
+		{
+			console_batcher->clear();
+			// this requires the atlas texture to be bound with 1 byte packing
+			if(!error_text.draw())
+			{
+				// put the message into the console instead
+				post_error(serr_get_error());
+			}
+			error_vertex_count = console_batcher->get_current_vertex_count();
+			if(console_batcher->get_quad_count() != 0)
+			{
+				ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_error_interleave_vbo);
+				ctx.glBufferData(
+					GL_ARRAY_BUFFER,
+					console_batcher->get_total_vertex_size(),
+					NULL,
+					GL_STREAM_DRAW);
+				ctx.glBufferSubData(
+					GL_ARRAY_BUFFER,
+					0,
+					console_batcher->get_current_vertex_size(),
+					console_batcher->buffer);
+				ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+			}
+		}
 	}
 
 	if(log_vertex_count != 0)
@@ -714,7 +717,7 @@ bool console_state::render()
 
 	if(error_vertex_count != 0)
 	{
-        float x;
+		float x;
 		float y;
 		float w;
 		float h;
@@ -738,7 +741,6 @@ bool console_state::render()
 
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
 }
-
 
 void console_state::post_error(std::string_view msg)
 {

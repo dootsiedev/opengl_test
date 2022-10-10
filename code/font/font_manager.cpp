@@ -32,11 +32,6 @@
 #define FT_CEIL(X) ((((X) + 63) & -64) / 64)
 #define FT_FLOOR(X) (((X) & -64) / 64)
 
-static REGISTER_CVAR_INT(
-	cv_font_linear_filtering,
-	0,
-	"0 = nearest filtering, 1 = linear filtering, only noticable if you scale the fonts",
-	CVAR_T::STARTUP);
 
 static REGISTER_CVAR_INT(
 	cv_font_atlas_size, 16384, "the texture size, must be a power of 2", CVAR_T::STARTUP);
@@ -198,6 +193,7 @@ bool font_manager_state::create()
 
 // webgl will always clear the texture for security reasons.
 #ifndef __EMSCRIPTEN__
+
 #if 0
 	static GLuint query = 0;
 	TIMER_U t1 = timer_now();
@@ -212,7 +208,9 @@ bool font_manager_state::create()
 	}
 #endif
 
-	// clear the texture data because there will be garbage data left over.
+	// because of filtering, I need to pad textures in the atlas,
+    // but unwritten areas will have garbage, so clear the texture to be zero's.
+
 	unsigned int fbo;
 	ctx.glGenFramebuffers(1, &fbo);
 	if(fbo == 0)
@@ -250,11 +248,14 @@ bool font_manager_state::create()
 #endif
 #endif
 
-	// because of linear filtering, and padding, I need to clear the texture to be zero's.
+
+
+	// upload 4 pixels for padding
+    // technically I could use one pixel but see cool_fade
 
 	uint32_t x_out;
 	uint32_t y_out;
-    // 2x2 for the colors of the corners, and +1 because of cv_font_linear_filtering
+	// 2x2 for the colors of the corners, and +1 because of cv_font_linear_filtering
 	if(!atlas.find_atlas_slot(3, 3, &x_out, &y_out))
 	{
 		return false;
@@ -266,8 +267,13 @@ bool font_manager_state::create()
 	atlas.white_uv[1] = (static_cast<float>(y_out) + 0.5f) / atlas_size;
 	atlas.white_uv[3] = (static_cast<float>(y_out) + 1.5f) / atlas_size;
 
-	// upload 4 pixels for padding
-	uint8_t pixel[4] = {255, 255, 200, 200};
+    uint8_t cool_fade = 255;
+    if(cv_font_linear_filtering.data == 1)
+    {
+        // I like the look, this affects all the boxes to have some alpha.
+        cool_fade = 170;
+    }
+	uint8_t pixel[4] = {255, 255, cool_fade, cool_fade};
 	ctx.glBindTexture(GL_TEXTURE_2D, gl_atlas_tex_id);
 	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
@@ -1629,7 +1635,6 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 			std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
 		return FONT_RESULT::SPACE;
 	}
-
 
 	// needs one pixel of padding for nearest neighbor filtering (if scaled)
 	uint32_t padding = 1;

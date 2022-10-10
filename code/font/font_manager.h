@@ -359,7 +359,7 @@ struct hex_font_placeholder : public font_style_interface
 		get_advance(char32_t codepoint, float* advance, float font_scale) override
 	{
 		ASSERT(hex_font != NULL);
-		return hex_font->get_advance(codepoint, advance, font_scale);
+		return hex_font->get_advance(codepoint, advance, font_scale * (HEX_HEIGHT/height));
 	}
 	NDSERR FONT_RESULT get_glyph(
 		char32_t codepoint,
@@ -368,7 +368,7 @@ struct hex_font_placeholder : public font_style_interface
 		float font_scale) override
 	{
 		ASSERT(hex_font != NULL);
-		return hex_font->get_glyph(codepoint, style, glyph, font_scale);
+		return hex_font->get_glyph(codepoint, style, glyph, font_scale * (HEX_HEIGHT/height));
 	}
 };
 

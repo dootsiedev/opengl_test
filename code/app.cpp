@@ -51,14 +51,20 @@ REGISTER_CVAR_DOUBLE(cv_scroll_speed, 3, "scroll rate of the mouse wheel", CVAR_
 REGISTER_CVAR_DOUBLE(
 	cv_ui_scale, 1, "scale the fonts, but the font will look upscaled", CVAR_T::DEFFERRED);
 
+REGISTER_CVAR_INT(
+cv_font_linear_filtering,
+0,
+"0 = nearest filtering, 1 = linear filtering, only noticable if you scale the fonts",
+CVAR_T::STARTUP);
+
 cvar_fullscreen cv_fullscreen;
 cvar_vysnc cv_vsync;
 
-// this will change the display resolution on windows 7 or linux (in very annoying effect)
+// this will change the display resolution on windows 7 or linux (in a very annoying effect)
 // also some people say that changing the resolution can damage your display
 // (but this only happened to certain CRT's with a faulty design)
 // on windows 10 SDL_WINDOW_FULLSCREEN is the same as SDL_WINDOW_FULLSCREEN_DESKTOP.
-// on emscripten this scales the resolution ONLY when you use soft_fullscreen (alt+enter)
+// on emscripten this scales the resolution ONLY when you use soft_fullscreen (alt+enter) ATM
 static REGISTER_CVAR_INT(
 	cv_stretch_fullscreen,
 	0,
@@ -66,13 +72,7 @@ static REGISTER_CVAR_INT(
 	CVAR_T::RUNTIME);
 
 #ifdef __EMSCRIPTEN__
-//  TODO: export the console so the web page has a backup prompt.
-//  TODO: some sort of hotkey to restart with startup cvars (or use php url thingy for it?)
-//      or should I just have the web page paused on start so you can enter the cvars?
-//  TODO: clipboard requires async events and there are portability problems
-//      but it's still possible I just need to make keyboard events use the callback
-//      (unless I am wrong that I need a short handler to grab the clipboard?)
-//      and use callbacks to save and load the clipboard asynchronously.
+//  TODO: store cvar history into the indexdb, and other saved files.
 // this emscripten code is based heavily on test/test_html5_fullscreen.c
 const char* emscripten_event_type_to_string(int eventType)
 {
