@@ -898,14 +898,15 @@ struct cvar_prompt_option : public abstract_option_element
 
 	std::string previous_value;
 	bool value_changed = false;
-    bool long_prompt = false;
+	bool long_prompt = false;
 
 	float element_height = -1;
 
 	float font_x = -1;
 	float font_y = -1;
 
-	NDSERR bool init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_, bool long_prompt_);
+	NDSERR bool
+		init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_, bool long_prompt_);
 
 	// virtual functions
 	NDSERR bool update(double delta_sec) override;
@@ -929,7 +930,8 @@ struct cvar_prompt_option : public abstract_option_element
 	NDSERR bool reload_cvars() override;
 };
 
-bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string label, V_cvar* cvar_, bool long_prompt_)
+bool cvar_prompt_option::init(
+	shared_cvar_option_state* state_, std::string label, V_cvar* cvar_, bool long_prompt_)
 {
 	ASSERT(state_ != NULL);
 	ASSERT(cvar_ != NULL);
@@ -937,7 +939,7 @@ bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string labe
 	state = state_;
 	label_text = std::move(label);
 	cvar = cvar_;
-    long_prompt = long_prompt_;
+	long_prompt = long_prompt_;
 
 	font_sprite_painter* font_painter = state->font_painter;
 
@@ -946,13 +948,15 @@ bool cvar_prompt_option::init(shared_cvar_option_state* state_, std::string labe
 	// why not propagate the value.
 	prompt.raw_font_scale = font_painter->raw_font_scale;
 
+	// TODO: long_prompt uses TEXTP_X_SCROLL, but I can't scissor it.
 	// TODO(dootsie): I would make the prompt select all the text when you click up without
 	// dragging. or just implement double / triple clicking...
 	if(!prompt.init(
 		   cvar->cvar_write(),
 		   font_painter->state.batcher,
 		   font_painter->state.font,
-		   TEXTP_SINGLE_LINE | TEXTP_DRAW_BBOX | TEXTP_DRAW_BACKDROP | TEXTP_DISABLE_CULL))
+		   TEXTP_SINGLE_LINE | TEXTP_DRAW_BBOX | TEXTP_DRAW_BACKDROP | TEXTP_DISABLE_CULL |
+			   (long_prompt ? TEXTP_X_SCROLL : 0)))
 	{
 		// NOLINTNEXTLINE
 		return false;
@@ -1089,7 +1093,10 @@ void cvar_prompt_option::resize(float x, float y, float menu_w)
 
 	float prompt_width = 80 * (font_painter->get_lineskip() / 16.f);
 	prompt.set_bbox(
-		cur_x, y + font_padding / 2, (long_prompt ? max_x-cur_x : prompt_width), font_painter->get_lineskip());
+		cur_x,
+		y + font_padding / 2,
+		(long_prompt ? max_x - cur_x : prompt_width),
+		font_painter->get_lineskip());
 }
 
 bool cvar_prompt_option::draw_requested()
@@ -1148,8 +1155,8 @@ bool cvar_prompt_option::reload_cvars()
 	return true;
 }
 
-std::unique_ptr<abstract_option_element>
-	create_prompt_option(shared_cvar_option_state* state, std::string label, V_cvar* cvar, bool long_prompt)
+std::unique_ptr<abstract_option_element> create_prompt_option(
+	shared_cvar_option_state* state, std::string label, V_cvar* cvar, bool long_prompt)
 {
 	auto output = std::make_unique<cvar_prompt_option>();
 	if(!output->init(state, std::move(label), cvar, long_prompt))

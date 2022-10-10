@@ -11,7 +11,7 @@ void set_event_leave(SDL_Event& e)
 {
 	if(e.type == SDL_MOUSEMOTION)
 	{
-        // this is a hack to allow dragging a slider to still work on top of "leave" events.
+		// this is a hack to allow dragging a slider to still work on top of "leave" events.
 		e.motion.windowID = CLIPPED_WINDOW_ID;
 		return;
 	}
@@ -54,10 +54,10 @@ bool is_mouse_event_clipped(SDL_Event& e)
 
 bool is_unfocus_event_text_input_stolen(SDL_Event& e)
 {
-	if(e.type ==SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-    {
-        return e.window.windowID == TEXT_INPUT_STOLEN_WINDOW_ID;
-    }
+	if(e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+	{
+		return e.window.windowID == TEXT_INPUT_STOLEN_WINDOW_ID;
+	}
 	return false;
 }
 
@@ -282,8 +282,8 @@ bool mono_button_object::draw_buffer(const char* button_text, size_t button_text
 	}
 
 	font_painter->end();
-    
-    update_buffer = false;
+
+	update_buffer = false;
 
 	// there are not much gl calls here, but the text does modify the atlas.
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
@@ -307,7 +307,7 @@ void mono_y_scrollable_area::resize_view(float xmin, float xmax, float ymin, flo
 	// clamp the scroll (when the screen resizes)
 	scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
 
-    update_buffer = true;
+	update_buffer = true;
 }
 
 SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
@@ -388,8 +388,8 @@ SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
 				float mouse_y = static_cast<float>(e.button.y);
 				if(y_scrollbar_held)
 				{
-                    internal_scroll_y_to(mouse_y);
-                    modified = true;
+					internal_scroll_y_to(mouse_y);
+					modified = true;
 					y_scrollbar_held = false;
 					scroll_thumb_click_offset = -1;
 					// eat
@@ -467,7 +467,7 @@ void mono_y_scrollable_area::draw_buffer()
 			batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 		}
 	}
-    update_buffer = false;
+	update_buffer = false;
 }
 
 bool mono_y_scrollable_area::internal_scroll_y_inside(float mouse_x, float mouse_y)
@@ -585,7 +585,7 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 			if(slider_held)
 			{
 				internal_move_to(mouse_x);
-				
+
 				unfocus();
 				// eat
 				set_event_unfocus(e);
@@ -668,7 +668,7 @@ void mono_normalized_slider_object::draw_buffer()
 		batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
 		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 	}
-    update_buffer = false;
+	update_buffer = false;
 }
 void mono_normalized_slider_object::unfocus()
 {
@@ -681,7 +681,7 @@ void mono_normalized_slider_object::resize_view(float xmin, float xmax, float ym
 	box_xmax = xmax;
 	box_ymin = ymin;
 	box_ymax = ymax;
-    update_buffer = true;
+	update_buffer = true;
 }
 bool mono_normalized_slider_object::internal_slider_inside(float mouse_x, float mouse_y)
 {
@@ -707,7 +707,7 @@ void mono_normalized_slider_object::internal_move_to(float mouse_x)
 		(mouse_x - slider_thumb_click_offset) / ((box_xmax - box_xmin) - slider_thumb_size);
 
 	// the value is currently 0-1, do linear interpolation to find the value.
-    slider_value = (slider_min*(1-slider_value)+slider_max*slider_value);
+	slider_value = (slider_min * (1 - slider_value) + slider_max * slider_value);
 
 	// clamp
 	slider_value = std::max(slider_min, std::min(slider_max, slider_value));

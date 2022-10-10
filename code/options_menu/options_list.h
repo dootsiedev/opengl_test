@@ -26,12 +26,12 @@ struct options_list_state
 	mono_button_object ok_button;
 	mono_button_object defaults_button;
 
-    // shown on the footer
-    // this explains the * which means requires startup.
-    bool show_footer_text = false;
-    std::string footer_text;
-    float footer_text_x = -1;
-    float footer_text_y = -1;
+	// shown on the footer
+	// this explains the * which means requires startup.
+	bool show_footer_text = false;
+	std::string footer_text;
+	float footer_text_x = -1;
+	float footer_text_y = -1;
 
 	// since I only render when it is requested, I need to keep this.
 	GLsizei menu_batch_vertex_count = 0;
@@ -48,7 +48,6 @@ struct options_list_state
 	float box_xmax = -1;
 	float box_ymin = -1;
 	float box_ymax = -1;
-
 
 	bool update_buffer = true;
 
@@ -69,8 +68,7 @@ struct options_list_state
 	// this requires the atlas texture to be bound with 1 byte packing
 	NDSERR bool render();
 
-    NDSERR bool refresh();
-
+	NDSERR bool refresh();
 
 	NDSERR bool undo_history();
 	NDSERR bool clear_history();

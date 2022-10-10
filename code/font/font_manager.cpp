@@ -32,7 +32,6 @@
 #define FT_CEIL(X) ((((X) + 63) & -64) / 64)
 #define FT_FLOOR(X) (((X) & -64) / 64)
 
-
 static REGISTER_CVAR_INT(
 	cv_font_atlas_size, 16384, "the texture size, must be a power of 2", CVAR_T::STARTUP);
 
@@ -209,7 +208,7 @@ bool font_manager_state::create()
 #endif
 
 	// because of filtering, I need to pad textures in the atlas,
-    // but unwritten areas will have garbage, so clear the texture to be zero's.
+	// but unwritten areas will have garbage, so clear the texture to be zero's.
 
 	unsigned int fbo;
 	ctx.glGenFramebuffers(1, &fbo);
@@ -248,10 +247,8 @@ bool font_manager_state::create()
 #endif
 #endif
 
-
-
 	// upload 4 pixels for padding
-    // technically I could use one pixel but see cool_fade
+	// technically I could use one pixel but see cool_fade
 
 	uint32_t x_out;
 	uint32_t y_out;
@@ -267,12 +264,12 @@ bool font_manager_state::create()
 	atlas.white_uv[1] = (static_cast<float>(y_out) + 0.5f) / atlas_size;
 	atlas.white_uv[3] = (static_cast<float>(y_out) + 1.5f) / atlas_size;
 
-    uint8_t cool_fade = 255;
-    if(cv_font_linear_filtering.data == 1)
-    {
-        // I like the look, this affects all the boxes to have some alpha.
-        cool_fade = 170;
-    }
+	uint8_t cool_fade = 255;
+	if(cv_font_linear_filtering.data == 1)
+	{
+		// I like the look, this affects all the boxes to have some alpha.
+		cool_fade = 170;
+	}
 	uint8_t pixel[4] = {255, 255, cool_fade, cool_fade};
 	ctx.glBindTexture(GL_TEXTURE_2D, gl_atlas_tex_id);
 	ctx.glPixelStorei(GL_UNPACK_ALIGNMENT, 1);

@@ -28,7 +28,7 @@ bool options_list_state::init(shared_cvar_option_state* shared_state_)
 	scroll_state.init(font_painter);
 	scroll_state.scrollbar_padding = shared_state->element_padding;
 
-	//resize_view();
+	// resize_view();
 
 	return true;
 }
@@ -66,9 +66,8 @@ void options_list_state::resize_view()
 	float x = std::floor((screen_width - menu_width) / 2.f);
 	float y = std::floor((screen_height - menu_height) / 2.f);
 
-
-    footer_text_x = x;
-    footer_text_y = y + menu_height - footer_height;
+	footer_text_x = x;
+	footer_text_y = y + menu_height - footer_height;
 
 	// footer buttons
 	{
@@ -132,17 +131,17 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 		case FOCUS_ELEMENT_RESULT::CONTINUE: break;
 		case FOCUS_ELEMENT_RESULT::CLOSE:
 			if(!shared_state->set_focus(NULL))
-            {
-                return OPTIONS_MENU_RESULT::ERROR;
-            }
+			{
+				return OPTIONS_MENU_RESULT::ERROR;
+			}
 			// eat
 			set_event_leave(e);
 			break;
 		case FOCUS_ELEMENT_RESULT::MODIFIED:
 			if(!shared_state->set_focus(NULL))
-            {
-                return OPTIONS_MENU_RESULT::ERROR;
-            }
+			{
+				return OPTIONS_MENU_RESULT::ERROR;
+			}
 			revert_button.set_disabled(false);
 			break;
 		case FOCUS_ELEMENT_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
@@ -381,28 +380,28 @@ bool options_list_state::draw_menu()
 		batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
 	}
 
-    if(show_footer_text)
-    {
-        font_sprite_painter* font_painter = shared_state->font_painter;
+	if(show_footer_text)
+	{
+		font_sprite_painter* font_painter = shared_state->font_painter;
 
-        font_painter->set_anchor(TEXT_ANCHOR::TOP_LEFT);
-        font_painter->set_style(FONT_STYLE_OUTLINE);
-        font_painter->set_color(0,0,0,255);
-        font_painter->set_xy( footer_text_x,footer_text_y);
-        if(!font_painter->draw_text(footer_text.c_str(), footer_text.size()))
-        {
-            return false;
-        }
-        font_painter->set_style(FONT_STYLE_NORMAL);
-        font_painter->set_color(255,255,255,255);
-        font_painter->set_xy( footer_text_x,footer_text_y);
-        if(!font_painter->draw_text(footer_text.c_str(), footer_text.size()))
-        {
-            return false;
-        }
+		font_painter->set_anchor(TEXT_ANCHOR::TOP_LEFT);
+		font_painter->set_style(FONT_STYLE_OUTLINE);
+		font_painter->set_color(0, 0, 0, 255);
+		font_painter->set_xy(footer_text_x, footer_text_y);
+		if(!font_painter->draw_text(footer_text.c_str(), footer_text.size()))
+		{
+			return false;
+		}
+		font_painter->set_style(FONT_STYLE_NORMAL);
+		font_painter->set_color(255, 255, 255, 255);
+		font_painter->set_xy(footer_text_x, footer_text_y);
+		if(!font_painter->draw_text(footer_text.c_str(), footer_text.size()))
+		{
+			return false;
+		}
 
-        font_painter->end();
-    }
+		font_painter->end();
+	}
 
 	// footer buttons
 	{

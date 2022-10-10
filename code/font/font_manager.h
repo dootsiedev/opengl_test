@@ -359,7 +359,8 @@ struct hex_font_placeholder : public font_style_interface
 		get_advance(char32_t codepoint, float* advance, float font_scale) override
 	{
 		ASSERT(hex_font != NULL);
-		return hex_font->get_advance(codepoint, advance, font_scale * (HEX_HEIGHT/height));
+		return hex_font->get_advance(
+			codepoint, advance, font_scale * (height / static_cast<float>(HEX_HEIGHT)));
 	}
 	NDSERR FONT_RESULT get_glyph(
 		char32_t codepoint,
@@ -368,7 +369,8 @@ struct hex_font_placeholder : public font_style_interface
 		float font_scale) override
 	{
 		ASSERT(hex_font != NULL);
-		return hex_font->get_glyph(codepoint, style, glyph, font_scale * (HEX_HEIGHT/height));
+		return hex_font->get_glyph(
+			codepoint, style, glyph, font_scale * (height / static_cast<float>(HEX_HEIGHT)));
 	}
 };
 
@@ -596,8 +598,8 @@ struct internal_font_painter_state
 		draw_y_pos = std::floor(y);
 	}
 
-	NDSERR FONT_BASIC_RESULT
-		load_glyph_verts(char32_t codepoint, std::array<uint8_t, 4> color, font_style_type style, float font_scale);
+	NDSERR FONT_BASIC_RESULT load_glyph_verts(
+		char32_t codepoint, std::array<uint8_t, 4> color, font_style_type style, float font_scale);
 };
 
 // the anchor for which side to align to.
@@ -667,8 +669,8 @@ struct font_sprite_painter
 
 	float raw_font_scale = 1;
 
-    float get_scale() const;
-    void set_scale(float font_scale);
+	float get_scale() const;
+	void set_scale(float font_scale);
 
 	void set_anchor(TEXT_ANCHOR anchor)
 	{

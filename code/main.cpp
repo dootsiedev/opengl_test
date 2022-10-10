@@ -6,6 +6,58 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+static std::unique_ptr<demo_state> p_demo;
+void emscripten_loop()
+{
+	bool hard_exit = false;
+	bool success_loop = true;
+	ASSERT(p_demo);
+	switch(p_demo->process())
+	{
+	case DEMO_RESULT::CONTINUE: break;
+	case DEMO_RESULT::SOFT_REBOOT:
+		if(!p_demo->destroy())
+		{
+			success_loop = false;
+			p_demo.reset();
+		}
+		else
+		{
+			p_demo = std::make_unique<demo_state>();
+			if(!p_demo->init())
+			{
+				success_loop = false;
+			}
+		}
+		break;
+	case DEMO_RESULT::EXIT: hard_exit = true; break;
+	case DEMO_RESULT::ERROR: success_loop = false; break;
+	}
+
+	if(hard_exit || !success_loop)
+	{
+		if(p_demo)
+		{
+			if(!p_demo->destroy())
+			{
+				success_loop = false;
+			}
+			p_demo.reset();
+		}
+		if(!app_destroy(g_app))
+		{
+			success_loop = false;
+		}
+		emscripten_cancel_main_loop();
+	}
+
+	if(!success_loop)
+	{
+		// TODO: probably should wrap this around a wrapper, and limit the string to a certain width
+		// and height.
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", serr_get_error().c_str(), NULL);
+	}
+};
 #endif
 
 int main(int argc, char** argv)
@@ -101,7 +153,20 @@ int main(int argc, char** argv)
 		}
 		else
 		{
-		    bool reboot;
+#ifdef __EMSCRIPTEN__
+
+			p_demo = std::make_unique<demo_state>();
+			if(!p_demo->init())
+			{
+				success = false;
+			}
+			else
+			{
+				// this will fall through
+				emscripten_set_main_loop(emscripten_loop, 0, 0);
+			}
+#else
+			bool reboot;
 			do
 			{
 				reboot = false;
@@ -113,43 +178,6 @@ int main(int argc, char** argv)
 				}
 				else
 				{
-#ifdef __EMSCRIPTEN__
-					// TODO: this should be changed to use not use simulate_infinite_loop
-					// because I think some profiling feature wont work or something.
-					struct shitty_payload
-					{
-						demo_state* p_demo = NULL;
-						int res = 0;
-					} pay;
-                    pay.p_demo = &demo;
-					auto loop = [](void* ud) {
-						shitty_payload* p_pay = static_cast<shitty_payload*>(ud);
-						switch(p_pay->p_demo->process())
-						{
-						case DEMO_RESULT::CONTINUE: break;
-						case DEMO_RESULT::SOFT_REBOOT:
-							p_pay->res = 2;
-							emscripten_cancel_main_loop();
-							break;
-						case DEMO_RESULT::EXIT: emscripten_cancel_main_loop(); break;
-						case DEMO_RESULT::ERROR:
-							emscripten_cancel_main_loop();
-							p_pay->res = 1;
-							break;
-						}
-					};
-					emscripten_set_main_loop_arg(loop, &pay, 0, 1);
-                    if(pay.res == 1)
-                    {
-                        success = false;
-                    }
-                    if(pay.res == 2)
-                    {
-                        // TODO: OK so this doesn't work.
-                        reboot = true;
-                    }
-#else
-
 					bool quit = false;
 					while(!quit)
 					{
@@ -167,18 +195,20 @@ int main(int argc, char** argv)
 							break;
 						}
 					}
-#endif
 				}
 				if(!demo.destroy())
 				{
 					success = false;
 				}
 			} while(reboot);
+#endif
 		}
+#ifndef __EMSCRIPTEN__
 		if(!app_destroy(g_app))
 		{
 			success = false;
 		}
+#endif
 	}
 
 	if(!success)

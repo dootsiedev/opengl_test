@@ -251,8 +251,8 @@ std::unique_ptr<abstract_option_element> create_multi_option(
 	multi_option_entry* entries);
 
 // a prompt with a string or whatever you want.
-std::unique_ptr<abstract_option_element>
-	create_prompt_option(shared_cvar_option_state* state, std::string label, V_cvar* cvar, bool long_prompt = false);
+std::unique_ptr<abstract_option_element> create_prompt_option(
+	shared_cvar_option_state* state, std::string label, V_cvar* cvar, bool long_prompt = false);
 
 // a slider + prompt for a floating point number
 // clamp will clamp numbers entered into the prompt.

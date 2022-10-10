@@ -12,6 +12,10 @@
 
 #include <SDL2/SDL.h>
 
+//TODO: really needs a fullscreen button/hotkey... and a option for the default size.
+// and maybe a mode where I disable the bbox and prompt, 
+// and make everything more transparent, so you can still interact with the prompt.
+
 console_state g_console;
 
 static CVAR_T history_enabled

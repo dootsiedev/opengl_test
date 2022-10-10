@@ -4,6 +4,12 @@
 
 // TODO: would be cool if I could make a custom keybind system
 // where a key will trigger a basic cvar command string
+// but the reason why keybind defintions are cvar strings instead of having a quake style bind
+// system is because I plan on adding a analog keybind (another cvar type) for game controllers (but
+// also supports keyboard).
+
+// TODO: I think allowing 2 keys for the same input would be useful, since I use ctrl and c for
+// crouching...
 
 #define KEYBIND_NONE_STRING_NAME "NONE"
 #define MOUSE_LMB_STRING_NAME "LMB"

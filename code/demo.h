@@ -85,7 +85,7 @@ struct bench_data
 enum class DEMO_RESULT
 {
 	CONTINUE,
-    SOFT_REBOOT,
+	SOFT_REBOOT,
 	EXIT,
 	ERROR
 };
@@ -137,7 +137,7 @@ struct demo_state
 	mono_2d_batcher font_batcher;
 	std::unique_ptr<gl_mono_vertex[]> font_batcher_buffer;
 
-    bool show_text = true;
+	bool show_text = true;
 
 	options_tree_state option_menu;
 	bool show_options = false;

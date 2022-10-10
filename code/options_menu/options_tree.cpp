@@ -73,7 +73,8 @@ bool options_tree_state::init(
 		back.add_option(create_bool_option(
 			&shared_menu_state, "font linear filtering*", &cv_font_linear_filtering));
 
-		back.add_option(create_prompt_option(&shared_menu_state, "font path*", &cv_string_font, true));
+		back.add_option(
+			create_prompt_option(&shared_menu_state, "font path*", &cv_string_font, true));
 		back.add_option(create_prompt_option(&shared_menu_state, "font size*", &cv_string_pt));
 		back.add_option(
 			create_prompt_option(&shared_menu_state, "font outline*", &cv_string_outline));
@@ -81,9 +82,8 @@ bool options_tree_state::init(
 		back.add_option(create_bool_option(
 			&shared_menu_state, "font bitmap outline*", &cv_string_force_bitmap));
 
-        
-        back.menu_state.show_footer_text = true;
-        back.menu_state.footer_text = "(*) restart required";
+		back.menu_state.show_footer_text = true;
+		back.menu_state.footer_text = "(*) restart required";
 
 		if(!back.good())
 		{
