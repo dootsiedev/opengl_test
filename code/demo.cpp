@@ -32,6 +32,12 @@ REGISTER_CVAR_INT(
 	cv_mouse_invert, 0, "invert while in first person, 0 = off, 1 = invert", CVAR_T::RUNTIME);
 
 static REGISTER_CVAR_STRING(
+	cv_hexfile_path,
+	"unifont-full.hex",
+	"the fallback font used for rare unicode",
+	CVAR_T::STARTUP);
+
+static REGISTER_CVAR_STRING(
 	cv_string,
 	"test\n"
 	"f1 - open console\n"
@@ -690,7 +696,7 @@ bool demo_state::init_gl_font()
 		TIMER_U end;
 		start = timer_now();
 #endif
-		Unique_RWops hex_file = Unique_RWops_OpenFS("unifont-full.hex", "rb");
+		Unique_RWops hex_file = Unique_RWops_OpenFS(cv_hexfile_path.data, "rb");
 		// Unique_RWops hex_file = Unique_RWops_OpenFS("unifont_upper-14.0.02.hex", "rb");
 		if(!hex_file)
 		{

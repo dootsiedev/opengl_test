@@ -550,11 +550,7 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 	case SDL_MOUSEMOTION: {
 		float mouse_x = static_cast<float>(e.motion.x);
 		float mouse_y = static_cast<float>(e.motion.y);
-		// TODO: one of the problems is that if I hover over a button that has a higher priority
-		// it will eat the motion event (slider wont move), but I actually want the slider to keep
-		// on sliding... it's fine, but it means you should sort your elements so all sliders are
-		// above all buttons.
-		// I could add in a update() function and just poll the mouse position
+		
 		if(slider_held)
 		{
 			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
@@ -677,10 +673,10 @@ void mono_normalized_slider_object::unfocus()
 }
 void mono_normalized_slider_object::resize_view(float xmin, float xmax, float ymin, float ymax)
 {
-	box_xmin = xmin;
-	box_xmax = xmax;
-	box_ymin = ymin;
-	box_ymax = ymax;
+	box_xmin = std::floor(xmin);
+	box_xmax = std::floor(xmax);
+	box_ymin = std::floor(ymin);
+	box_ymax = std::floor(ymax);
 	update_buffer = true;
 }
 bool mono_normalized_slider_object::internal_slider_inside(float mouse_x, float mouse_y)

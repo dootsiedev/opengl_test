@@ -7,6 +7,10 @@
 // but the reason why keybind defintions are cvar strings instead of having a quake style bind
 // system is because I plan on adding a analog keybind (another cvar type) for game controllers (but
 // also supports keyboard).
+// Actually ignore the above, I wouldn't add in a analog keybind cvar, 
+// just a string with the controller mappings, and a bool that enables controller support.
+// Maybe what I need is a way to make cvars dependant on other cvars, so if this cvar is ==1, disable this cvar.
+// but this is tricky to handle because of static initialization order, I think.
 
 // TODO: I think allowing 2 keys for the same input would be useful, since I use ctrl and c for
 // crouching...
@@ -20,9 +24,9 @@
 #define MY_ALLOWED_KMODS (KMOD_CTRL | KMOD_SHIFT | KMOD_ALT)
 
 // forward declaration
-Uint16 find_sdl_mod(const char* string, size_t size);
-SDL_Keycode find_sdl_keycode(const char* string, size_t size);
-const char* get_sdl_key_name(SDL_Keycode key);
+static Uint16 find_sdl_mod(const char* string, size_t size);
+static SDL_Keycode find_sdl_keycode(const char* string, size_t size);
+static const char* get_sdl_key_name(SDL_Keycode key);
 
 cvar_key_bind::cvar_key_bind(
 	const char* key,

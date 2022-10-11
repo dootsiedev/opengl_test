@@ -12,9 +12,12 @@
 
 #include <SDL2/SDL.h>
 
-//TODO: really needs a fullscreen button/hotkey... and a option for the default size.
-// and maybe a mode where I disable the bbox and prompt, 
-// and make everything more transparent, so you can still interact with the prompt.
+// TODO(dootsie): really needs a expand button/hotkey...
+// TODO(dootsie): a option for the default size / orientation
+// TODO(dootsie): add a mode/button where I disable the mouse input, and and make everything more
+// transparent and maybe what I could do with this mode is display errors,
+// and maybe make it so that "console handled errors" will be shown in the "error box",
+// and "handled" errors (like a error manully presented through some UI) will not overwrite the box.
 
 console_state g_console;
 

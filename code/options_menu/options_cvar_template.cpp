@@ -259,7 +259,6 @@ struct cvar_button_multi_option : public abstract_option_element
 	shared_cvar_option_state* state = NULL;
 	V_cvar* cvar = NULL;
 	std::string label_text;
-	float element_height = -1;
 	std::string previous_cvar_value;
 	bool value_changed = false;
 
@@ -320,8 +319,6 @@ bool cvar_button_multi_option::init(
 	cvar = cvar_;
 
 	button.init(state->font_painter);
-
-	element_height = state->font_painter->get_lineskip() + state->font_padding;
 
 	option_entries = std::make_unique<decltype(option_entries)::element_type[]>(count);
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
@@ -476,7 +473,7 @@ void cvar_button_multi_option::resize(float x, float y, float menu_w)
 	font_y = y + font_padding / 2.f;
 
 	float cur_x = x + (menu_w - element_padding) / 2 + element_padding;
-	button.set_rect(cur_x, y, (x + menu_w) - cur_x, element_height);
+	button.set_rect(cur_x, y, (x + menu_w) - cur_x, get_height());
 }
 
 bool cvar_button_multi_option::draw_requested()
@@ -486,7 +483,7 @@ bool cvar_button_multi_option::draw_requested()
 
 float cvar_button_multi_option::get_height()
 {
-	return element_height;
+	return state->font_painter->get_lineskip() + state->font_padding;
 }
 
 bool cvar_button_multi_option::set_default()
@@ -567,8 +564,6 @@ struct cvar_slider_option : public abstract_option_element
 	double min_value = NAN;
 	double max_value = NAN;
 
-	float element_height = -1;
-
 	float font_x = -1;
 	float font_y = -1;
 
@@ -615,8 +610,6 @@ bool cvar_slider_option::init(
 	max_value = max;
 
 	font_sprite_painter* font_painter = state->font_painter;
-
-	element_height = font_painter->get_lineskip() + state->font_padding;
 
 	slider.init(font_painter, cvar->data, min, max);
 
@@ -818,7 +811,7 @@ void cvar_slider_option::resize(float x, float y, float menu_w)
 	prompt.set_bbox(
 		cur_x - prompt_width, y + font_padding / 2, prompt_width, font_painter->get_lineskip());
 
-	slider.resize_view(cur_x + element_padding, (x + menu_w), y, y + element_height);
+	slider.resize_view(cur_x + element_padding, (x + menu_w), y, y + get_height());
 }
 
 bool cvar_slider_option::draw_requested()
@@ -828,7 +821,7 @@ bool cvar_slider_option::draw_requested()
 
 float cvar_slider_option::get_height()
 {
-	return element_height;
+	return state->font_painter->get_lineskip() + state->font_padding;
 }
 
 bool cvar_slider_option::set_default()
@@ -900,8 +893,6 @@ struct cvar_prompt_option : public abstract_option_element
 	bool value_changed = false;
 	bool long_prompt = false;
 
-	float element_height = -1;
-
 	float font_x = -1;
 	float font_y = -1;
 
@@ -942,8 +933,6 @@ bool cvar_prompt_option::init(
 	long_prompt = long_prompt_;
 
 	font_sprite_painter* font_painter = state->font_painter;
-
-	element_height = font_painter->get_lineskip() + state->font_padding;
 
 	// why not propagate the value.
 	prompt.raw_font_scale = font_painter->raw_font_scale;
@@ -1106,7 +1095,7 @@ bool cvar_prompt_option::draw_requested()
 
 float cvar_prompt_option::get_height()
 {
-	return element_height;
+	return state->font_painter->get_lineskip() + state->font_padding;
 }
 
 bool cvar_prompt_option::set_default()
@@ -1171,7 +1160,6 @@ struct cvar_keybind_option : public abstract_option_element
 	shared_cvar_option_state* state = NULL;
 	cvar_key_bind* cvar = NULL;
 	std::string label_text;
-	float element_height = -1;
 
 	float font_x = -1;
 	float font_y = -1;
@@ -1215,8 +1203,6 @@ bool cvar_keybind_option::init(
 
 	button_text = cvar->cvar_write();
 	button.init(state->font_painter);
-
-	element_height = state->font_painter->get_lineskip() + state->font_padding;
 
 	return true;
 }
@@ -1306,7 +1292,7 @@ void cvar_keybind_option::resize(float x, float y, float menu_w)
 	font_y = y + font_padding / 2.f;
 
 	float cur_x = x + (menu_w - element_padding) / 2 + element_padding;
-	button.set_rect(cur_x, y, (x + menu_w) - cur_x, element_height);
+	button.set_rect(cur_x, y, (x + menu_w) - cur_x, get_height());
 }
 
 bool cvar_keybind_option::draw_requested()
@@ -1316,7 +1302,7 @@ bool cvar_keybind_option::draw_requested()
 
 float cvar_keybind_option::get_height()
 {
-	return element_height;
+	return state->font_painter->get_lineskip() + state->font_padding;
 }
 
 bool cvar_keybind_option::set_default()
@@ -1432,7 +1418,7 @@ void option_keybind_request::resize_view()
 	// for a 16px font I would want 60px
 	float button_width = 60 * (font_painter.get_lineskip() / 16.f);
 	float button_height = font_painter.get_lineskip() + font_padding;
-	float footer_width = (button_width * 2) + element_padding;
+	float footer_width = (button_width * 3) + element_padding;
 	float footer_height = button_height;
 
 	// for a 16px font I would want 400px

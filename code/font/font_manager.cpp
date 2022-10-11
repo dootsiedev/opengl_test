@@ -1391,7 +1391,7 @@ float font_bitmap_cache::get_ascent(float font_scale)
 	{
 		// int bitmap_height = FT_CEIL(face->size->metrics.height);
 		int bitmap_ascent = FT_CEIL(face->size->metrics.ascender);
-		return std::ceil(static_cast<float>(bitmap_ascent) * font_scale);
+		return static_cast<float>(bitmap_ascent) * font_scale;
 	}
 	// Get the scalable font metrics for this font
 	FT_Fixed scale = face->size->metrics.y_scale;
@@ -1401,19 +1401,21 @@ float font_bitmap_cache::get_ascent(float font_scale)
 float font_bitmap_cache::get_lineskip(float font_scale)
 {
 	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
-	return std::ceil(face_settings->point_size * font_scale);
+	// return std::ceil(face_settings->point_size * font_scale);
 // the problem with using the "real" lineskip is that for certain fonts, it's excessive.
 // this might be useful if you were aiming for your lineskip look like a ms word document.
-#if 0
+#if 1
 	FT_Face face = current_rasterizer->face;
 	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
 	{
-		return std::ceil(face_settings->point_size) * font_scale;
+		int bitmap_height = FT_CEIL(face->size->metrics.height);
+		return static_cast<float>(bitmap_height) * font_scale;
+		// return std::ceil(face_settings->point_size * font_scale);
 	}
 	FT_Fixed scale = face->size->metrics.y_scale;
 
 	// NOLINTNEXTLINE(bugprone-integer-division)
-	return FT_CEIL(FT_MulFix(face->height, scale)) * font_scale;
+	return FT_FLOOR(FT_MulFix(face->height, scale)) * font_scale;
 #endif
 }
 FONT_BASIC_RESULT
@@ -1494,8 +1496,15 @@ font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_sc
 #endif
 	FT_Error error;
 
+	FT_Int32 ftflags = FT_LOAD_ADVANCE_ONLY;
+
+	// with mono hinting the offset is off.
+	// hopefully FT_LOAD_ADVANCE_ONLY overrides any possible rasterization.
+	// I haven't tested though
+	ftflags |= current_rasterizer->face_settings->load_flags;
+
 	// load the advance only
-	if((error = FT_Load_Glyph(current_rasterizer->face, glyph_index, FT_LOAD_ADVANCE_ONLY)) != 0)
+	if((error = FT_Load_Glyph(current_rasterizer->face, glyph_index, ftflags)) != 0)
 	{
 		TTF_SetFTError(current_rasterizer->font_file->name(), error);
 		return FONT_BASIC_RESULT::ERROR;
@@ -1505,9 +1514,8 @@ font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_sc
 	slogf("advance time = %f\n", timer_delta_ms(tick1, tick2));
 #endif
 
-	*advance = std::ceil(
-		static_cast<float>(current_rasterizer->face->glyph->advance.x >> 6) * font_scale *
-		bitmap_scale);
+	int font_advance = FT_FLOOR(current_rasterizer->face->glyph->advance.x);
+	*advance = static_cast<float>(font_advance) * font_scale * bitmap_scale;
 
 	return FONT_BASIC_RESULT::SUCCESS;
 }
@@ -1618,6 +1626,8 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 
 	font_glyph_entry* glyph_in = &block.glyphs[style][block_index];
 
+	int font_advance = FT_FLOOR(current_rasterizer->face->glyph->advance.x);
+
 	// this is a space character.
 	if(bitmap->width == 0)
 	{
@@ -1625,11 +1635,10 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 		glyph_in->type = FONT_ENTRY::SPACE;
 
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		glyph_in->advance = (current_rasterizer->face->glyph->advance.x >> 6);
+		glyph_in->advance = font_advance;
 
 		// glyph_convert(glyph_in, glyph_out, font_scale);
-		glyph_out->advance =
-			std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
+		glyph_out->advance = static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale;
 		return FONT_RESULT::SPACE;
 	}
 
@@ -1699,7 +1708,7 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 	glyph_in->rect_w = bitmap->width + padding;
 	glyph_in->rect_h = bitmap->rows + padding;
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-	glyph_in->advance = (current_rasterizer->face->glyph->advance.x >> 6);
+	glyph_in->advance = font_advance;
 	FT_BitmapGlyph ftglyph_bitmap = reinterpret_cast<FT_BitmapGlyph>(ftglyph.get());
 	// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 	glyph_in->xmin = (ftglyph_bitmap->left) - offset;
