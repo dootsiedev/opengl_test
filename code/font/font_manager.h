@@ -218,7 +218,8 @@ struct font_style_interface
 	virtual const char* get_name() = 0;
 	// the atlas is for a horrible hack where I need to get the white_uv to do primitive drawings...
 	virtual font_atlas* get_font_atlas() = 0;
-	// virtual float get_point_size() = 0;
+	// point size has only one job, scaling a fallback font.
+	virtual float get_point_size() = 0;
 	virtual float get_ascent(float font_scale) = 0;
 	virtual float get_lineskip(float font_scale) = 0;
 	// optional, used for scaling FONT_ENTRY::BITMAP
@@ -275,7 +276,7 @@ struct hex_font_data : public font_style_interface
 	// chunk size is HEX_CHUNK_COUNT
 	struct hex_block_chunk
 	{
-		RW_ssize_t offset;
+		RW_ssize_t offset = -1;
 		std::unique_ptr<hex_glyph_entry[]> glyphs;
 	};
 
@@ -287,7 +288,7 @@ struct hex_font_data : public font_style_interface
 	NDSERR bool init(Unique_RWops file, font_atlas* atlas_);
 	NDSERR bool destroy();
 
-	NDSERR bool load_hex_block(hex_block_chunk* chunk);
+	NDSERR FONT_BASIC_RESULT load_hex_block(size_t block_index);
 
 	// virtual functions
 	const char* get_name() override
@@ -310,6 +311,10 @@ struct hex_font_data : public font_style_interface
 	float get_lineskip(float font_scale) override
 	{
 		return static_cast<float>(HEX_HEIGHT) * font_scale;
+	}
+	float get_point_size() override
+	{
+		return static_cast<float>(HEX_HEIGHT);
 	}
 	NDSERR FONT_RESULT get_glyph(
 		char32_t codepoint,
@@ -348,12 +353,17 @@ struct hex_font_placeholder : public font_style_interface
 	float get_ascent(float font_scale) override
 	{
 		ASSERT(hex_font != NULL);
-		return height * font_scale;
+		return hex_font->get_ascent(font_scale * (height / static_cast<float>(HEX_HEIGHT)));
 	}
 	float get_lineskip(float font_scale) override
 	{
 		ASSERT(hex_font != NULL);
-		return height * font_scale;
+		return hex_font->get_lineskip(font_scale * (height / static_cast<float>(HEX_HEIGHT)));
+	}
+	float get_point_size() override
+	{
+		ASSERT(hex_font != NULL);
+		return hex_font->get_point_size();
 	}
 	NDSERR FONT_BASIC_RESULT
 		get_advance(char32_t codepoint, float* advance, float font_scale) override
@@ -561,6 +571,7 @@ struct font_bitmap_cache : public font_style_interface
 	}
 	float get_ascent(float font_scale) override;
 	float get_lineskip(float font_scale) override;
+	float get_point_size() override;
 	NDSERR FONT_BASIC_RESULT
 		get_advance(char32_t codepoint, float* advance, float font_scale) override;
 

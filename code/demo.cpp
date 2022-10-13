@@ -825,7 +825,7 @@ bool demo_state::init_gl_font()
 	font_painter.init(&font_batcher, current_font);
 	// font_painter.set_scale(2);
 
-	if(!g_console.init(current_font, &font_batcher, mono_shader))
+	if(!console_menu.init(current_font, &font_batcher, mono_shader))
 	{
 		return false;
 	}
@@ -871,7 +871,7 @@ bool demo_state::destroy()
 	bool success = true;
 
 	success = option_menu.destroy() && success;
-	success = g_console.destroy() && success;
+	success = console_menu.destroy() && success;
 
 	success = destroy_gl_font() && success;
 	success = destroy_gl_point_sprite() && success;
@@ -990,7 +990,7 @@ bool demo_state::input(SDL_Event& e)
 
 	if(show_console)
 	{
-		switch(g_console.input(e))
+		switch(console_menu.input(e))
 		{
 			// TODO: if the console opened automatically from an error, I would want to display a
 			// close button.
@@ -1027,7 +1027,7 @@ bool demo_state::input(SDL_Event& e)
 		{
 			// focus for the text input.
 			// this will call set_event_unfocus(e);
-			g_console.prompt_cmd.focus(e);
+			console_menu.prompt_cmd.focus(e);
 
 			set_event_resize(fake_event);
 		}
@@ -1036,7 +1036,7 @@ bool demo_state::input(SDL_Event& e)
 			set_event_unfocus(e);
 			set_event_hidden(fake_event);
 		}
-		if(g_console.input(fake_event) == CONSOLE_RESULT::ERROR)
+		if(console_menu.input(fake_event) == CONSOLE_RESULT::ERROR)
 		{
 			return false;
 		}
@@ -1181,7 +1181,7 @@ bool demo_state::update(double delta_sec)
 	// this will not actually draw, this will just modify the atlas and buffer data.
 	if(show_console)
 	{
-		if(!g_console.update(delta_sec))
+		if(!console_menu.update(delta_sec))
 		{
 			return false;
 		}
@@ -1338,7 +1338,7 @@ bool demo_state::render()
 	if(show_console)
 	{
 		// requires gl_atlas_tex_id
-		if(!g_console.render())
+		if(!console_menu.render())
 		{
 			return false;
 		}
@@ -1622,7 +1622,7 @@ bool demo_state::display_perf_text()
 		font_painter.set_anchor(TEXT_ANCHOR::TOP_LEFT);
 		if(!font_painter.draw_text(cv_string.data.c_str(), cv_string.data.size()))
 		{
-			g_console.post_error(serr_get_error());
+			console_menu.post_error(serr_get_error());
 			test_string_success = false;
 		}
 	}

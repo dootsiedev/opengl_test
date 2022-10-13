@@ -142,7 +142,7 @@ static void convert_glyph_format(
 	out->glyph_ymin = font->get_ascent(font_scale) - (static_cast<float>(in->ymin) * font_scale);
 	out->glyph_xmax = out->glyph_xmin + static_cast<float>(in->rect_w) * font_scale;
 	out->glyph_ymax = out->glyph_ymin + (static_cast<float>(in->rect_h) * font_scale);
-	out->advance = std::ceil(static_cast<float>(in->advance) * font_scale);
+	out->advance = static_cast<float>(in->advance) * font_scale;
 }
 
 bool font_manager_state::create()
@@ -253,7 +253,7 @@ bool font_manager_state::create()
 	uint32_t x_out;
 	uint32_t y_out;
 	// 2x2 for the colors of the corners, and +1 because of cv_font_linear_filtering
-	if(!atlas.find_atlas_slot(3, 3, &x_out, &y_out))
+	if(!atlas.find_atlas_slot(2, 2, &x_out, &y_out))
 	{
 		return false;
 	}
@@ -688,6 +688,10 @@ bool hex_font_data::init(Unique_RWops file, font_atlas* atlas_)
 	{
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		RW_ssize_t stream_cursor = stream.Tell();
+		if(stream_cursor < 0)
+		{
+			return false;
+		}
 		char32_t codepoint;
 		// get the character XXXX:...
 		{
@@ -737,6 +741,7 @@ bool hex_font_data::init(Unique_RWops file, font_atlas* atlas_)
 		{
 			if((codepoint / HEX_CHUNK_GLYPHS) >= hex_block_chunks.size())
 			{
+				//slogf("block: %zu, offset %ld\n", hex_block_chunks.size(), stream_cursor);
 				hex_block_chunks.resize(codepoint / HEX_CHUNK_GLYPHS + 1);
 				hex_block_chunks.back().offset = stream_cursor;
 			}
@@ -842,9 +847,11 @@ hex_font_data::get_glyph(
 			current_chunk->glyphs.get(),
 			0,
 			sizeof(decltype(current_chunk->glyphs)::element_type) * HEX_CHUNK_GLYPHS);
-		if(!load_hex_block(current_chunk))
+		switch(load_hex_block(block_index))
 		{
-			return FONT_RESULT::ERROR;
+		case FONT_BASIC_RESULT::SUCCESS: break;
+		case FONT_BASIC_RESULT::NOT_FOUND: return FONT_RESULT::NOT_FOUND;
+		case FONT_BASIC_RESULT::ERROR: return FONT_RESULT::ERROR;
 		}
 	}
 
@@ -1045,9 +1052,10 @@ FONT_BASIC_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance,
 			current_chunk->glyphs.get(),
 			0,
 			sizeof(decltype(current_chunk->glyphs)::element_type) * HEX_CHUNK_GLYPHS);
-		if(!load_hex_block(current_chunk))
+		FONT_BASIC_RESULT ret = load_hex_block(block_index);
+		if(ret != FONT_BASIC_RESULT::SUCCESS)
 		{
-			return FONT_BASIC_RESULT::ERROR;
+			return ret;
 		}
 	}
 
@@ -1075,21 +1083,34 @@ FONT_BASIC_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance,
 	return FONT_BASIC_RESULT::SUCCESS;
 }
 
-bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
+FONT_BASIC_RESULT hex_font_data::load_hex_block(size_t block_index)
 {
+	hex_block_chunk* chunk = &hex_block_chunks[block_index];
 	ASSERT(chunk);
-	ASSERT(chunk->offset != -1);
+	ASSERT(chunk->offset != -2);
+
+	if(chunk->offset == -2)
+	{
+		// TODO(dootsie): would be better if the offset wasn't overridden...
+		serrf(
+			"%s: chunk already loaded (block: %zu, offset: %ld)\n",
+			hex_font_file->name(),
+			block_index,
+			chunk->offset);
+	}
+
+	if(chunk->offset < 0)
+	{
+		return FONT_BASIC_RESULT::NOT_FOUND;
+	}
 
 	auto temp_offset = chunk->offset;
-	chunk->offset = -1;
+	chunk->offset = -2;
 
 	if(hex_font_file->seek(temp_offset, RW_SEEK_SET) < 0)
 	{
-		return false;
+		return FONT_BASIC_RESULT::ERROR;
 	}
-
-	// Get the index of the current block
-	size_t block_offset = chunk - hex_block_chunks.data();
 
 	char internal_buffer[2048];
 	BS_ReadStream stream(hex_font_file.get(), internal_buffer, sizeof(internal_buffer));
@@ -1097,10 +1118,10 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 	while(true)
 	{
 		char32_t codepoint;
+		// in hexadecimal, 8 characters = 4 bytes.
+		char codepoint_hex[9];
 		// get the character XXXX:...
 		{
-			// in hexadecimal, 8 characters = 4 bytes.
-			char codepoint_hex[9];
 			size_t i = 0;
 			for(; i < sizeof(codepoint_hex) - 1; ++i)
 			{
@@ -1111,10 +1132,14 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 					{
 						// this is linux inserting a newline at the end of the file
 						// even though the file doesn't end with a newline
-						return true;
+						return FONT_BASIC_RESULT::SUCCESS;
 					}
-					serrf("%s: unexpected end or null\n", hex_font_file->name());
-					return false;
+					serrf(
+						"%s: unexpected end or null (block: %zu, offset: %ld)\n",
+						hex_font_file->name(),
+						block_index,
+						chunk->offset);
+					return FONT_BASIC_RESULT::ERROR;
 				}
 				if(codepoint_hex[i] == ':')
 				{
@@ -1131,30 +1156,39 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 			codepoint = strtoul(codepoint_hex, &buffer_end, 16);
 			if(errno == ERANGE)
 			{
-				serrf("%s: out of range\n", hex_font_file->name());
-				return false;
+				serrf(
+					"%s: out of range (block: %zu, offset: %ld)\n",
+					hex_font_file->name(),
+					block_index,
+					chunk->offset);
+				return FONT_BASIC_RESULT::ERROR;
 			}
 
 			if(buffer_end != codepoint_hex + i || codepoint_hex == buffer_end)
 			{
-				serrf("%s: failed to convert hex\n", hex_font_file->name());
-				return false;
+				serrf(
+					"%s: failed to convert hex (block: %zu, offset: %ld)\n",
+					hex_font_file->name(),
+					block_index,
+					chunk->offset);
+				return FONT_BASIC_RESULT::ERROR;
 			}
 		}
 		// get the bitmap XXXX:XXXXXXXXXXXXXXXX...
 		{
-			if(codepoint / HEX_CHUNK_GLYPHS == block_offset + 1)
+			if(codepoint / HEX_CHUNK_GLYPHS == block_index + 1)
 			{
-				return true;
+				return FONT_BASIC_RESULT::SUCCESS;
 			}
-			if(codepoint / HEX_CHUNK_GLYPHS != block_offset)
+			if(codepoint / HEX_CHUNK_GLYPHS != block_index)
 			{
 				serrf(
-					"%s: hex out of range (cp: %u, block: %zu)\n",
+					"%s: hex out of range (cp: %u, block: %zu, offset: %ld)\n",
 					hex_font_file->name(),
 					codepoint,
-					block_offset);
-				return false;
+					block_index,
+					chunk->offset);
+				return FONT_BASIC_RESULT::ERROR;
 			}
 
 			hex_glyph_entry& current_entry = chunk->glyphs[codepoint % HEX_CHUNK_GLYPHS];
@@ -1167,8 +1201,12 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 			{
 				if(i > HEX_FULL_WIDTH * HEX_HEIGHT / 8 * 2)
 				{
-					serrf("%s: line too long\n", hex_font_file->name());
-					return false;
+					serrf(
+						"%s: line too long (block: %zu, offset: %ld)\n",
+						hex_font_file->name(),
+						block_index,
+						chunk->offset);
+					return FONT_BASIC_RESULT::ERROR;
 				}
 				unsigned char temp;
 				c = stream.Take();
@@ -1188,8 +1226,12 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 				}
 				else
 				{
-					serrf("%s: bad hex\n", hex_font_file->name());
-					return false;
+					serrf(
+						"%s: bad hex (block: %zu, offset: %ld)\n",
+						hex_font_file->name(),
+						block_index,
+						chunk->offset);
+					return FONT_BASIC_RESULT::ERROR;
 				}
 				if((i % 2) == 0)
 				{
@@ -1203,8 +1245,12 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 
 			if(size != HEX_HALF_WIDTH * HEX_HEIGHT / 8 && size != HEX_FULL_WIDTH * HEX_HEIGHT / 8)
 			{
-				serrf("%s: bad size\n", hex_font_file->name());
-				return false;
+				serrf(
+					"%s: bad size (block: %zu, offset: %ld)\n",
+					hex_font_file->name(),
+					block_index,
+					chunk->offset);
+				return FONT_BASIC_RESULT::ERROR;
 			}
 
 			current_entry.hex_found = true;
@@ -1215,7 +1261,7 @@ bool hex_font_data::load_hex_block(hex_block_chunk* chunk)
 			}
 			if(c == '\0')
 			{
-				return true;
+				return FONT_BASIC_RESULT::SUCCESS;
 			}
 		}
 	}
@@ -1394,29 +1440,54 @@ float font_bitmap_cache::get_ascent(float font_scale)
 		return static_cast<float>(bitmap_ascent) * font_scale;
 	}
 	// Get the scalable font metrics for this font
-	FT_Fixed scale = face->size->metrics.y_scale;
+	// FT_Fixed scale = face->size->metrics.y_scale;
 	// NOLINTNEXTLINE(bugprone-integer-division
-	return FT_CEIL(FT_MulFix(face->ascender, scale)) * font_scale;
+	// return FT_CEIL(FT_MulFix(face->ascender, scale)) * font_scale;
+
+	// only problem with this is that it looks bad with FSEX300.ttf
+	// can be fixed with force_bitmap
+	return get_point_size() * font_scale;
 }
 float font_bitmap_cache::get_lineskip(float font_scale)
 {
-	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
-	// return std::ceil(face_settings->point_size * font_scale);
-// the problem with using the "real" lineskip is that for certain fonts, it's excessive.
-// this might be useful if you were aiming for your lineskip look like a ms word document.
-#if 1
 	FT_Face face = current_rasterizer->face;
-	if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
+#if 0
+	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
+    if(face->num_fixed_sizes != 0 && (!FT_IS_SCALABLE(face) || face_settings->force_bitmap))
 	{
 		int bitmap_height = FT_CEIL(face->size->metrics.height);
 		return static_cast<float>(bitmap_height) * font_scale;
 		// return std::ceil(face_settings->point_size * font_scale);
 	}
+#endif
+
+	// I really want to use this, but cant due to NotoSans-Regular.ttf.
+	// Maybe I can use the underline instead and give a fake descent?
+	// return get_point_size() * font_scale;
+
 	FT_Fixed scale = face->size->metrics.y_scale;
 
+	int ascent = FT_CEIL(FT_MulFix(face->ascender, scale));
+
+	// this is technically the "correct" way
+	// but the problem is that I want all fonts to look good with unifont,
+	// but unifont really wants pointsize = lineskip.
+	// and the real lineskip is too big.
+	// int ascent = FT_CEIL(FT_MulFix(face->bbox.yMax, scale));
+	// int descent = FT_CEIL(FT_MulFix(face->bbox.yMin, scale));
+	// return static_cast<float>(ascent - descent + /* baseline */ 1) * font_scale;
+
+	// make room for the bottom part of the letter because we use pointsize for the ascent
+	int height = FT_CEIL(FT_MulFix(face->height, scale));
 	// NOLINTNEXTLINE(bugprone-integer-division)
-	return FT_FLOOR(FT_MulFix(face->height, scale)) * font_scale;
-#endif
+	return (static_cast<float>(height) + (get_point_size() - static_cast<float>(ascent))) *
+		   font_scale;
+}
+
+float font_bitmap_cache::get_point_size()
+{
+	const font_ttf_face_settings* face_settings = current_rasterizer->face_settings;
+	return face_settings->point_size;
 }
 FONT_BASIC_RESULT
 font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_scale)
@@ -1460,7 +1531,7 @@ font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_sc
 		case FONT_ENTRY::UNDEFINED: break;
 		case FONT_ENTRY::GLYPH:
 		case FONT_ENTRY::SPACE:
-			*advance = std::ceil(static_cast<float>(glyph.advance) * font_scale * bitmap_scale);
+			*advance = static_cast<float>(glyph.advance) * font_scale * bitmap_scale;
 			return FONT_BASIC_RESULT::SUCCESS;
 		}
 	}
@@ -1484,7 +1555,7 @@ font_bitmap_cache::get_advance(char32_t codepoint, float* advance, float font_sc
 
 	if(glyph_index == 0)
 	{
-		float fallback_scale = (get_lineskip(font_scale)) / fallback->get_lineskip(1);
+		float fallback_scale = (get_point_size() * font_scale) / fallback->get_point_size();
 		return fallback->get_advance(codepoint, advance, fallback_scale);
 	}
 
@@ -1564,8 +1635,7 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 			convert_glyph_format(this, glyph_in, glyph_out, font_scale * bitmap_scale);
 			return FONT_RESULT::SUCCESS;
 		case FONT_ENTRY::SPACE:
-			glyph_out->advance =
-				std::ceil(static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale);
+			glyph_out->advance = static_cast<float>(glyph_in->advance) * font_scale * bitmap_scale;
 			return FONT_RESULT::SPACE;
 		}
 	}
@@ -1589,10 +1659,17 @@ FONT_RESULT font_bitmap_cache::get_glyph(
 
 	if(glyph_index == 0)
 	{
-		float fallback_scale = (get_lineskip(font_scale)) / fallback->get_lineskip(1);
-		return fallback->get_glyph(codepoint, style, glyph_out, fallback_scale);
-		// font_manager->hex_font.load_hex_glyph(
-		//	&font_manager->atlas, codepoint, (style & FONT_STYLE_OUTLINE) != 0, glyph_out);
+		float fallback_scale = (get_point_size() * font_scale) / fallback->get_point_size();
+		FONT_RESULT ret = fallback->get_glyph(codepoint, style, glyph_out, fallback_scale);
+		if(ret == FONT_RESULT::SUCCESS)
+		{
+			// shift the y axis if the lineskip is different.
+			float yoffset = std::ceil(
+				(get_lineskip(font_scale) - fallback->get_lineskip(fallback_scale)) / 2.f);
+			glyph_out->glyph_ymin += yoffset;
+			glyph_out->glyph_ymax += yoffset;
+		}
+		return ret;
 	}
 
 	// this owns the FT_Bitmap memory (but sometimes it's convert_bitmap)
@@ -1809,6 +1886,7 @@ bool font_sprite_painter::draw_format(const char* fmt, ...)
 			size,
 			ret,
 			fmt);
+#if 0
 
 		// NOT_ENOUGH_ROOM is expected when we truncate a string...
 		// and I don't treat truncation as a "error"
@@ -1839,6 +1917,7 @@ bool font_sprite_painter::draw_format(const char* fmt, ...)
 				break;
 			}
 		}
+#endif
 	}
 	return draw_text(buffer, trunc_size);
 }
@@ -1886,12 +1965,17 @@ bool font_sprite_painter::measure_text_bounds(
 			switch(state.font->get_advance(codepoint, &advance, get_scale()))
 			{
 			case FONT_BASIC_RESULT::NOT_FOUND:
-				serrf("%s glyph not found: U+%X\n", __func__, codepoint);
-				return false;
+				// serrf("%s glyph not found: U+%X\n", __func__, codepoint);
+				{
+					// TODO(dootsie): this is copy pasted between the prompt and painter
+					float padding = 1.f * (16.f / state.font->get_point_size());
+					float width = (state.font->get_point_size() / 2.f);
+					current_line_width += std::ceil(width + padding * 2.f) * get_scale();
+					continue;
+				}
 			case FONT_BASIC_RESULT::ERROR: return false;
-			case FONT_BASIC_RESULT::SUCCESS: break;
+			case FONT_BASIC_RESULT::SUCCESS: current_line_width += advance; continue;
 			}
-			current_line_width += advance;
 		}
 	}
 	max_width = std::max(current_line_width, max_width);
@@ -1941,8 +2025,23 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 			switch(state.load_glyph_verts(codepoint, cur_color, current_style, get_scale()))
 			{
 			case FONT_BASIC_RESULT::NOT_FOUND:
-				serrf("%s glyph not found: U+%X\n", __func__, codepoint);
-				return false;
+				// serrf("%s glyph not found: U+%X\n", __func__, codepoint);
+				// TODO(dootsie): this is copy pasted between the prompt and painter
+				{
+					float padding = 1.f * (16.f / state.font->get_point_size());
+					float width = (state.font->get_point_size() / 2.f);
+					float height = state.font->get_point_size() * get_scale();
+					float ascent = state.font->get_ascent(get_scale());
+					std::array<float, 4> pos{
+						state.draw_x_pos + (padding)*get_scale(),
+						state.draw_y_pos + (ascent - height),
+						state.draw_x_pos + (padding + width) * get_scale(),
+						state.draw_y_pos + (ascent)};
+					state.batcher->draw_rect(
+						pos, state.font->get_font_atlas()->white_uv, cur_color);
+					state.draw_x_pos += std::ceil(width + padding * 2.f) * get_scale();
+				}
+				break;
 			case FONT_BASIC_RESULT::ERROR: return false;
 			case FONT_BASIC_RESULT::SUCCESS: break;
 			}

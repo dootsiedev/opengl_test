@@ -147,7 +147,7 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 		internal_get_serr_buffer()->append(msg);
 		fwrite(msg.c_str(), 1, msg.size(), stdout);
 // TODO(dootsie): would be better if I could combine this with the serr message
-// because other threads could print something inbetween in stdout/console, 
+// because other threads could print something inbetween in stdout/console,
 // but serr_get_error wont be mangled, so it isn't a priority.
 #ifndef DISABLE_CONSOLE
 		// lovely, another allocation. thank god this pales in comparison
@@ -157,9 +157,9 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 		buffer[msg.size()] = '\0';
 		{
 #ifndef __EMSCRIPTEN__
-			std::lock_guard<std::mutex> lk(g_console.mut);
+			std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-			g_console.message_queue.emplace_back(
+			g_log.message_queue.emplace_back(
 				CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), msg.size());
 		}
 #endif
@@ -202,9 +202,9 @@ void slog_raw(const char* msg, size_t len)
 	buffer[len] = '\0';
 	{
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_console.mut);
+		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), len);
+		g_log.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), len);
 	}
 #endif
 }
@@ -229,9 +229,9 @@ void serr_raw(const char* msg, size_t len)
 	buffer[len] = '\0';
 	{
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_console.mut);
+		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
+		g_log.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
 	}
 #endif
 }
@@ -272,9 +272,9 @@ void serr(const char* msg)
 	buffer[len] = '\0';
 	{
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_console.mut);
+		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
+		g_log.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
 	}
 #endif
 }
@@ -305,9 +305,9 @@ void slogf(const char* fmt, ...)
 	fwrite(buffer.get(), 1, length, stdout);
 	{
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_console.mut);
+		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_console.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), length);
+		g_log.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), length);
 	}
 #endif
 }
@@ -338,9 +338,9 @@ void serrf(const char* fmt, ...)
 #ifndef DISABLE_CONSOLE
 	{
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_console.mut);
+		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_console.message_queue.emplace_back(
+		g_log.message_queue.emplace_back(
 			CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), length);
 	}
 #endif

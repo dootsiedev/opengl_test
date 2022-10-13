@@ -19,7 +19,7 @@
 // and maybe make it so that "console handled errors" will be shown in the "error box",
 // and "handled" errors (like a error manully presented through some UI) will not overwrite the box.
 
-console_state g_console;
+log_queue g_log;
 
 static CVAR_T history_enabled
 #ifndef __EMSCRIPTEN__
@@ -35,7 +35,7 @@ static REGISTER_CVAR_INT(
 	history_enabled);
 static REGISTER_CVAR_INT(
 	cv_console_log_max_row_count,
-	100,
+	500,
 	"the maximum number of rows shown in the log",
 	CVAR_T::RUNTIME);
 
@@ -218,6 +218,11 @@ bool console_state::destroy()
 	SAFE_GL_DELETE_VAO(gl_prompt_vao_id);
 	SAFE_GL_DELETE_VBO(gl_error_interleave_vbo);
 	SAFE_GL_DELETE_VAO(gl_error_vao_id);
+
+    log_line_count = 0;
+    log_box.clear_string();
+    prompt_cmd.clear_string();
+    error_text.clear_string();
 
 	bool success = true;
 
@@ -472,26 +477,26 @@ bool console_state::parse_input()
 
 bool console_state::update(double delta_sec)
 {
-	log_message message_buffer[100];
+	log_queue::log_message message_buffer[100];
 	size_t message_count = 0;
 	int queue_size = 0;
 	{
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(mut);
+		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		queue_size = message_queue.size();
+		queue_size = g_log.message_queue.size();
 		if(queue_size > cv_console_log_max_row_count.data)
 		{
 			// since culling is based on newlines, I can assume every message has one line.
-			message_queue.erase(
-				message_queue.begin(),
-				message_queue.begin() + (queue_size - cv_console_log_max_row_count.data));
+			g_log.message_queue.erase(
+				g_log.message_queue.begin(),
+				g_log.message_queue.begin() + (queue_size - cv_console_log_max_row_count.data));
 		}
-		while(!message_queue.empty() && message_count < std::size(message_buffer))
+		while(!g_log.message_queue.empty() && message_count < std::size(message_buffer))
 		{
-			message_buffer[message_count++] = std::move(message_queue.front());
-			message_queue.pop_front();
+			message_buffer[message_count++] = std::move(g_log.message_queue.front());
+			g_log.message_queue.pop_front();
 		}
 	}
 	// can't print inside mutex because it would cause a deadlock.

@@ -17,11 +17,6 @@
 #include <mutex>
 #endif
 
-enum class CONSOLE_RESULT
-{
-	CONTINUE,
-	ERROR
-};
 
 enum class CONSOLE_MESSAGE_TYPE
 {
@@ -29,9 +24,9 @@ enum class CONSOLE_MESSAGE_TYPE
 	ERROR
 };
 
-struct console_state
+struct log_queue
 {
-	struct log_message
+    struct log_message
 	{
 		// the reason I use a unique_ptr is because
 		// my log system "slog" allocates one from my unique_asprintf
@@ -50,15 +45,26 @@ struct console_state
 		// probably could add in time if I wanted.
 	};
 
-	// you are supposed to just access this member .emplace_back to add a log.
-	// I could also try to replace this with a circular buffer (or whatever),
-	// since I want to remove old messages anyways.
-	std::deque<log_message> message_queue;
-
 #ifndef __EMSCRIPTEN__
 	// the queue's mutex
 	std::mutex mut;
 #endif
+
+    // you are supposed to just access this member .emplace_back to add a log.
+	// I could also try to replace this with a circular buffer (or whatever),
+	// since I want to remove old messages anyways.
+	std::deque<log_message> message_queue;
+};
+
+enum class CONSOLE_RESULT
+{
+	CONTINUE,
+	ERROR
+};
+
+
+struct console_state
+{
 
 	// keep track of how many newlines are drawn
 	// to cut lines from the top when the limit is reached.
@@ -122,4 +128,4 @@ struct console_state
 	void serialize_history(BS_Archive& ar);
 };
 
-extern console_state g_console;
+extern log_queue g_log;

@@ -142,7 +142,7 @@ struct demo_state
 	options_tree_state option_menu;
 	bool show_options = false;
 
-	// show g_console
+	console_state console_menu;
 	bool show_console = false;
 
 	bool update_screen_resize = true;

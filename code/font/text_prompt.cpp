@@ -902,8 +902,23 @@ bool text_prompt_wrapper::internal_draw_text(
 					switch(state.load_glyph_verts(ret.codepoint, color, ret.style, get_scale()))
 					{
 					case FONT_BASIC_RESULT::NOT_FOUND:
-						serrf("%s glyph not found: U+%X\n", __func__, ret.codepoint);
-						return false;
+						// serrf("%s glyph not found: U+%X\n", __func__, ret.codepoint);
+						{
+							// TODO(dootsie): this is copy pasted between the prompt and painter
+							float padding = 1.f * (16.f / state.font->get_point_size());
+							float width = (state.font->get_point_size() / 2.f);
+							float height = state.font->get_point_size() * get_scale();
+							float ascent = state.font->get_ascent(get_scale());
+							std::array<float, 4> pos{
+								state.draw_x_pos + (padding)*get_scale(),
+								state.draw_y_pos + ascent - height,
+								state.draw_x_pos + (padding + width) * get_scale(),
+								state.draw_y_pos + ascent};
+							state.batcher->draw_rect(
+								pos, state.font->get_font_atlas()->white_uv, color);
+							state.draw_x_pos += std::ceil(width + padding * 2.f) * get_scale();
+						}
+						break;
 					case FONT_BASIC_RESULT::ERROR: return false;
 					case FONT_BASIC_RESULT::SUCCESS: break;
 					}
@@ -2069,11 +2084,13 @@ int text_prompt_wrapper::stb_insert_chars(int index, const STB_TEXTEDIT_CHARTYPE
 			switch(state.font->get_advance(it->codepoint, &it->advance, 1))
 			{
 			case FONT_BASIC_RESULT::SUCCESS: break;
-			case FONT_BASIC_RESULT::NOT_FOUND:
-				// I SHOULD handle this, but I can't.
-				// the error should reappear and be handled when I actually render
-				// serrf("%s: codepoint not found: U+%X\n", state.font->get_name(), it->codepoint);
-				return 0;
+			case FONT_BASIC_RESULT::NOT_FOUND: {
+				// TODO(dootsie): this is copy pasted between the prompt and painter
+				float padding = 1.f * (16.f / state.font->get_point_size());
+				float width = (state.font->get_point_size() / 2.f);
+				it->advance += std::ceil(width + padding * 2.f);
+			}
+			break;
 			case FONT_BASIC_RESULT::ERROR:
 				// TODO: handle this error???
 				return 0;
