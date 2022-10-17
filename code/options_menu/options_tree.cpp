@@ -122,8 +122,8 @@ bool options_tree_state::init(
 			create_keybind_option(&shared_menu_state, "bind right", &cv_bind_move_right));
 		back.add_option(
 			create_keybind_option(&shared_menu_state, "bind jump / lift", &cv_bind_move_jump));
-		back.add_option(
-			create_keybind_option(&shared_menu_state, "bind crouch / decend", &cv_bind_move_crouch));
+		back.add_option(create_keybind_option(
+			&shared_menu_state, "bind crouch / decend", &cv_bind_move_crouch));
 		back.add_option(
 			create_keybind_option(&shared_menu_state, "bind fullscreen", &cv_bind_fullscreen));
 		back.add_option(
@@ -236,9 +236,9 @@ bool options_tree_state::tree_render()
 	auto white_uv = font_painter.state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 
-    bool draw_buffer = false;
+	bool draw_buffer = false;
 
-    for(auto& entry : menus)
+	for(auto& entry : menus)
 	{
 		if(entry.button.draw_requested())
 		{
@@ -246,55 +246,61 @@ bool options_tree_state::tree_render()
 		}
 	}
 
-    if(draw_buffer)
-    {
-	    mono_2d_batcher* batcher = font_painter.state.batcher;
-        
-        batcher->clear();
+	if(done_button.draw_requested())
+	{
+		draw_buffer = true;
+	}
 
-        // draw the backdrop bbox
-        {
-            float xmin = box_xmin;
-            float xmax = box_xmax;
-            float ymin = box_ymin;
-            float ymax = box_ymax;
+	if(draw_buffer)
+	{
+		mono_2d_batcher* batcher = font_painter.state.batcher;
 
-            std::array<uint8_t, 4> fill_color = RGBA8_PREMULT(50, 50, 50, 200);
+		batcher->clear();
 
-            batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, fill_color);
-            batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
-            batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
-            batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
-            batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
-        }
+		// draw the backdrop bbox
+		{
+			float xmin = box_xmin;
+			float xmax = box_xmax;
+			float ymin = box_ymin;
+			float ymax = box_ymax;
 
-        // draw buttons
-        for(auto& entry : menus)
-        {
-            if(!entry.button.draw_buffer(entry.text.c_str(), entry.text.size()))
-            {
-                return false;
-            }
-        }
-        if(!done_button.draw_buffer(done_text.c_str(), done_text.size()))
-        {
-            return false;
-        }
-        
+			std::array<uint8_t, 4> fill_color = RGBA8_PREMULT(50, 50, 50, 200);
 
-        if(batcher->get_quad_count() != 0)
-        {
-            // upload
-            ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_options_interleave_vbo);
-            ctx.glBufferData(GL_ARRAY_BUFFER, batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
-            ctx.glBufferSubData(
-                GL_ARRAY_BUFFER, 0, batcher->get_current_vertex_size(), batcher->buffer);
-            ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
-        }
-        gl_batch_vertex_count = batcher->get_current_vertex_count();
-    }
+			batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, fill_color);
+			batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
+			batcher->draw_rect({xmin, ymin, xmax, ymin + 1}, white_uv, bbox_color);
+			batcher->draw_rect({xmax - 1, ymin, xmax, ymax}, white_uv, bbox_color);
+			batcher->draw_rect({xmin, ymax - 1, xmax, ymax}, white_uv, bbox_color);
+		}
 
-    if(gl_batch_vertex_count != 0){
+		// draw buttons
+		for(auto& entry : menus)
+		{
+			if(!entry.button.draw_buffer(entry.text.c_str(), entry.text.size()))
+			{
+				return false;
+			}
+		}
+		if(!done_button.draw_buffer(done_text.c_str(), done_text.size()))
+		{
+			return false;
+		}
+
+		if(batcher->get_quad_count() != 0)
+		{
+			// upload
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, gl_options_interleave_vbo);
+			ctx.glBufferData(
+				GL_ARRAY_BUFFER, batcher->get_total_vertex_size(), NULL, GL_STREAM_DRAW);
+			ctx.glBufferSubData(
+				GL_ARRAY_BUFFER, 0, batcher->get_current_vertex_size(), batcher->buffer);
+			ctx.glBindBuffer(GL_ARRAY_BUFFER, 0);
+		}
+		gl_batch_vertex_count = batcher->get_current_vertex_count();
+	}
+
+	if(gl_batch_vertex_count != 0)
+	{
 		// draw
 		ctx.glBindVertexArray(gl_options_vao_id);
 		ctx.glDrawArrays(GL_TRIANGLES, 0, gl_batch_vertex_count);

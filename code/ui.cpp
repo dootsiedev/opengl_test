@@ -101,6 +101,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			// which means any fade effects would appear when you reopen the menu
 			// because all update()'s would stop after the menu is closed.
 			fade = 0;
+            pop_effect = 0;
 			return BUTTON_RESULT::CONTINUE;
 
 			// if you unhovered from SDL_WINDOWEVENT_FOCUS_LOST,
