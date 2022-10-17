@@ -7,6 +7,7 @@
 
 // TODO: maybe make the button get highlighted when you press down on it?
 
+/*
 void set_event_leave(SDL_Event& e)
 {
 	if(e.type == SDL_MOUSEMOTION)
@@ -19,6 +20,7 @@ void set_event_leave(SDL_Event& e)
 	e.window.event = SDL_WINDOWEVENT_LEAVE;
 	e.window.windowID = 0;
 }
+*/
 
 void set_event_unfocus(SDL_Event& e)
 {
@@ -39,6 +41,23 @@ void set_event_hidden(SDL_Event& e)
 	e.type = SDL_WINDOWEVENT;
 	e.window.event = SDL_WINDOWEVENT_HIDDEN;
 	e.window.windowID = 0;
+}
+
+// UNRELATED: I wonder if it would be very stupid if I used this for keyboard events,
+// because I have a problem where I would wasd move the camera while navigating a menu,
+// but every time I click up or down, the unfocus event would hitch my camera movement.
+// maybe instead I should add in DOOT_EATEN_SDL_KEYUP & DOOT_CLIPPED_SDL_MOUSEMOTION.
+// but the only problem with that removing is_mouse_event_clipped() requires refactoring...
+// and ideally I would want a .clipped member in .motion & .button
+void set_mouse_event_clipped(SDL_Event& e)
+{
+	switch(e.type)
+	{
+	case SDL_MOUSEMOTION: e.motion.windowID = CLIPPED_WINDOW_ID; return;
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP: e.button.windowID = CLIPPED_WINDOW_ID; return;
+	}
+	ASSERT(false && "not a mouse event");
 }
 
 bool is_mouse_event_clipped(SDL_Event& e)
@@ -65,15 +84,16 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 {
 	ASSERT(font_painter != NULL);
 
-	switch(e.type)
+	if(e.type == SDL_WINDOWEVENT)
 	{
-	case SDL_WINDOWEVENT:
 		switch(e.window.event)
 		{
 			// release "hover focus"
-		case SDL_WINDOWEVENT_LEAVE: hover_over = false; return BUTTON_RESULT::CONTINUE;
+		case SDL_WINDOWEVENT_LEAVE:
+			hover_over = false;
+			return BUTTON_RESULT::CONTINUE;
+			// if a the UI disappears.
 		case SDL_WINDOWEVENT_HIDDEN:
-			// if a UI element dissapears, use this.
 			clicked_on = false;
 			hover_over = false;
 			// note this is neccessary because
@@ -83,9 +103,8 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			fade = 0;
 			return BUTTON_RESULT::CONTINUE;
 
-			// there is no "input focus".
-			// if you unfocused here, pressing keys in a prompt would
-			// make the mouse hover go away!
+			// if you unhovered from SDL_WINDOWEVENT_FOCUS_LOST,
+			// pressing keys in a prompt would make the mouse hover go away!
 			// case SDL_WINDOWEVENT_FOCUS_LOST:
 		}
 	}
@@ -98,6 +117,10 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
+		if(clicked_on && e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+		{
+			clicked_on = false;
+		}
 		if(is_mouse_event_clipped(e))
 		{
 			// clipped shouldn't cause hover
@@ -115,14 +138,14 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		{
 			hover_over = true;
 			// eat
-			set_event_leave(e);
+			set_mouse_event_clipped(e);
 			return BUTTON_RESULT::CONTINUE;
 		}
 		hover_over = false;
 	}
 	break;
 	case SDL_MOUSEBUTTONDOWN:
-		if(e.button.button == SDL_BUTTON_LEFT)
+		if(e.button.button == SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
 		{
 			if(is_mouse_event_clipped(e))
 			{
@@ -141,7 +164,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 			{
 				clicked_on = true;
 				// eat
-				set_event_leave(e);
+				set_event_unfocus(e);
 				return BUTTON_RESULT::CONTINUE;
 			}
 		}
@@ -151,7 +174,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		if(clicked_on)
 		{
 			clicked_on = false;
-			if(e.button.button == SDL_BUTTON_LEFT)
+			if(e.button.button == SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
 			{
 				float mouse_x = static_cast<float>(e.button.x);
 				float mouse_y = static_cast<float>(e.button.y);
@@ -168,7 +191,8 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 				{
 					// slog("click\n");
 					// reset the fade  to .5 for an effect
-					fade = 0.5;
+					pop_effect = 1.f;
+					update_buffer = true;
 					return BUTTON_RESULT::TRIGGER;
 				}
 			}
@@ -182,23 +206,27 @@ void mono_button_object::update(double delta_sec)
 {
 	ASSERT(font_painter != NULL);
 
-	if(display_click_frame)
+	if(pop_effect > 0)
 	{
+		pop_effect -= static_cast<float>(delta_sec) * 4;
 		update_buffer = true;
+		fade = 1.f;
 	}
-
-	auto prev_fade = fade;
-
-	// add fade
-	fade += static_cast<float>(hover_over ? delta_sec : -delta_sec) * color_state.fade_speed;
-
-	// clamp
-	fade = std::min(fade, 1.f);
-	fade = std::max(fade, 0.f);
-
-	if(fade != prev_fade)
+	else
 	{
-		update_buffer = true;
+		auto prev_fade = fade;
+
+		// add fade
+		fade += static_cast<float>(hover_over ? delta_sec : -delta_sec) * color_state.fade_speed;
+
+		// clamp
+		fade = std::min(fade, 1.f);
+		fade = std::max(fade, 0.f);
+
+		if(fade != prev_fade)
+		{
+			update_buffer = true;
+		}
 	}
 }
 bool mono_button_object::draw_buffer(const char* button_text, size_t button_text_len)
@@ -210,33 +238,40 @@ bool mono_button_object::draw_buffer(const char* button_text, size_t button_text
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 
-	std::array<uint8_t, 4> fill_color;
+	std::array<uint8_t, 4> color1;
+	std::array<uint8_t, 4> color2;
+	float mix;
 
-	if(display_click_frame)
+	if(pop_effect > 0)
 	{
-		fill_color = color_state.click_pop_fill_color;
-		display_click_frame = false;
+		color1 = color_state.click_pop_fill_color;
+		color2 = color_state.hot_fill_color;
+		mix = pop_effect;
 	}
 	else
 	{
-		// normalize the colors 0-1
-		float hot_fill[4] = {
-			static_cast<float>(color_state.hot_fill_color[0]) / 255.f,
-			static_cast<float>(color_state.hot_fill_color[1]) / 255.f,
-			static_cast<float>(color_state.hot_fill_color[2]) / 255.f,
-			static_cast<float>(color_state.hot_fill_color[3]) / 255.f};
-		float idle_fill[4] = {
-			static_cast<float>(color_state.idle_fill_color[0]) / 255.f,
-			static_cast<float>(color_state.idle_fill_color[1]) / 255.f,
-			static_cast<float>(color_state.idle_fill_color[2]) / 255.f,
-			static_cast<float>(color_state.idle_fill_color[3]) / 255.f};
-		// blend the colors.
-		fill_color = {
-			static_cast<uint8_t>((hot_fill[0] * fade + idle_fill[0] * (1.f - fade)) * 255.f),
-			static_cast<uint8_t>((hot_fill[1] * fade + idle_fill[1] * (1.f - fade)) * 255.f),
-			static_cast<uint8_t>((hot_fill[2] * fade + idle_fill[2] * (1.f - fade)) * 255.f),
-			static_cast<uint8_t>((hot_fill[3] * fade + idle_fill[3] * (1.f - fade)) * 255.f)};
+		color1 = color_state.hot_fill_color;
+		color2 = color_state.idle_fill_color;
+		mix = fade;
 	}
+
+	// normalize the colors 0-1
+	float hot_fill[4] = {
+		static_cast<float>(color1[0]) / 255.f,
+		static_cast<float>(color1[1]) / 255.f,
+		static_cast<float>(color1[2]) / 255.f,
+		static_cast<float>(color1[3]) / 255.f};
+	float idle_fill[4] = {
+		static_cast<float>(color2[0]) / 255.f,
+		static_cast<float>(color2[1]) / 255.f,
+		static_cast<float>(color2[2]) / 255.f,
+		static_cast<float>(color2[3]) / 255.f};
+	// blend the colors.
+	std::array<uint8_t, 4> fill_color = {
+		static_cast<uint8_t>((hot_fill[0] * mix + idle_fill[0] * (1.f - mix)) * 255.f),
+		static_cast<uint8_t>((hot_fill[1] * mix + idle_fill[1] * (1.f - mix)) * 255.f),
+		static_cast<uint8_t>((hot_fill[2] * mix + idle_fill[2] * (1.f - mix)) * 255.f),
+		static_cast<uint8_t>((hot_fill[3] * mix + idle_fill[3] * (1.f - mix)) * 255.f)};
 
 	// backdrop
 	{
@@ -259,13 +294,15 @@ bool mono_button_object::draw_buffer(const char* button_text, size_t button_text
 	font_painter->begin();
 	font_painter->set_anchor(TEXT_ANCHOR::CENTER_PERFECT);
 
+	float font_x = button_rect[0] + (button_rect[2] / 2.f);
+	float font_y = button_rect[1] + (button_rect[3] / 2.f);
+
 	if(color_state.text_outline)
 	{
 		// outline
 		font_painter->set_style(FONT_STYLE_OUTLINE);
 		font_painter->set_color(color_state.text_outline_color);
-		font_painter->set_xy(
-			button_rect[0] + (button_rect[2] / 2.f), button_rect[1] + (button_rect[3] / 2.f));
+		font_painter->set_xy(font_x, font_y);
 		if(!font_painter->draw_text(button_text, button_text_len))
 		{
 			return false;
@@ -274,16 +311,13 @@ bool mono_button_object::draw_buffer(const char* button_text, size_t button_text
 
 	font_painter->set_style(FONT_STYLE_NORMAL);
 	font_painter->set_color(disabled ? color_state.disabled_text_color : color_state.text_color);
-	font_painter->set_xy(
-		button_rect[0] + (button_rect[2] / 2.f), button_rect[1] + (button_rect[3] / 2.f));
+	font_painter->set_xy(font_x, font_y);
 	if(!font_painter->draw_text(button_text, button_text_len))
 	{
 		return false;
 	}
 
 	font_painter->end();
-
-	update_buffer = false;
 
 	// there are not much gl calls here, but the text does modify the atlas.
 	return GL_RUNTIME(__func__) == GL_NO_ERROR;
@@ -353,6 +387,14 @@ SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
 				scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
 			}
 			modified = true;
+			// I use this to prevent other things from scrolling,
+			// and because there might be something I might be hovering over inside
+			// the scrollable area, and it needs to be un-hover-focused.
+			// because this isn't a motion event, I need to fix the values.
+			e.type = SDL_MOUSEMOTION;
+			e.motion.x = x;
+			e.motion.y = y;
+			set_mouse_event_clipped(e);
 		}
 		break;
 		case SDL_MOUSEMOTION: {
@@ -368,13 +410,14 @@ SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
 				{
 					internal_scroll_y_to(mouse_y);
 					modified = true;
+					break;
 				}
 			}
 			// helps unfocus other elements.
 			if(internal_scroll_y_inside(mouse_x, mouse_y))
 			{
 				// eat hover
-				set_event_leave(e);
+				set_mouse_event_clipped(e);
 				break;
 			}
 		}
@@ -550,7 +593,7 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 	case SDL_MOUSEMOTION: {
 		float mouse_x = static_cast<float>(e.motion.x);
 		float mouse_y = static_cast<float>(e.motion.y);
-		
+
 		if(slider_held)
 		{
 			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
@@ -568,7 +611,7 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 		if(internal_slider_inside(mouse_x, mouse_y))
 		{
 			// eat
-			set_event_leave(e);
+			set_mouse_event_clipped(e);
 			return false;
 		}
 	}

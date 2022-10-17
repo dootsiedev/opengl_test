@@ -26,11 +26,11 @@ REGISTER_CVAR_INT(
 	"0 = off, 1 = show detailed opengl errors, 2 = stacktrace per call",
 	CVAR_T::STARTUP);
 
-static CVAR_T opengl_gamma_correct_type = 
+static CVAR_T opengl_gamma_correct_type =
 #ifdef __EMSCRIPTEN__
-CVAR_T::DISABLED;
+	CVAR_T::DISABLED;
 #else
-CVAR_T::STARTUP;
+	CVAR_T::STARTUP;
 #endif
 
 static REGISTER_CVAR_INT(
@@ -52,10 +52,10 @@ REGISTER_CVAR_DOUBLE(
 	cv_ui_scale, 1, "scale the fonts, but the font will look upscaled", CVAR_T::DEFFERRED);
 
 REGISTER_CVAR_INT(
-cv_font_linear_filtering,
-0,
-"0 = nearest filtering, 1 = linear filtering, only noticable if you scale the fonts",
-CVAR_T::STARTUP);
+	cv_font_linear_filtering,
+	0,
+	"0 = nearest filtering, 1 = linear filtering, only noticable if you scale the fonts",
+	CVAR_T::STARTUP);
 
 cvar_fullscreen cv_fullscreen;
 cvar_vysnc cv_vsync;
@@ -202,24 +202,24 @@ EM_BOOL fullscreenchange_callback(int eventType, const EmscriptenFullscreenChang
 extern "C" {
 extern void enter_fullscreen()
 {
+	EmscriptenFullscreenStrategy s;
+	memset(&s, 0, sizeof(s));
+	s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_STRETCH;
+	s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
+	s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
+	s.canvasResizedCallback = on_canvassize_changed;
+	// deferred means to my understanding that if this fails,
+	// the next event will fullscreen (so the next click would trigger fullscreen)
+	EMSCRIPTEN_RESULT em_ret = emscripten_request_fullscreen_strategy("#canvas", 1, &s);
+	if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
+	{
+		slogf(
+			"%s returned %s.\n",
+			"emscripten_request_fullscreen_strategy",
+			emscripten_result_to_string(em_ret));
+	}
 #if 0
-        EmscriptenFullscreenStrategy s;
-        memset(&s, 0, sizeof(s));
-        s.scaleMode = EMSCRIPTEN_FULLSCREEN_SCALE_STRETCH;
-        s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_STDDEF;
-        s.filteringMode = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
-        s.canvasResizedCallback = 0; // on_canvassize_changed;
-        // deferred means to my understanding that if this fails,
-        // the next event will fullscreen (so the next click would trigger fullscreen)
-        EMSCRIPTEN_RESULT em_ret = emscripten_request_fullscreen_strategy("#canvas", 1, &s);
-        if(em_ret != EMSCRIPTEN_RESULT_SUCCESS)
-        {
-            slogf(
-                "%s returned %s.\n",
-                "emscripten_request_fullscreen_strategy",
-                emscripten_result_to_string(em_ret));
-        }
-#endif
+    // If I zoom the web page in and out, the screen size is bugged out
 	if(SDL_SetWindowFullscreen(
 		   g_app.window,
 		   // I don't use SDL_WINDOW_FULLSCREEN, because it breaks everything
@@ -227,6 +227,7 @@ extern void enter_fullscreen()
 	{
 		slogf("SDL_SetWindowFullscreen Error: %s", SDL_GetError());
 	}
+#endif
 }
 }
 

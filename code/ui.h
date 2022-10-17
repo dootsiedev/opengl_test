@@ -25,6 +25,7 @@
 //      (this is done by recursively calling input() with a dummy SDL_event
 //      set with set_event_unfocus)
 
+/// TODO: set_event_leave is replaced by set_motion_event_clipped
 // set_event_leave
 // converts the event to SDL_WINDOWEVENT_LEAVE
 // I use this to remove "hover focus" from obscured elements,
@@ -36,7 +37,7 @@
 // hovering on a tile while you open up a menu with a hotkey,
 // the "hover focus" will not change until you move the mouse...
 // I need to figure out a clever way of handling that...
-void set_event_leave(SDL_Event& e);
+///void set_event_leave(SDL_Event& e);
 
 // set_event_unfocus
 // makes more sense if it was set_event_eat
@@ -64,6 +65,16 @@ void set_event_resize(SDL_Event& e);
 // this is basically set_event_leave + set_event_unfocus
 // NOTE: this only sets the type, so don't access any values.
 void set_event_hidden(SDL_Event& e);
+
+// this is used in situations you would use set_event_leave
+// but you don't want the event to be 100% eaten,
+// like for mouse motion events, if you were dragging a slider,
+// or text selection, you don't want the motion to be eaten,
+// even if it's technically outside the element.
+// but you still need to check if the event was clipped to remove "hover focus"
+// NOTE: this must be a button or motion event, 
+// I do this for wheel events, you must set the type, and set the e.motion.x and y values.
+void set_mouse_event_clipped(SDL_Event& e);
 
 enum : Uint32
 {
@@ -98,7 +109,7 @@ struct button_color_state
 	std::array<uint8_t, 4> text_color = {255, 255, 255, 255};
 	std::array<uint8_t, 4> text_outline_color = {0, 0, 0, 255};
 	std::array<uint8_t, 4> disabled_text_color = {100, 100, 100, 255};
-	std::array<uint8_t, 4> click_pop_fill_color = RGBA8_PREMULT(255, 255, 255, 200);
+	std::array<uint8_t, 4> click_pop_fill_color = RGBA8_PREMULT(200, 200, 200, 255);
 	float fade_speed = 4;
 	bool text_outline = true;
 };
@@ -108,6 +119,8 @@ struct mono_button_object
 	button_color_state color_state;
 	font_sprite_painter* font_painter = NULL;
 	float fade = 0.f;
+	// make the button "pop" for a frame when you click
+	float pop_effect = 0.f;
 	// pos on the screen, x,y,w,h
 	std::array<float, 4> button_rect{};
 	bool hover_over = false;
@@ -116,9 +129,6 @@ struct mono_button_object
 	// to make a click, you need to click down and up in the same area
 	// if mouse_button_down = true, this does nothing.
 	bool clicked_on = false;
-
-	// make the button "pop" for a frame when you click
-	bool display_click_frame = false;
 
 	bool update_buffer = true;
 

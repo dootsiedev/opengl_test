@@ -135,7 +135,7 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 				return OPTIONS_MENU_RESULT::ERROR;
 			}
 			// eat
-			set_event_leave(e);
+			set_event_unfocus(e);
 			break;
 		case FOCUS_ELEMENT_RESULT::MODIFIED:
 			if(!shared_state->set_focus(NULL))
@@ -143,6 +143,8 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 				return OPTIONS_MENU_RESULT::ERROR;
 			}
 			revert_button.set_disabled(false);
+			// eat
+			set_event_unfocus(e);
 			break;
 		case FOCUS_ELEMENT_RESULT::ERROR: return OPTIONS_MENU_RESULT::ERROR;
 		}
@@ -182,8 +184,7 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 			 scroll_xmin <= mouse_x))
 		{
 			SDL_Event fake_event = e;
-
-			fake_event.motion.windowID = CLIPPED_WINDOW_ID;
+            set_mouse_event_clipped(fake_event);
 			for(auto& entry : option_entries)
 			{
 				if(entry->input(fake_event) == OPTION_ELEMENT_RESULT::ERROR)
@@ -218,8 +219,7 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 				 scroll_xmin <= mouse_x))
 			{
 				SDL_Event fake_event = e;
-
-				fake_event.button.windowID = CLIPPED_WINDOW_ID;
+                set_mouse_event_clipped(fake_event);
 				for(auto& entry : option_entries)
 				{
 					if(entry->input(fake_event) == OPTION_ELEMENT_RESULT::ERROR)

@@ -366,6 +366,11 @@ if(EMSCRIPTEN)
     #NOTE: for USE_ASAN I need -sINITIAL_MEMORY=159391744, and it only works when I use CMAKE_EXE_LINKER_FLAGS
     #TODO: removing NDEBUG isn't enough to enable asserts for some reason. So don't use RelWithDebInfo, use Debug...
     set(CMAKE_EXECUTABLE_SUFFIX ".html")
+    #I need source-maps because I wanted to get EM_LOG_C_STACK working, 
+    #but all the paths leads to "stdlib_typeinfo.cpp:18:0", and I tried enabling/disabling RTTI
+    #requires: emrun --port 9090 --serve_root / .
+    #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -gsource-map -sLOAD_SOURCE_MAP=1 --source-map-base http://localhost:9090/")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -gsource-map")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --preload-file ../pointsprite/demo_files@/ --shell-file ../pointsprite/demo_code/wasm_index.html")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sEXPORTED_FUNCTIONS=_main,_enter_fullscreen,_paste_clipboard,_copy_clipboard,_cut_clipboard -sEXPORTED_RUNTIME_METHODS=ccall,cwrap")
     #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -sASSERTIONS=1")
@@ -441,11 +446,14 @@ add_executable(${PROJECT_NAME}
     code/BS_Archive/BS_stream.cpp
 )
 
+option(USE_PCH "testing precompiled header global_pch.h" OFF)
 #I'm not using this to speed up compilation,
 #this SHOULD help clangd to deal with non self-contained headers 
 #because it's automatically #include'd into every file
 #but clangd doesn't detect it for some reason...
-target_precompile_headers(${PROJECT_NAME} PRIVATE "code/global_pch.h")
+if(USE_PCH)
+    target_precompile_headers(${PROJECT_NAME} PRIVATE "code/global_pch.h")
+endif()
 
 target_link_libraries(${PROJECT_NAME} ALL_SANITIZERS)
 target_compile_options(${PROJECT_NAME} PRIVATE ${MY_COMPILER_FLAGS})

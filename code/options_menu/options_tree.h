@@ -44,6 +44,7 @@ struct options_tree_state
 	};
 
 	std::vector<menu_entry> menus;
+	GLsizei gl_batch_vertex_count = 0;
 
 	// -1 == show selection list.
 	int current_menu_index = -1;

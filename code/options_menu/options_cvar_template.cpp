@@ -129,7 +129,7 @@ FOCUS_ELEMENT_RESULT option_error_prompt::input(SDL_Event& e)
 		if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x && box_xmin <= mouse_x)
 		{
 			// eat
-			set_event_leave(e);
+			set_mouse_event_clipped(e);
 			return FOCUS_ELEMENT_RESULT::CONTINUE;
 		}
 	}
@@ -1229,15 +1229,8 @@ OPTION_ELEMENT_RESULT cvar_keybind_option::input(SDL_Event& e)
 		{
 			return OPTION_ELEMENT_RESULT::ERROR;
 		}
-		{
-			// dumb hack because the button needs to be told the mouse is obscured.
-			SDL_Event e2;
-			set_event_leave(e2);
-			if(button.input(e2) == BUTTON_RESULT::ERROR)
-			{
-				return OPTION_ELEMENT_RESULT::ERROR;
-			}
-		}
+		// dumb hack because the button needs to be told the mouse is obscured.
+		button.hover_over = false;
 		// eat
 		set_event_unfocus(e);
 		break;
@@ -1369,8 +1362,6 @@ bool option_keybind_request::init(
 	value_modified = false;
 	update_buffer = true;
 
-	gl_batch_buffer_offset = 0;
-	batch_vertex_count = 0;
 	gl_batch_buffer_offset = -1;
 	batch_vertex_count = 0;
 
@@ -1524,7 +1515,7 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 	case BUTTON_RESULT::ERROR: return FOCUS_ELEMENT_RESULT::ERROR;
 	}
 
-	/*if(e.type == SDL_KEYDOWN)
+	if(e.type == SDL_KEYDOWN)
 	{
 		switch(e.key.keysym.sym)
 		{
@@ -1538,7 +1529,6 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 			return FOCUS_ELEMENT_RESULT::CLOSE;
 		}
 	}
-	*/
 
 	keybind_state out;
 	if(option_state->cvar->bind_sdl_event(out, e))
@@ -1563,7 +1553,7 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 		if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x && box_xmin <= mouse_x)
 		{
 			// eat
-			set_event_leave(e);
+			set_mouse_event_clipped(e);
 			return FOCUS_ELEMENT_RESULT::CONTINUE;
 		}
 	}

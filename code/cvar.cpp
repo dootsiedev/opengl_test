@@ -327,12 +327,12 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
 	char buffer[1000];
 	BS_ReadStream reader(file, buffer, sizeof(buffer));
 
-	const size_t max_line_size = 1000;
 
-	char line_buf[max_line_size + 1];
+	char line_buf[1000 + 1];
+
 	//size_t count = 0;
 	char* pos = line_buf;
-	char* end = line_buf + max_line_size;
+	char* end = line_buf + sizeof(line_buf);
 	while(pos < end)
 	{
 		*pos = reader.Take();
@@ -376,6 +376,7 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
 	}
 	if(pos == end)
 	{
+        size_t max_line_size = sizeof(line_buf) - 1;
 		serrf("line too long: %s (max: %zu)\n", file->name(), max_line_size);
 		return false;
 	}

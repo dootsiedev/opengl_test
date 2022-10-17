@@ -250,10 +250,16 @@ bool font_manager_state::create()
 	// upload 4 pixels for padding
 	// technically I could use one pixel but see cool_fade
 
+	uint32_t offset = 0;
+	if(cv_font_linear_filtering.data == 1)
+	{
+		offset = 1;
+	}
+
 	uint32_t x_out;
 	uint32_t y_out;
 	// 2x2 for the colors of the corners, and +1 because of cv_font_linear_filtering
-	if(!atlas.find_atlas_slot(2, 2, &x_out, &y_out))
+	if(!atlas.find_atlas_slot(2 + offset, 2 + offset, &x_out, &y_out))
 	{
 		return false;
 	}
@@ -822,12 +828,12 @@ hex_font_data::get_glyph(
 	// there might be more space characters, but only these really matter.
 	if(codepoint == ' ')
 	{
-		glyph->advance = HEX_HALF_WIDTH;
+		glyph->advance = HEX_HALF_WIDTH * font_scale;
 		return FONT_RESULT::SPACE;
 	}
 	if(codepoint == 0x3000)
 	{
-		glyph->advance = HEX_FULL_WIDTH;
+		glyph->advance = HEX_FULL_WIDTH * font_scale;
 		return FONT_RESULT::SPACE;
 	}
 
@@ -2031,12 +2037,11 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 					float padding = 1.f * (16.f / state.font->get_point_size());
 					float width = (state.font->get_point_size() / 2.f);
 					float height = state.font->get_point_size() * get_scale();
-					float ascent = state.font->get_ascent(get_scale());
 					std::array<float, 4> pos{
 						state.draw_x_pos + (padding)*get_scale(),
-						state.draw_y_pos + (ascent - height),
+						state.draw_y_pos,
 						state.draw_x_pos + (padding + width) * get_scale(),
-						state.draw_y_pos + (ascent)};
+						state.draw_y_pos + height};
 					state.batcher->draw_rect(
 						pos, state.font->get_font_atlas()->white_uv, cur_color);
 					state.draw_x_pos += std::ceil(width + padding * 2.f) * get_scale();

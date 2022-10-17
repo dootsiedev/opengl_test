@@ -25,6 +25,7 @@
 
 // forward declaration
 static Uint16 find_sdl_mod(const char* string, size_t size);
+static const char* get_sdl_mod_name(Uint16 mod);
 static SDL_Keycode find_sdl_keycode(const char* string, size_t size);
 static const char* get_sdl_key_name(SDL_Keycode key);
 
@@ -83,21 +84,16 @@ std::string cvar_key_bind::keybind_to_string(keybind_state& in)
 
 	if(in.mod != 0)
 	{
-		if((KMOD_CTRL & in.mod) != 0)
+        const char* mod_name = get_sdl_mod_name(in.mod);
+		if(mod_name != NULL)
 		{
-			out += "KMOD_CTRL;";
-		}
-		else if((KMOD_SHIFT & in.mod) != 0)
-		{
-			out += "KMOD_SHIFT;";
-		}
-		else if((KMOD_ALT & in.mod) != 0)
-		{
-			out += "KMOD_ALT;";
+			out += mod_name;
+            out += ';';
 		}
 		else
 		{
-			out += "UNKNOWN_MODIFIER????";
+            // probably should be an serr error, same for get_sdl_key_name.
+			out += "UNKNOWN_MODIFIER;";
 		}
 	}
 	switch(in.type)
@@ -132,6 +128,8 @@ bool cvar_key_bind::bind_sdl_event(keybind_state& value, SDL_Event& e)
 	case SDL_KEYUP:
 		value.type = KEYBIND_T::KEY;
 		value.key = e.key.keysym.sym;
+		// The only problem with this is that when I lift the modifier, it would overwrite the
+		// bind... workaround: just hold the modifier and click confirmation...
 		value.mod = e.key.keysym.mod & MY_ALLOWED_KMODS;
 		return true;
 	case SDL_MOUSEBUTTONDOWN:
@@ -155,7 +153,11 @@ keybind_compare_type cvar_key_bind::compare_sdl_event(SDL_Event& e, keybind_comp
 		switch(e.type)
 		{
 		case SDL_KEYDOWN:
-			// this doesn't apply to keyup, because then we will never get a keyup!!!
+			// this doesn't apply to keyup, because then we will never get a keyup for wasd!
+			// I know that the correct way of dealing with this is by polling the key state,
+			// and replace mod with a keycode, but I don't want to do that because I am lazy.
+			// and this only affects "held" keys like movement,
+			// I don't have any keyup oneshot buttons (ATM), and if I did why would I need mod?.
 			if(key_binds.mod != 0 && (key_binds.mod & e.key.keysym.mod) == 0)
 			{
 				// modifier required.
@@ -279,24 +281,40 @@ Uint16 find_sdl_mod(const char* string, size_t size)
 			return code;                                               \
 		}                                                              \
 	} while(0)
-	XSTRNCMP(KMOD_NONE);
 	XSTRNCMP(KMOD_LSHIFT);
 	XSTRNCMP(KMOD_RSHIFT);
 	XSTRNCMP(KMOD_LCTRL);
 	XSTRNCMP(KMOD_RCTRL);
 	XSTRNCMP(KMOD_LALT);
 	XSTRNCMP(KMOD_RALT);
-	XSTRNCMP(KMOD_LGUI);
-	XSTRNCMP(KMOD_RGUI);
-	XSTRNCMP(KMOD_NUM);
-	XSTRNCMP(KMOD_CAPS);
-	XSTRNCMP(KMOD_MODE);
 	XSTRNCMP(KMOD_CTRL);
 	XSTRNCMP(KMOD_SHIFT);
 	XSTRNCMP(KMOD_ALT);
-	XSTRNCMP(KMOD_GUI);
 #undef XSTRNCMP
 	return 0;
+}
+
+const char* get_sdl_mod_name(Uint16 mod)
+{
+#define XSTRNCMP(code)    \
+	do                    \
+	{                     \
+		if((code) == mod) \
+		{                 \
+			return #code; \
+		}                 \
+	} while(0)
+	XSTRNCMP(KMOD_LSHIFT);
+	XSTRNCMP(KMOD_RSHIFT);
+	XSTRNCMP(KMOD_LCTRL);
+	XSTRNCMP(KMOD_RCTRL);
+	XSTRNCMP(KMOD_LALT);
+	XSTRNCMP(KMOD_RALT);
+	XSTRNCMP(KMOD_CTRL);
+	XSTRNCMP(KMOD_SHIFT);
+	XSTRNCMP(KMOD_ALT);
+#undef XSTRNCMP
+	return NULL;
 }
 
 // this is horrible, but because I need SDL_GetKeyName and I haven't initialized SDL
@@ -808,6 +826,6 @@ const char* get_sdl_key_name(SDL_Keycode key)
 	XSTRNCMP(SDLK_APP2);
 	XSTRNCMP(SDLK_AUDIOREWIND);
 	XSTRNCMP(SDLK_AUDIOFASTFORWARD);
-	return "UNKNOWN_KEY_CODE????";
 #undef XSTRNCMP
+	return "UNKNOWN_KEY_CODE????";
 }

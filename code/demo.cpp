@@ -66,8 +66,8 @@ REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, false, "move forward");
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, false, "move backward");
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_left, SDLK_a, false, "move left");
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_right, SDLK_d, false, "move right");
-REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_jump, SDLK_SPACE, false, "jump");
-REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_crouch, SDLK_c, false, "crouch");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_jump, SDLK_SPACE, false, "jump or lift");
+REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_crouch, SDLK_c, false, "crouch or decend");
 REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
 	cv_bind_fullscreen, SDLK_RETURN, KMOD_ALT, false, "toggle fullscreen");
 
@@ -979,7 +979,7 @@ bool demo_state::input(SDL_Event& e)
 			direction.y = sin(glm::radians(camera_pitch));
 			direction.z = sin(glm::radians(camera_yaw)) * cos(glm::radians(camera_pitch));
 			camera_direction = glm::normalize(direction);
-			set_event_leave(e);
+			set_mouse_event_clipped(e);
 		}
 		if(e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE)
 		{

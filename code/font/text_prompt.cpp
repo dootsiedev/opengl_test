@@ -908,12 +908,11 @@ bool text_prompt_wrapper::internal_draw_text(
 							float padding = 1.f * (16.f / state.font->get_point_size());
 							float width = (state.font->get_point_size() / 2.f);
 							float height = state.font->get_point_size() * get_scale();
-							float ascent = state.font->get_ascent(get_scale());
 							std::array<float, 4> pos{
 								state.draw_x_pos + (padding)*get_scale(),
-								state.draw_y_pos + ascent - height,
+								state.draw_y_pos,
 								state.draw_x_pos + (padding + width) * get_scale(),
-								state.draw_y_pos + ascent};
+								state.draw_y_pos + height};
 							state.batcher->draw_rect(
 								pos, state.font->get_font_atlas()->white_uv, color);
 							state.draw_x_pos += std::ceil(width + padding * 2.f) * get_scale();
@@ -1289,9 +1288,11 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				scroll_y -= static_cast<float>(e.wheel.y * cv_scroll_speed.data) * get_lineskip();
 				// the draw function will clamp it to keep the scroll area inside of the text.
 				update_buffer = true;
-				// NOTE: this is weird, but I think I can use leave to prevent multiple things
-				// scrolling.
-				set_event_leave(e);
+				// I use leave to prevent multiple things scrolling.
+                e.type = SDL_MOUSEMOTION;
+                e.motion.x = x;
+                e.motion.y = y;
+				set_mouse_event_clipped(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
 			}
 		}
@@ -1349,7 +1350,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x && box_xmin <= mouse_x)
 		{
 			// eat
-			set_event_leave(e);
+			set_mouse_event_clipped(e);
 			return TEXT_PROMPT_RESULT::CONTINUE;
 		}
 	}

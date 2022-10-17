@@ -28,7 +28,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${command:cmake.launchTargetPath}",
-            "args": ["+cv_string_pt", "16", "+cv_string_font","FSEX300.ttf", "+cv_string", "010$'\\n'犬大好き綿湯名暑い着く歩く走る通", "+cv_debug_opengl", "1"],
+            "args": ["+cv_string", "010$'\\n'犬大好き綿湯名暑い着く歩く走る通", "+cv_debug_opengl", "1"],
             "stopAtEntry": false,
             "cwd": "${command:cmake.launchTargetDirectory}",
             "environment": [
