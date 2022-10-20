@@ -57,6 +57,14 @@ void emscripten_loop()
 		// and height.
 		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Error", serr_get_error().c_str(), NULL);
 	}
+
+    // check for leaked serr errors
+	if(serr_check_error())
+	{
+		// you probably want to use cv_serr_bt to find the location of the leak.
+		SDL_ShowSimpleMessageBox(
+			SDL_MESSAGEBOX_WARNING, "Uncaught error", serr_get_error().c_str(), NULL);
+	}
 };
 #endif
 

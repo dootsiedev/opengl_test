@@ -243,13 +243,11 @@ bool options_tree_state::tree_render()
 		if(entry.button.draw_requested())
 		{
 			draw_buffer = true;
+            break;
 		}
 	}
 
-	if(done_button.draw_requested())
-	{
-		draw_buffer = true;
-	}
+	draw_buffer = draw_buffer || done_button.draw_requested();
 
 	if(draw_buffer)
 	{

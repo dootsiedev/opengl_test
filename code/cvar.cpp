@@ -180,7 +180,7 @@ int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
                 return -1;
             }
             // print the value.
-            slogf("%s\n", it->second.cvar_write().c_str());
+            slogf("%s: %s\n", argv[i], it->second.cvar_write().c_str());
             continue;
 		}
 

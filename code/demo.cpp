@@ -74,7 +74,7 @@ REGISTER_CVAR_KEY_BIND_KEY_AND_MOD(
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_console, SDLK_F1, false, "open console overlay");
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_open_options, SDLK_SLASH, false, "open option menu");
 REGISTER_CVAR_KEY_BIND_KEY(
-	cv_bind_reset_window_size, SDLK_F5, false, "set the window to cv_startup_screen_width/height");
+	cv_bind_reset_window_size, SDLK_F5, false, "restore the window size to cv_startup_screen_width/height");
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_toggle_text, SDLK_F2, false, "hide the help and fps text");
 REGISTER_CVAR_KEY_BIND_KEY(
 	cv_bind_soft_reboot,
@@ -1431,12 +1431,13 @@ DEMO_RESULT demo_state::process()
 		case SDL_KEYDOWN:
 			if(e.key.keysym.sym == SDLK_F10)
 			{
-				std::string().at(0);
+				//std::string().at(0);
 				std::string msg;
 				msg += "StackTrace (f10):\n";
 				debug_str_stacktrace(&msg, 0);
 				msg += '\n';
 				slog_raw(msg.data(), msg.length());
+                continue;
 			}
 			break;
 #ifdef __EMSCRIPTEN__
