@@ -169,14 +169,9 @@ keybind_compare_type cvar_key_bind::compare_sdl_event(SDL_Event& e, keybind_comp
 			{
 				if(e.key.repeat != 0)
 				{
-					if((flags & KEYBIND_REPEAT) != 0)
+					if((flags & KEYBIND_OR_REPEAT) != 0)
 					{
-						mask |= KEYBIND_REPEAT;
-					}
-					else
-					{
-						// no input
-						break;
+						mask |= KEYBIND_OR_REPEAT;
 					}
 				}
 				if(e.key.state == SDL_PRESSED && (flags & KEYBIND_BUTTON_DOWN) != 0)

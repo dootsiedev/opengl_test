@@ -78,9 +78,8 @@ enum : keybind_compare_type
 	KEYBIND_NULL = 0,
 	KEYBIND_BUTTON_DOWN = (1 << 1),
 	KEYBIND_BUTTON_UP = (1 << 2),
-	// KEYBIND_REPEAT will make keys repeat when held down (timed by SDL)
-	// and the return will OR this into the result if key is repeating
-	KEYBIND_REPEAT = (1 << 3)
+	// KEYBIND_OR_REPEAT will make the return OR this into the result if key is repeating
+	KEYBIND_OR_REPEAT = (1 << 3)
 };
 
 // the cvar is a string formatted like this:
