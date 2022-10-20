@@ -1289,9 +1289,9 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				// the draw function will clamp it to keep the scroll area inside of the text.
 				update_buffer = true;
 				// I use leave to prevent multiple things scrolling.
-                e.type = SDL_MOUSEMOTION;
-                e.motion.x = x;
-                e.motion.y = y;
+				e.type = SDL_MOUSEMOTION;
+				e.motion.x = x;
+				e.motion.y = y;
 				set_mouse_event_clipped(e);
 				return TEXT_PROMPT_RESULT::CONTINUE;
 			}

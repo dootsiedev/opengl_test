@@ -63,6 +63,9 @@ struct options_tree_state
 	GLuint gl_options_interleave_vbo = 0;
 	GLuint gl_options_vao_id = 0;
 
+	// this is not required, but it's better to be explicit
+	bool tree_draw_buffer = false;
+
 	NDSERR bool init(
 		font_style_interface* font_, mono_2d_batcher* batcher_, shader_mono_state& mono_shader);
 

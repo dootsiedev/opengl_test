@@ -236,21 +236,21 @@ bool options_tree_state::tree_render()
 	auto white_uv = font_painter.state.font->get_font_atlas()->white_uv;
 	std::array<uint8_t, 4> bbox_color{0, 0, 0, 255};
 
-	bool draw_buffer = false;
-
 	for(auto& entry : menus)
 	{
 		if(entry.button.draw_requested())
 		{
-			draw_buffer = true;
-            break;
+			tree_draw_buffer = true;
+			break;
 		}
 	}
 
-	draw_buffer = draw_buffer || done_button.draw_requested();
+	tree_draw_buffer = tree_draw_buffer || done_button.draw_requested();
 
-	if(draw_buffer)
+	if(tree_draw_buffer)
 	{
+		tree_draw_buffer = false;
+
 		mono_2d_batcher* batcher = font_painter.state.batcher;
 
 		batcher->clear();
@@ -443,4 +443,6 @@ void options_tree_state::tree_resize_view()
 	box_xmax = x + button_width + element_padding;
 	box_ymin = y - element_padding;
 	box_ymax = y + button_area_height + element_padding;
+
+	tree_draw_buffer = true;
 }

@@ -13,8 +13,9 @@
 // I want this because I can use non-null terminating strings for cvar_read....
 //#include <charconv>
 
-// TODO: make each cvar type have a name, so when you get an error or whatever, you can see the type it expects.
-// TODO: I can still modify startup cvar values, because of "soft reboot", 
+// TODO: make each cvar type have a name, so when you get an error or whatever, you can see the type
+// it expects.
+// TODO: I can still modify startup cvar values, because of "soft reboot",
 // but I should store the value and load it later because it can sometimes cause bugs.
 
 std::map<const char*, V_cvar&, cmp_str>& get_convars()
@@ -165,46 +166,46 @@ void cvar_init()
 
 static void print_cvar(V_cvar& cvar, bool debug = false)
 {
-    std::string value = cvar.cvar_write();
-    const char* type = NULL;
-    switch(cvar.cvar_type)
-    {
-    case CVAR_T::RUNTIME: type = ""; break;
-    case CVAR_T::STARTUP: type = " [STARTUP]"; break;
-    case CVAR_T::DEFFERRED: type = " [DEFFERRED]"; break;
-    case CVAR_T::READONLY: type = " [READONLY]"; break;
-    case CVAR_T::DISABLED: type = " [DISABLED]"; break;
-    default: ASSERT("unreachable" && false);
-    }
-    slogf("%s%s: \"%s\"\n", cvar.cvar_key, type, value.c_str());
-    if(debug)
-    {
-        slogf("\tFile: %s\n", cvar.cvar_debug_file);
-        slogf("\tLine: %d\n", cvar.cvar_debug_line);
-    }
-    slogf("\t%s\n", cvar.cvar_comment);
+	std::string value = cvar.cvar_write();
+	const char* type = NULL;
+	switch(cvar.cvar_type)
+	{
+	case CVAR_T::RUNTIME: type = ""; break;
+	case CVAR_T::STARTUP: type = " [STARTUP]"; break;
+	case CVAR_T::DEFFERRED: type = " [DEFFERRED]"; break;
+	case CVAR_T::READONLY: type = " [READONLY]"; break;
+	case CVAR_T::DISABLED: type = " [DISABLED]"; break;
+	default: ASSERT("unreachable" && false);
+	}
+	slogf("%s%s: \"%s\"\n", cvar.cvar_key, type, value.c_str());
+	if(debug)
+	{
+		slogf("\tFile: %s\n", cvar.cvar_debug_file);
+		slogf("\tLine: %d\n", cvar.cvar_debug_line);
+	}
+	slogf("\t%s\n", cvar.cvar_comment);
 }
 
 int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
 {
-    int i = 0;
-	for(;i < argc; ++i)
+	int i = 0;
+	for(; i < argc; ++i)
 	{
 		if(argv[i][0] != '+')
 		{
-            auto it = get_convars().find(argv[i]);
-            if(it == get_convars().end())
-            {
-                serrf(
-                    "ERROR: cvar option must start with a '+'\n"
-                    "expression: `%s`\n",
-                    argv[i]);
-                return -1;
-            }
-            // print the value.
-            //slogf("%s: %s\n", argv[i], it->second.cvar_write().c_str());
-            print_cvar(it->second);
-            continue;
+			auto it = get_convars().find(argv[i]);
+			if(it == get_convars().end())
+			{
+				serrf(
+					"ERROR: cvar option must start with a '+'\n"
+					"expression: `%s`\n",
+					argv[i]);
+				return -1;
+			}
+			// print the value.
+			// slogf("%s: %s\n", argv[i], it->second.cvar_write().c_str());
+			print_cvar(it->second);
+			continue;
 		}
 
 		const char* name = argv[i] + 1;
@@ -216,7 +217,7 @@ int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
 		}
 
 		V_cvar& cv = it->second;
-        bool ignore = false;
+		bool ignore = false;
 
 		// go to next argument.
 		i++;
@@ -245,9 +246,9 @@ int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
 			if(cv.cvar_type == CVAR_T::STARTUP)
 			{
 				slogf("warning: cvar must be set on startup to take effect: `%s`\n", name);
-                // TODO: some way to write the cvar into a startup file?
-                // maybe even a way to completely restart without forcing an exit?
-			    //ignore = true;
+				// TODO: some way to write the cvar into a startup file?
+				// maybe even a way to completely restart without forcing an exit?
+				// ignore = true;
 				break;
 			}
 			[[fallthrough]];
@@ -298,8 +299,8 @@ bool cvar_line(CVAR_T flags_req, char* line)
 		if(next_quote != NULL)
 		{
 			*next_quote++ = '\0';
-            // note the in_quotes condition is the opposite
-            // because I toggle before the condition.
+			// note the in_quotes condition is the opposite
+			// because I toggle before the condition.
 			in_quotes = !in_quotes;
 			if(!in_quotes)
 			{
@@ -350,10 +351,9 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
 	char buffer[1000];
 	BS_ReadStream reader(file, buffer, sizeof(buffer));
 
-
 	char line_buf[1000 + 1];
 
-	//size_t count = 0;
+	// size_t count = 0;
 	char* pos = line_buf;
 	char* end = line_buf + sizeof(line_buf);
 	while(pos < end)
@@ -371,7 +371,7 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
 			else
 			{
 				*pos = '\0';
-				//slogf("%s\n", line_buf);
+				// slogf("%s\n", line_buf);
 				if(!cvar_line(flags_req, line_buf))
 				{
 					return false;
@@ -399,7 +399,7 @@ bool cvar_file(CVAR_T flags_req, RWops* file)
 	}
 	if(pos == end)
 	{
-        size_t max_line_size = sizeof(line_buf) - 1;
+		size_t max_line_size = sizeof(line_buf) - 1;
 		serrf("line too long: %s (max: %zu)\n", file->name(), max_line_size);
 		return false;
 	}
@@ -421,6 +421,6 @@ void cvar_list(bool debug)
 		 "the value cannot be read or set due to platform or build options\n");
 	for(const auto& it : get_convars())
 	{
-        print_cvar(it.second, debug);
+		print_cvar(it.second, debug);
 	}
 }

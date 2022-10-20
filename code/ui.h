@@ -37,7 +37,7 @@
 // hovering on a tile while you open up a menu with a hotkey,
 // the "hover focus" will not change until you move the mouse...
 // I need to figure out a clever way of handling that...
-///void set_event_leave(SDL_Event& e);
+/// void set_event_leave(SDL_Event& e);
 
 // set_event_unfocus
 // makes more sense if it was set_event_eat
@@ -72,7 +72,7 @@ void set_event_hidden(SDL_Event& e);
 // or text selection, you don't want the motion to be eaten,
 // even if it's technically outside the element.
 // but you still need to check if the event was clipped to remove "hover focus"
-// NOTE: this must be a button or motion event, 
+// NOTE: this must be a button or motion event,
 // I do this for wheel events, you must set the type, and set the e.motion.x and y values.
 void set_mouse_event_clipped(SDL_Event& e);
 
@@ -156,10 +156,12 @@ struct mono_button_object
 	void set_rect(std::array<float, 4> pos_)
 	{
 		button_rect = pos_;
+		update_buffer = true;
 	}
 	void set_rect(float x, float y, float w, float h)
 	{
 		button_rect = {x, y, w, h};
+		update_buffer = true;
 	}
 
 	bool draw_requested() const
