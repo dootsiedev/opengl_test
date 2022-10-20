@@ -163,6 +163,28 @@ void cvar_init()
 	}
 }
 
+static void print_cvar(V_cvar& cvar, bool debug = false)
+{
+    std::string value = cvar.cvar_write();
+    const char* type = NULL;
+    switch(cvar.cvar_type)
+    {
+    case CVAR_T::RUNTIME: type = ""; break;
+    case CVAR_T::STARTUP: type = " [STARTUP]"; break;
+    case CVAR_T::DEFFERRED: type = " [DEFFERRED]"; break;
+    case CVAR_T::READONLY: type = " [READONLY]"; break;
+    case CVAR_T::DISABLED: type = " [DISABLED]"; break;
+    default: ASSERT("unreachable" && false);
+    }
+    slogf("%s%s: \"%s\"\n", cvar.cvar_key, type, value.c_str());
+    if(debug)
+    {
+        slogf("\tFile: %s\n", cvar.cvar_debug_file);
+        slogf("\tLine: %d\n", cvar.cvar_debug_line);
+    }
+    slogf("\t%s\n", cvar.cvar_comment);
+}
+
 int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
 {
     int i = 0;
@@ -180,7 +202,8 @@ int cvar_arg(CVAR_T flags_req, int argc, const char* const* argv)
                 return -1;
             }
             // print the value.
-            slogf("%s: %s\n", argv[i], it->second.cvar_write().c_str());
+            //slogf("%s: %s\n", argv[i], it->second.cvar_write().c_str());
+            print_cvar(it->second);
             continue;
 		}
 
@@ -398,23 +421,6 @@ void cvar_list(bool debug)
 		 "the value cannot be read or set due to platform or build options\n");
 	for(const auto& it : get_convars())
 	{
-		std::string value = it.second.cvar_write();
-		const char* type = NULL;
-		switch(it.second.cvar_type)
-		{
-		case CVAR_T::RUNTIME: type = ""; break;
-		case CVAR_T::STARTUP: type = " [STARTUP]"; break;
-		case CVAR_T::DEFFERRED: type = " [DEFFERRED]"; break;
-		case CVAR_T::READONLY: type = " [READONLY]"; break;
-		case CVAR_T::DISABLED: type = " [DISABLED]"; break;
-		default: ASSERT("unreachable" && false);
-		}
-		slogf("%s%s: \"%s\"\n", it.second.cvar_key, type, value.c_str());
-		if(debug)
-		{
-			slogf("\tFile: %s\n", it.second.cvar_debug_file);
-			slogf("\tLine: %d\n", it.second.cvar_debug_line);
-		}
-		slogf("\t%s\n", it.second.cvar_comment);
+        print_cvar(it.second, debug);
 	}
 }
