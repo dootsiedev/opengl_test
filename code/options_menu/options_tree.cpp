@@ -162,13 +162,9 @@ bool options_tree_state::destroy()
 
 OPTIONS_MENU_RESULT options_tree_state::tree_input(SDL_Event& e)
 {
-	switch(e.type)
+	if(e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 	{
-	case SDL_WINDOWEVENT:
-		switch(e.window.event)
-		{
-		case SDL_WINDOWEVENT_SIZE_CHANGED: tree_resize_view(); break;
-		}
+		tree_resize_view();
 	}
 
 	for(auto it = menus.begin(); it != menus.end(); ++it)
