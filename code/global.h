@@ -109,9 +109,8 @@ inline TIMER_U timer_now()
 template<intmax_t resolution>
 TIMER_RESULT timer_delta(TIMER_U start, TIMER_U end)
 {
-	return std::chrono::duration_cast<
-			   std::chrono::duration<TIMER_RESULT, std::ratio<1, resolution>>>(end - start)
-		.count();
+	typedef std::chrono::duration<TIMER_RESULT, std::ratio<1, resolution>> duration_type;
+	return std::chrono::duration_cast<duration_type>(end - start).count();
 }
 
 #else

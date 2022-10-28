@@ -202,13 +202,6 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 		}
 	}
 	break;
-		// NOTE: I don't clip SDL_MOUSEBUTTONUP even though it makes sense to do it,
-		// because if I hold onto a button it would eat the buttonup.
-		// This has absolutely zero functional benefit because all buttons require
-		// a SDL_MOUSEBUTTONDOWN before SDL_MOUSEBUTTONUP anyways.
-		// but maybe I REALLY want a down triggered button in the future.
-		// But that button absolutely cannot be inside of THIS scrollbox (because it's not clipped)
-		// A hack solution might be to give a bogus MOTION/UP/DOWN event, x = 999999, y = 999999
 	case SDL_MOUSEBUTTONDOWN:
 	case SDL_MOUSEBUTTONUP:
 		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)

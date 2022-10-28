@@ -72,9 +72,11 @@ int main(int argc, char** argv)
 {
 	slog("test\n");
 
+	const char* prog_name = NULL;
 	if(argc >= 1)
 	{
 		// skip the first program name
+		prog_name = argv[0];
 		--argc;
 		++argv;
 	}
@@ -123,7 +125,7 @@ int main(int argc, char** argv)
 											"\t--help\tshow this usage message\n"
 											"\t--list-cvars\tlist all cv vars options\n"
 											"\tnote that you must put cvars after options\n";
-				slogf(usage_message, "prog_name");
+				slogf(usage_message, (prog_name != NULL ? prog_name : "prog_name"));
 				return 0;
 			}
 			if(strcmp(argv[i], "--list-cvars") == 0)

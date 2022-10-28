@@ -1302,7 +1302,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		float mouse_y = static_cast<float>(e.motion.y);
 		if(mouse_held)
 		{
-			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			if((e.motion.state & SDL_BUTTON_LMASK) == 0 && (e.motion.state & SDL_BUTTON_RMASK) == 0)
 			{
 				mouse_held = false;
 				drag_x = -1;
@@ -1320,7 +1320,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		}
 		if(y_scrollbar_held)
 		{
-			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			if((e.motion.state & SDL_BUTTON_LMASK) == 0 && (e.motion.state & SDL_BUTTON_RMASK) == 0)
 			{
 				// NOTE: This would need to update_buffer if this modified the color of the thumb.
 				y_scrollbar_held = false;
@@ -1334,7 +1334,7 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 		}
 		if(x_scrollbar_held)
 		{
-			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			if((e.motion.state & SDL_BUTTON_LMASK) == 0 && (e.motion.state & SDL_BUTTON_RMASK) == 0)
 			{
 				x_scrollbar_held = false;
 			}

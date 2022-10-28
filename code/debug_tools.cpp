@@ -180,7 +180,7 @@ static int bt_full_callback(
 			const char* temp_module_name = strrchr(dinfo.dli_fname, '/');
 			if(temp_module_name != NULL)
 			{
-				module_name = temp_module_name + 1;
+				module_name = temp_module_name;
 			}
 		}
 	}
@@ -225,7 +225,7 @@ static int bt_full_callback(
 			const char* temp_filename = strrchr(filename, '/');
 			if(temp_filename != NULL)
 			{
-				filename = temp_filename + 1;
+				filename = temp_filename;
 			}
 		}
 	}

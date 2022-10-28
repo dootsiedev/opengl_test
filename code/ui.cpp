@@ -118,7 +118,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
-		if(clicked_on && e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+		if(clicked_on && (e.motion.state & SDL_BUTTON_LMASK) == 0 && (e.motion.state & SDL_BUTTON_RMASK) == 0)
 		{
 			clicked_on = false;
 		}
@@ -146,7 +146,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 	}
 	break;
 	case SDL_MOUSEBUTTONDOWN:
-		if(e.button.button == SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+		if(e.button.button == SDL_BUTTON_LEFT && e.button.button != SDL_BUTTON_RIGHT)
 		{
 			if(is_mouse_event_clipped(e))
 			{
@@ -175,7 +175,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		if(clicked_on)
 		{
 			clicked_on = false;
-			if(e.button.button == SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			if(e.button.button == SDL_BUTTON_LEFT && e.button.button != SDL_BUTTON_RIGHT)
 			{
 				float mouse_x = static_cast<float>(e.button.x);
 				float mouse_y = static_cast<float>(e.button.y);
@@ -403,7 +403,7 @@ SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
 			float mouse_y = static_cast<float>(e.motion.y);
 			if(y_scrollbar_held)
 			{
-				if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+				if((e.motion.state & SDL_BUTTON_LMASK) == 0 && (e.motion.state & SDL_BUTTON_RMASK) == 0)
 				{
 					y_scrollbar_held = false;
 				}
@@ -597,7 +597,7 @@ bool mono_normalized_slider_object::input(SDL_Event& e)
 
 		if(slider_held)
 		{
-			if(e.motion.state != SDL_BUTTON_LEFT && e.motion.state != SDL_BUTTON_RIGHT)
+			if((e.motion.state & SDL_BUTTON_LMASK) == 0 && (e.motion.state & SDL_BUTTON_RMASK) == 0)
 			{
 				slider_held = false;
 			}

@@ -29,12 +29,19 @@ static REGISTER_CVAR_INT(
 	"0 = nothing, 1 = stacktrace (once per capture), 2 = always stacktrace (spam)",
 	CVAR_T::RUNTIME);
 
+static CVAR_T has_console =
+#if defined(DISABLE_CONSOLE)
+	CVAR_T::DISABLED;
+#else
+	CVAR_T::RUNTIME;
+#endif
+
 // I would use this if I was profiling, or if the logs were spamming.
 static REGISTER_CVAR_INT(
 	cv_disable_log,
 	0,
 	"0 = keep log, 1 = disable info logs except errors, 2 = disable info and error logs",
-	CVAR_T::RUNTIME);
+	has_console);
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
