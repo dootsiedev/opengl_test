@@ -146,7 +146,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 	}
 	break;
 	case SDL_MOUSEBUTTONDOWN:
-		if(e.button.button == SDL_BUTTON_LEFT && e.button.button != SDL_BUTTON_RIGHT)
+		if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 		{
 			if(is_mouse_event_clipped(e))
 			{
@@ -175,7 +175,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 		if(clicked_on)
 		{
 			clicked_on = false;
-			if(e.button.button == SDL_BUTTON_LEFT && e.button.button != SDL_BUTTON_RIGHT)
+			if(e.button.button == SDL_BUTTON_LEFT || e.button.button == SDL_BUTTON_RIGHT)
 			{
 				float mouse_x = static_cast<float>(e.button.x);
 				float mouse_y = static_cast<float>(e.button.y);
@@ -188,7 +188,7 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 				// eat
 				set_event_unfocus(e);
 
-				if(ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+				if(!is_mouse_event_clipped(e) && ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
 				{
 					// slog("click\n");
 					// reset the fade  to .5 for an effect

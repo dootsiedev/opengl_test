@@ -35,12 +35,37 @@ out vec4 color;
 
 void main()
 {
-    //premultiplied (only used for linear filtering)
-    //vec4 texel = texture(u_tex, tex_coord).r * vec4(vert_color.rgb,1) * vert_color.a;
+    // premultiplied in the shader
+    // this is commented out because I do this outside the shader, or I don't use premultiplied blending.
+    // vec4 texel = texture(u_tex, tex_coord).r * vec4(vert_color.rgb,1) * vert_color.a;
 
     vec4 texel = texture(u_tex, tex_coord).r * vert_color;
 
     color = texel;
+}
+)";
+
+// this should be snprintf'd to set the value that the alpha needs.
+// but if I needed this to be runtime modified, I could put the value into a uniform.
+static const char* shader_mono_alpha_test_fs = R"(#version 300 es
+precision mediump float;
+
+uniform sampler2D u_tex;
+
+in vec2 tex_coord;
+in vec4 vert_color;
+
+out vec4 color;
+
+void main()
+{
+    // this substitutes glAlphaFunc(GL_GEQUAL, x)
+    if(texture(u_tex, tex_coord).r < %f)
+    {
+        discard;
+    }
+
+    color = vert_color;
 }
 )";
 
@@ -52,6 +77,33 @@ bool shader_mono_state::create()
 	{
 		return false;
 	}
+
+    internal_find_locations();
+
+	return GL_CHECK(__func__) == GL_NO_ERROR;
+}
+
+bool shader_mono_state::create_alpha_test(float alpha_GEQUAL)
+{
+    std::unique_ptr<char[]> buffer = unique_asprintf(NULL, shader_mono_alpha_test_fs, alpha_GEQUAL);
+    if(!buffer)
+    {
+        return false;
+    }
+	gl_program_id =
+		gl_create_program("shader_mono_vs", shader_mono_vs, "shader_mono_alpha_test_fs", buffer.get());
+	if(gl_program_id == 0)
+	{
+		return false;
+	}
+
+    internal_find_locations();
+
+	return GL_CHECK(__func__) == GL_NO_ERROR;
+}
+
+void shader_mono_state::internal_find_locations()
+{
 
 	// say what you will
 #define SET_GL_UNIFORM_ID(x)                                                \
@@ -83,8 +135,6 @@ bool shader_mono_state::create()
 	SET_GL_ATTRIBUTE_ID(a_tex);
 	SET_GL_ATTRIBUTE_ID(a_color);
 #undef SET_GL_ATTRIBUTE_ID
-
-	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
 bool shader_mono_state::destroy()

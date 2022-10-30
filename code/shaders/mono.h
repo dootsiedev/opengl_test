@@ -23,7 +23,12 @@ struct shader_mono_state
 	} gl_attributes;
 
 	bool create();
+    // if the pixel's alpha is is greater/equal than the reference value, draw the pixel.
+    // this also discards the pixel which is useful for depth buffers.
+	bool create_alpha_test(float alpha_GEQUAL);
 	bool destroy();
+
+    void internal_find_locations();
 };
 
 // this is a vao that works with interleaved gl_mono_vertex

@@ -61,6 +61,10 @@ REGISTER_CVAR_INT(
 	"0 = off, 1 = on, can't bold or italics, but looks different",
 	CVAR_T::STARTUP);
 
+// if the pixel's alpha is is greater/equal than the reference value, draw the pixel.
+REGISTER_CVAR_DOUBLE(
+	cv_string_alpha_test, -1, "-1 = no alpha testing, 0-1 = alpha test", CVAR_T::STARTUP);
+
 // keybinds
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_forward, SDLK_w, false, "move forward");
 REGISTER_CVAR_KEY_BIND_KEY(cv_bind_move_backward, SDLK_s, false, "move backward");
@@ -447,9 +451,19 @@ bool demo_state::init()
 	// all my shaders only use 1 texture.
 	ctx.glActiveTexture(GL_TEXTURE0);
 
-	if(!mono_shader.create())
+	if(cv_string_alpha_test.data == -1)
 	{
-		return false;
+		if(!mono_shader.create())
+		{
+			return false;
+		}
+	}
+	else
+	{
+		if(!mono_shader.create_alpha_test(static_cast<float>(cv_string_alpha_test.data)))
+		{
+			return false;
+		}
 	}
 
 	if(!point_shader.create())
