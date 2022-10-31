@@ -1950,9 +1950,17 @@ bool font_sprite_painter::measure_text_bounds(
 			utf8::internal::validate_next(str_cur, str_end, codepoint);
 		if(err_code != utf8::internal::UTF8_OK)
 		{
+			// this will render some invalid glyph,
+            // unifont makes it very descriptive.
+			codepoint = static_cast<unsigned char>(*str_cur++);
+		}
+        #if 0
+		if(err_code != utf8::internal::UTF8_OK)
+		{
 			serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
 			return false;
 		}
+         #endif
 
 		if((current_flags & TEXT_FLAGS::NEWLINE) != 0 && codepoint == '\n')
 		{
@@ -2013,9 +2021,17 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 			utf8::internal::validate_next(str_cur, str_end, codepoint);
 		if(err_code != utf8::internal::UTF8_OK)
 		{
+			// this will render some invalid glyph,
+            // unifont makes it very descriptive.
+			codepoint = static_cast<unsigned char>(*str_cur++);
+		}
+        #if 0
+		if(err_code != utf8::internal::UTF8_OK)
+		{
 			serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
 			return false;
 		}
+         #endif
 
 		if((current_flags & TEXT_FLAGS::NEWLINE) != 0 && codepoint == '\n')
 		{
