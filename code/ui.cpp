@@ -5,8 +5,6 @@
 
 #include "app.h"
 
-// TODO: maybe make the button get highlighted when you press down on it?
-
 /*
 void set_event_leave(SDL_Event& e)
 {

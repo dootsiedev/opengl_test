@@ -390,7 +390,7 @@ OPTION_ELEMENT_RESULT cvar_button_multi_option::input(SDL_Event& e)
 					break;
 				case CVAR_T::DEFFERRED:
 					slogf(
-						"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+						"info +%s: this value is deferred, which means that this change will not immediately take effect.\n",
 						cvar->cvar_key);
 					break;
 				default: slogf("info +%s: I don't know why this is here\n", cvar->cvar_key); break;
@@ -674,7 +674,7 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 						break;
 					case CVAR_T::DEFFERRED:
 						slogf(
-							"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+							"info +%s: this value is deferred, which means that this change will not immediately take effect.\n",
 							cvar->cvar_key);
 						break;
 					default:
@@ -743,7 +743,7 @@ OPTION_ELEMENT_RESULT cvar_slider_option::input(SDL_Event& e)
 						break;
 					case CVAR_T::DEFFERRED:
 						slogf(
-							"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+							"info +%s: this value is deferred, which means that this change will not immediately take effect.\n",
 							cvar->cvar_key);
 						break;
 					default:
@@ -1024,7 +1024,7 @@ OPTION_ELEMENT_RESULT cvar_prompt_option::input(SDL_Event& e)
 						break;
 					case CVAR_T::DEFFERRED:
 						slogf(
-							"info +%s: this value is deferred, which means that this change will not make immediately take effect.\n",
+							"info +%s: this value is deferred, which means that this change will not immediately take effect.\n",
 							cvar->cvar_key);
 						break;
 					default:
