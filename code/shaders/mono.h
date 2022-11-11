@@ -7,12 +7,15 @@
 
 struct shader_mono_state
 {
+	const char* info = NULL;
+
 	GLuint gl_program_id = 0;
 
 	struct
 	{
 		GLint u_tex = -1;
 		GLint u_mvp = -1;
+		GLint u_alpha_test = -1;
 	} gl_uniforms;
 
 	struct
@@ -23,12 +26,12 @@ struct shader_mono_state
 	} gl_attributes;
 
 	bool create();
-    // if the pixel's alpha is is greater/equal than the reference value, draw the pixel.
-    // this also discards the pixel which is useful for depth buffers.
-	bool create_alpha_test(float alpha_GEQUAL);
+	// if the pixel's alpha is is greater/equal than the u_alpha_test, draw the pixel.
+	// you need to set u_alpha_test.
+	bool create_alpha_test();
 	bool destroy();
 
-    void internal_find_locations();
+	void internal_find_locations();
 };
 
 // this is a vao that works with interleaved gl_mono_vertex
@@ -97,23 +100,23 @@ struct mono_2d_batcher
 		ASSERT(buffer != NULL);
 		return cursor;
 	}
-    void clear()
-    {
+	void clear()
+	{
 		ASSERT(buffer != NULL);
-        cursor = 0;
-    }
+		cursor = 0;
+	}
 	// use the return from get_quad_count
 	NDSERR bool set_cursor(size_t pos)
 	{
 		ASSERT(buffer != NULL);
 		ASSERT(pos < size);
 		if(pos >= size)
-        {
-            serrf("%s out of bounds: %zu (size: %zu)\n", __func__, pos, size);
-            return false;
-        }
+		{
+			serrf("%s out of bounds: %zu (size: %zu)\n", __func__, pos, size);
+			return false;
+		}
 		cursor = pos;
-        return true;
+		return true;
 	}
 
 	// [0]=minx,[1]=miny,[2]=maxx,[3]=maxy

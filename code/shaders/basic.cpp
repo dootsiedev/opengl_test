@@ -52,38 +52,15 @@ bool shader_basic_state::create()
 	{
 		return false;
 	}
+    const char* info = "shader_basic";
+    
+	SET_GL_UNIFORM_ID(info, u_tex);
+	SET_GL_UNIFORM_ID(info, u_mvp);
 
-	// say what you will
-#define SET_GL_UNIFORM_ID(x)                                                \
-	do                                                                      \
-	{                                                                       \
-		gl_uniforms.x = ctx.glGetUniformLocation(gl_program_id, #x);        \
-		if(gl_uniforms.x < 0)                                               \
-		{                                                                   \
-			slogf("%s warning: failed to set uniform: %s\n", __func__, #x); \
-		}                                                                   \
-	} while(0)
-
-	SET_GL_UNIFORM_ID(u_tex);
-	SET_GL_UNIFORM_ID(u_mvp);
-
-#undef SET_GL_UNIFORM_ID
-
-#define SET_GL_ATTRIBUTE_ID(x)                                                \
-	do                                                                        \
-	{                                                                         \
-		gl_attributes.x = ctx.glGetAttribLocation(gl_program_id, #x);         \
-		if(gl_attributes.x < 0)                                               \
-		{                                                                     \
-			slogf("%s warning: failed to set attribute: %s\n", __func__, #x); \
-		}                                                                     \
-	} while(0)
-
-	SET_GL_ATTRIBUTE_ID(a_pos);
-	SET_GL_ATTRIBUTE_ID(a_tex);
-	SET_GL_ATTRIBUTE_ID(a_color);
-#undef SET_GL_ATTRIBUTE_ID
-
+	SET_GL_ATTRIBUTE_ID(info, a_pos);
+	SET_GL_ATTRIBUTE_ID(info, a_tex);
+	SET_GL_ATTRIBUTE_ID(info, a_color);
+    
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 

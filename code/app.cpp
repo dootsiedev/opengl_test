@@ -147,13 +147,17 @@ EM_BOOL on_canvassize_changed(
 	}
 	SDL_SetWindowSize(g_app.window, w, h);
 
-	// I set the window size twice so that SDL will be forced to trigger a resize event.
+    // When you do native fullscreen, it wont stretch the canvas (when I requested it)
+    // which means the coordinates are incorrect...
+	#if 0
+    // I set the window size twice so that SDL will be forced to trigger a resize event.
 	// I also could do nothing, and create a fake resize event.
 	if(cv_stretch_fullscreen.data == 1)
 	{
 		SDL_SetWindowSize(
 			g_app.window, cv_startup_screen_width.data, cv_startup_screen_height.data);
 	}
+    #endif
 
 	// double cssW, cssH;
 	// emscripten_get_element_css_size(0, &cssW, &cssH);

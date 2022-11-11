@@ -116,7 +116,8 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 	switch(e.type)
 	{
 	case SDL_MOUSEMOTION: {
-		if(clicked_on && (e.motion.state & SDL_BUTTON_LMASK) == 0 && (e.motion.state & SDL_BUTTON_RMASK) == 0)
+		if(clicked_on && (e.motion.state & SDL_BUTTON_LMASK) == 0 &&
+		   (e.motion.state & SDL_BUTTON_RMASK) == 0)
 		{
 			clicked_on = false;
 		}
@@ -186,7 +187,8 @@ BUTTON_RESULT mono_button_object::input(SDL_Event& e)
 				// eat
 				set_event_unfocus(e);
 
-				if(!is_mouse_event_clipped(e) && ymax >= mouse_y && ymin <= mouse_y && xmax >= mouse_x && xmin <= mouse_x)
+				if(!is_mouse_event_clipped(e) && ymax >= mouse_y && ymin <= mouse_y &&
+				   xmax >= mouse_x && xmin <= mouse_x)
 				{
 					// slog("click\n");
 					// reset the fade  to .5 for an effect
@@ -331,12 +333,12 @@ void mono_y_scrollable_area::unfocus()
 }
 void mono_y_scrollable_area::resize_view(float xmin, float xmax, float ymin, float ymax)
 {
-	box_xmin = xmin;
-	box_xmax = xmax;
-	box_ymin = ymin;
-	box_ymax = ymax;
-	// probably should use content_h > (ymax-ymin), but this feels more stable
-	box_inner_xmax = xmax - scrollbar_thickness - scrollbar_padding;
+	box_xmin = std::floor(xmin);
+	box_xmax = std::floor(xmax);
+	box_ymin = std::floor(ymin);
+	box_ymax = std::floor(ymax);
+	// probably should use content_h > (ymax-ymin), but I don't like the popping
+	box_inner_xmax = box_xmax - scrollbar_thickness - scrollbar_padding;
 	// clamp the scroll (when the screen resizes)
 	scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
 
@@ -380,8 +382,9 @@ SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
 			if(box_ymax >= mouse_y && box_ymin <= mouse_y && box_xmax >= mouse_x &&
 			   box_xmin <= mouse_x)
 			{
-				scroll_y -= static_cast<float>(e.wheel.y * cv_scroll_speed.data) *
-							font_painter->get_lineskip();
+				scroll_y -= std::floor(
+					static_cast<float>(e.wheel.y * cv_scroll_speed.data) *
+					font_painter->get_lineskip());
 				// clamp
 				scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
 			}
@@ -401,7 +404,8 @@ SCROLLABLE_AREA_RETURN mono_y_scrollable_area::input(SDL_Event& e)
 			float mouse_y = static_cast<float>(e.motion.y);
 			if(y_scrollbar_held)
 			{
-				if((e.motion.state & SDL_BUTTON_LMASK) == 0 && (e.motion.state & SDL_BUTTON_RMASK) == 0)
+				if((e.motion.state & SDL_BUTTON_LMASK) == 0 &&
+				   (e.motion.state & SDL_BUTTON_RMASK) == 0)
 				{
 					y_scrollbar_held = false;
 				}
@@ -472,6 +476,9 @@ void mono_y_scrollable_area::draw_buffer()
 	mono_2d_batcher* batcher = font_painter->state.batcher;
 	auto white_uv = font_painter->state.font->get_font_atlas()->white_uv;
 
+	// I had a problem where the scrollbar would not go away when I expected it to
+	// and there would be a single pixel of content I could wiggle.
+	// I had to ceil the width and height of the view to fix it.
 	if(content_h > (box_ymax - box_ymin))
 	{
 		// draw the scrollbar bbox
@@ -546,7 +553,7 @@ void mono_y_scrollable_area::internal_scroll_y_to(float mouse_y)
 
 	float scroll_ratio =
 		(scrollbar_max_height - thumb_height) / (content_h - (box_ymax - box_ymin));
-	scroll_y = (mouse_y - scroll_thumb_click_offset) / scroll_ratio;
+	scroll_y = std::floor((mouse_y - scroll_thumb_click_offset) / scroll_ratio);
 
 	// clamp
 	scroll_y = std::max(0.f, std::min(content_h - (box_ymax - box_ymin), scroll_y));
@@ -715,10 +722,10 @@ void mono_normalized_slider_object::unfocus()
 }
 void mono_normalized_slider_object::resize_view(float xmin, float xmax, float ymin, float ymax)
 {
-	box_xmin = std::floor(xmin);
-	box_xmax = std::floor(xmax);
-	box_ymin = std::floor(ymin);
-	box_ymax = std::floor(ymax);
+	box_xmin = xmin;
+	box_xmax = xmax;
+	box_ymin = ymin;
+	box_ymax = ymax;
 	update_buffer = true;
 }
 bool mono_normalized_slider_object::internal_slider_inside(float mouse_x, float mouse_y)

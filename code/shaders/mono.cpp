@@ -39,9 +39,7 @@ void main()
     // this is commented out because I do this outside the shader, or I don't use premultiplied blending.
     // vec4 texel = texture(u_tex, tex_coord).r * vec4(vert_color.rgb,1) * vert_color.a;
 
-    vec4 texel = texture(u_tex, tex_coord).r * vert_color;
-
-    color = texel;
+    color = texture(u_tex, tex_coord).r * vert_color;
 }
 )";
 
@@ -51,6 +49,7 @@ static const char* shader_mono_alpha_test_fs = R"(#version 300 es
 precision mediump float;
 
 uniform sampler2D u_tex;
+uniform float u_alpha_test;
 
 in vec2 tex_coord;
 in vec4 vert_color;
@@ -60,7 +59,7 @@ out vec4 color;
 void main()
 {
     // this substitutes glAlphaFunc(GL_GEQUAL, x)
-    if(texture(u_tex, tex_coord).r < %f)
+    if(texture(u_tex, tex_coord).r < u_alpha_test)
     {
         discard;
     }
@@ -71,6 +70,8 @@ void main()
 
 bool shader_mono_state::create()
 {
+	info = "shader_mono";
+
 	gl_program_id =
 		gl_create_program("shader_mono_vs", shader_mono_vs, "shader_mono_fs", shader_mono_fs);
 	if(gl_program_id == 0)
@@ -78,63 +79,38 @@ bool shader_mono_state::create()
 		return false;
 	}
 
-    internal_find_locations();
+	internal_find_locations();
 
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
-bool shader_mono_state::create_alpha_test(float alpha_GEQUAL)
+bool shader_mono_state::create_alpha_test()
 {
-    std::unique_ptr<char[]> buffer = unique_asprintf(NULL, shader_mono_alpha_test_fs, alpha_GEQUAL);
-    if(!buffer)
-    {
-        return false;
-    }
-	gl_program_id =
-		gl_create_program("shader_mono_vs", shader_mono_vs, "shader_mono_alpha_test_fs", buffer.get());
+	info = "shader_mono_alpha_test";
+
+	gl_program_id = gl_create_program(
+		"shader_mono_vs", shader_mono_vs, "shader_mono_alpha_test_fs", shader_mono_alpha_test_fs);
 	if(gl_program_id == 0)
 	{
 		return false;
 	}
 
-    internal_find_locations();
+	internal_find_locations();
+
+	// extra uniform for alpha testing
+	SET_GL_UNIFORM_ID(info, u_alpha_test);
 
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }
 
 void shader_mono_state::internal_find_locations()
 {
+	SET_GL_UNIFORM_ID(info, u_tex);
+	SET_GL_UNIFORM_ID(info, u_mvp);
 
-	// say what you will
-#define SET_GL_UNIFORM_ID(x)                                                \
-	do                                                                      \
-	{                                                                       \
-		gl_uniforms.x = ctx.glGetUniformLocation(gl_program_id, #x);        \
-		if(gl_uniforms.x < 0)                                               \
-		{                                                                   \
-			slogf("%s warning: failed to set uniform: %s\n", __func__, #x); \
-		}                                                                   \
-	} while(0)
-
-	SET_GL_UNIFORM_ID(u_tex);
-	SET_GL_UNIFORM_ID(u_mvp);
-
-#undef SET_GL_UNIFORM_ID
-
-#define SET_GL_ATTRIBUTE_ID(x)                                                \
-	do                                                                        \
-	{                                                                         \
-		gl_attributes.x = ctx.glGetAttribLocation(gl_program_id, #x);         \
-		if(gl_attributes.x < 0)                                               \
-		{                                                                     \
-			slogf("%s warning: failed to set attribute: %s\n", __func__, #x); \
-		}                                                                     \
-	} while(0)
-
-	SET_GL_ATTRIBUTE_ID(a_pos);
-	SET_GL_ATTRIBUTE_ID(a_tex);
-	SET_GL_ATTRIBUTE_ID(a_color);
-#undef SET_GL_ATTRIBUTE_ID
+	SET_GL_ATTRIBUTE_ID(info, a_pos);
+	SET_GL_ATTRIBUTE_ID(info, a_tex);
+	SET_GL_ATTRIBUTE_ID(info, a_color);
 }
 
 bool shader_mono_state::destroy()

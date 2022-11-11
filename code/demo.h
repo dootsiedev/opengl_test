@@ -23,6 +23,7 @@ extern cvar_string cv_string_font;
 extern cvar_double cv_string_outline;
 extern cvar_int cv_string_mono;
 extern cvar_int cv_string_force_bitmap;
+extern cvar_double cv_string_alpha_test;
 
 extern cvar_double cv_mouse_sensitivity;
 extern cvar_double cv_camera_speed;

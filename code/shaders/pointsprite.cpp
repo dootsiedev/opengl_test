@@ -59,38 +59,16 @@ bool shader_pointsprite_state::create()
 		return false;
 	}
 
-	// say what you will
-#define SET_GL_UNIFORM_ID(x)                                                \
-	do                                                                      \
-	{                                                                       \
-		gl_uniforms.x = ctx.glGetUniformLocation(gl_program_id, #x);        \
-		if(gl_uniforms.x < 0)                                               \
-		{                                                                   \
-			slogf("%s warning: failed to set uniform: %s\n", __func__, #x); \
-		}                                                                   \
-	} while(0)
+    const char* info = "shader_point_sprit";
 
-	SET_GL_UNIFORM_ID(u_inst_table);
-	SET_GL_UNIFORM_ID(u_proj);
-	SET_GL_UNIFORM_ID(u_view);
+	SET_GL_UNIFORM_ID(info, u_inst_table);
+	SET_GL_UNIFORM_ID(info, u_proj);
+	SET_GL_UNIFORM_ID(info, u_view);
 
-#undef SET_GL_UNIFORM_ID
-
-#define SET_GL_ATTRIBUTE_ID(x)                                                \
-	do                                                                        \
-	{                                                                         \
-		gl_attributes.x = ctx.glGetAttribLocation(gl_program_id, #x);         \
-		if(gl_attributes.x < 0)                                               \
-		{                                                                     \
-			slogf("%s warning: failed to set attribute: %s\n", __func__, #x); \
-		}                                                                     \
-	} while(0)
-
-	SET_GL_ATTRIBUTE_ID(a_vert_pos);
-	SET_GL_ATTRIBUTE_ID(a_point_pos);
-	SET_GL_ATTRIBUTE_ID(a_point_color);
+	SET_GL_ATTRIBUTE_ID(info, a_vert_pos);
+	SET_GL_ATTRIBUTE_ID(info, a_point_pos);
+	SET_GL_ATTRIBUTE_ID(info, a_point_color);
 	// SET_GL_ATTRIBUTE_ID(a_point_inst_id);
-#undef SET_GL_ATTRIBUTE_ID
 
 	return GL_CHECK(__func__) == GL_NO_ERROR;
 }

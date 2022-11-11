@@ -219,38 +219,42 @@ bool console_state::destroy()
 	SAFE_GL_DELETE_VBO(gl_error_interleave_vbo);
 	SAFE_GL_DELETE_VAO(gl_error_vao_id);
 
-    log_line_count = 0;
-    log_box.clear_string();
-    prompt_cmd.clear_string();
-    error_text.clear_string();
+	log_line_count = 0;
+	log_box.clear_string();
+	prompt_cmd.clear_string();
+	error_text.clear_string();
 
 	bool success = true;
 
 #ifndef __EMSCRIPTEN__
-	FILE* fp = serr_wrapper_fopen(history_path, "wb");
-	if(fp == NULL)
-	{
-		success = false;
-	}
-	else
-	{
-		if(command_history.size() > static_cast<size_t>(cv_console_history_max.data))
-		{
-			command_history.resize(cv_console_history_max.data);
-		}
 
-		RWops_Stdio history_file(fp, history_path);
-		char buffer[1000];
-		BS_WriteStream sb(&history_file, buffer, sizeof(buffer));
-		BS_JsonWriter ar(sb);
-		serialize_history(ar);
-		if(!ar.Finish(history_file.name()))
+	if(!command_history.empty())
+	{
+		FILE* fp = serr_wrapper_fopen(history_path, "wb");
+		if(fp == NULL)
 		{
 			success = false;
 		}
-		if(!history_file.close())
+		else
 		{
-			success = false;
+			if(command_history.size() > static_cast<size_t>(cv_console_history_max.data))
+			{
+				command_history.resize(cv_console_history_max.data);
+			}
+
+			RWops_Stdio history_file(fp, history_path);
+			char buffer[1000];
+			BS_WriteStream sb(&history_file, buffer, sizeof(buffer));
+			BS_JsonWriter ar(sb);
+			serialize_history(ar);
+			if(!ar.Finish(history_file.name()))
+			{
+				success = false;
+			}
+			if(!history_file.close())
+			{
+				success = false;
+			}
 		}
 	}
 #endif
@@ -293,26 +297,19 @@ void console_state::serialize_history(BS_Archive& ar)
 
 void console_state::resize_text_area()
 {
-	log_box.set_bbox(
-		60,
-		60,
-		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		static_cast<float>(cv_screen_height.data) / 2 - 60);
+	float width = static_cast<float>(cv_screen_width.data) / 2 - 60;
+	log_box.set_bbox(60, 60, width, static_cast<float>(cv_screen_height.data) / 2 - 60);
 	// TODO(dootsie): I don't like this, it should only move down when it already is at the
 	// bottom...
 	log_box.scroll_to_bottom();
-	prompt_cmd.set_bbox(
-		60,
-		60 + static_cast<float>(cv_screen_height.data) / 2 - 60 + 10.f,
-		static_cast<float>(cv_screen_width.data) / 2 - 60,
-		prompt_cmd.get_lineskip() + 1);
+	prompt_cmd.set_bbox(60, log_box.box_ymax + 10.f, width, prompt_cmd.get_lineskip() + 1);
 
 	// this probably doesn't have enough hieght to fit in messages with stack traces,
 	// but if it's too big it could potentially block UI elements in an annoying way
 	error_text.set_bbox(
 		60,
 		prompt_cmd.box_ymax + 10.f,
-		static_cast<float>(cv_screen_width.data) / 2 - 60,
+		width,
 		static_cast<float>(cv_screen_height.data) - 60 - (prompt_cmd.box_ymax + 10.f));
 }
 

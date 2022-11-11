@@ -48,21 +48,21 @@ void options_list_state::resize_view()
 	float screen_height = static_cast<float>(cv_screen_height.data);
 
 	// for a 16px font I would want 420px
-	float menu_width = std::min(
-		420 * (font_painter->get_lineskip() / 16.f), screen_width - window_edge_padding * 2);
+	float menu_width = std::ceil(std::min(
+		420 * (font_painter->get_lineskip() / 16.f), screen_width - window_edge_padding * 2));
 
 	float button_area_height = 0;
 
 	for(auto& entry : option_entries)
 	{
-		button_area_height += entry->get_height() + element_padding;
+		button_area_height += std::floor(entry->get_height()) + element_padding;
 	}
 
 	scroll_state.content_h = button_area_height - element_padding;
 	// the footer has element_padding, but button_area_height needs to be trimmed by element_padding
 	// so it cancels itself out.
-	float menu_height =
-		std::min(button_area_height + footer_height, screen_height - window_edge_padding * 2);
+	float menu_height = std::ceil(
+		std::min(button_area_height + footer_height, screen_height - window_edge_padding * 2));
 	float x = std::floor((screen_width - menu_width) / 2.f);
 	float y = std::floor((screen_height - menu_height) / 2.f);
 
@@ -72,7 +72,7 @@ void options_list_state::resize_view()
 	// footer buttons
 	{
 		// for a 16px font I would want 60px
-		float button_width = 60 * (font_painter->get_lineskip() / 16.f);
+		float button_width = std::floor(60 * (font_painter->get_lineskip() / 16.f));
 
 		float x_cursor = x + menu_width;
 		x_cursor -= button_width;
@@ -102,7 +102,7 @@ void options_list_state::resize_view()
 	for(auto& entry : option_entries)
 	{
 		entry->resize(scroll_state.box_xmin, cur_y, scroll_width);
-		cur_y += entry->get_height() + element_padding;
+		cur_y += std::floor(entry->get_height()) + element_padding;
 	}
 
 	if(shared_state->focus_element != NULL)
@@ -184,7 +184,7 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 			 scroll_xmin <= mouse_x))
 		{
 			SDL_Event fake_event = e;
-            set_mouse_event_clipped(fake_event);
+			set_mouse_event_clipped(fake_event);
 			for(auto& entry : option_entries)
 			{
 				if(entry->input(fake_event) == OPTION_ELEMENT_RESULT::ERROR)
@@ -212,7 +212,7 @@ OPTIONS_MENU_RESULT options_list_state::input(SDL_Event& e)
 				 scroll_xmin <= mouse_x))
 			{
 				SDL_Event fake_event = e;
-                set_mouse_event_clipped(fake_event);
+				set_mouse_event_clipped(fake_event);
 				for(auto& entry : option_entries)
 				{
 					if(entry->input(fake_event) == OPTION_ELEMENT_RESULT::ERROR)

@@ -440,9 +440,8 @@ bool demo_state::init()
 
 	// I forgot that glDrawElements doesn't work well with GL_LINES
 	// because every vertex is processed once, so lines are missing.
-	ctx.glLineWidth(4);
+	//ctx.glLineWidth(4);
 
-	// ctx.glEnable(GL_BLEND);
 	// premultiplied
 	ctx.glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	// not premultiplied
@@ -460,7 +459,16 @@ bool demo_state::init()
 	}
 	else
 	{
-		if(!mono_shader.create_alpha_test(static_cast<float>(cv_string_alpha_test.data)))
+		if(!mono_shader.create_alpha_test())
+		{
+			return false;
+		}
+		// gotta set the alpha test value.
+		ctx.glUseProgram(mono_shader.gl_program_id);
+		ctx.glUniform1f(
+			mono_shader.gl_uniforms.u_alpha_test, static_cast<float>(cv_string_alpha_test.data));
+		ctx.glUseProgram(0);
+		if(GL_CHECK(__func__) != GL_NO_ERROR)
 		{
 			return false;
 		}

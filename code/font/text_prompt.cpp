@@ -441,8 +441,8 @@ void text_prompt_wrapper::internal_draw_widgets()
 
 			float xmin = box_xmax - scrollbar_thickness;
 			float xmax = box_xmax;
-			float ymin = std::floor(box_ymin + thumb_offset);
-			float ymax = std::floor(box_ymin + thumb_offset + thumb_height);
+			float ymin = box_ymin + thumb_offset;
+			float ymax = box_ymin + thumb_offset + thumb_height;
 
 			state.batcher->draw_rect({xmin, ymin, xmax, ymax}, white_uv, scrollbar_color);
 			state.batcher->draw_rect({xmin, ymin, xmin + 1, ymax}, white_uv, bbox_color);
@@ -461,8 +461,8 @@ void text_prompt_wrapper::internal_draw_widgets()
 				(scrollbar_max_width - thumb_width) / (get_scroll_width() - (box_xmax - box_xmin));
 			float thumb_offset = scroll_x * scroll_ratio;
 
-			float xmin = std::floor(box_xmin + thumb_offset);
-			float xmax = std::floor(box_xmin + thumb_offset + thumb_width);
+			float xmin = box_xmin + thumb_offset;
+			float xmax = box_xmin + thumb_offset + thumb_width;
 			float ymin = box_ymax - scrollbar_thickness;
 			float ymax = box_ymax;
 
@@ -625,28 +625,30 @@ bool text_prompt_wrapper::internal_draw_pretext()
 			{
 				if(found_cur_y < scroll_y)
 				{
-					scroll_y = found_cur_y;
+					scroll_y = std::floor(found_cur_y);
 				}
 				else if(
 					found_cur_y + lineskip + (has_horizontal ? scrollbar_thickness : 0) >=
 					scroll_y + (box_ymax - box_ymin))
 				{
-					scroll_y = found_cur_y + lineskip - (box_ymax - box_ymin) +
-							   (has_horizontal ? scrollbar_thickness : 0);
+					scroll_y = std::floor(
+						found_cur_y + lineskip - (box_ymax - box_ymin) +
+						(has_horizontal ? scrollbar_thickness : 0));
 				}
 			}
 			if(x_scrollable())
 			{
 				if(found_cur_x < scroll_x)
 				{
-					scroll_x = found_cur_x;
+					scroll_x = std::floor(found_cur_x);
 				}
 				else if(
 					found_cur_x + (has_vertical ? scrollbar_thickness : 0) + horizontal_padding >=
 					scroll_x + (box_xmax - box_xmin))
 				{
-					scroll_x = found_cur_x - (box_xmax - box_xmin) +
-							   (has_vertical ? scrollbar_thickness : 0) + horizontal_padding;
+					scroll_x = std::floor(
+						found_cur_x - (box_xmax - box_xmin) +
+						(has_vertical ? scrollbar_thickness : 0) + horizontal_padding);
 				}
 			}
 		}
@@ -1215,7 +1217,7 @@ void text_prompt_wrapper::internal_scroll_y_to(float mouse_y)
 
 		float scroll_ratio =
 			(scrollbar_max_height - thumb_height) / (get_scroll_height() - (box_ymax - box_ymin));
-		scroll_y = (mouse_y - scroll_thumb_click_offset) / scroll_ratio;
+		scroll_y = std::floor((mouse_y - scroll_thumb_click_offset) / scroll_ratio);
 	}
 }
 
@@ -1234,7 +1236,7 @@ void text_prompt_wrapper::internal_scroll_x_to(float mouse_x)
 
 		float scroll_ratio =
 			(scrollbar_max_width - thumb_width) / (get_scroll_width() - (box_xmax - box_xmin));
-		scroll_x = (mouse_x - scroll_thumb_click_offset) / scroll_ratio;
+		scroll_x = std::floor((mouse_x - scroll_thumb_click_offset) / scroll_ratio);
 	}
 }
 
@@ -1285,7 +1287,8 @@ TEXT_PROMPT_RESULT text_prompt_wrapper::input(SDL_Event& e)
 				// NOTE: but there is a minor bug where you drag text at the top of the scroll,
 				// and scroll up, the selection will move up, same for the bottom.
 				// This could be fixed by finding the cursor during drawing instead.
-				scroll_y -= static_cast<float>(e.wheel.y * cv_scroll_speed.data) * get_lineskip();
+				scroll_y -= std::floor(
+					static_cast<float>(e.wheel.y * cv_scroll_speed.data) * get_lineskip());
 				// the draw function will clamp it to keep the scroll area inside of the text.
 				update_buffer = true;
 				// I use leave to prevent multiple things scrolling.

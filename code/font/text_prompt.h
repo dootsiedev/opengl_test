@@ -209,7 +209,7 @@ struct text_prompt_wrapper
 
 	float get_lineskip() const
 	{
-		return state.font->get_lineskip(get_scale());
+		return std::ceil(state.font->get_lineskip(get_scale()));
 	}
 
 	void set_scale(float font_scale);

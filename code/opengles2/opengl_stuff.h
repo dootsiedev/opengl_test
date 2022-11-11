@@ -8,10 +8,33 @@
 #include "gl3.h"
 #include "gl2ext.h"
 
-#include "../cvar.h" 
+#include "../cvar.h"
 
 extern cvar_int cv_has_EXT_disjoint_timer_query;
 extern cvar_int cv_has_GL_KHR_debug;
+
+// this requires you to have a struct named gl_uniforms
+#define SET_GL_UNIFORM_ID(info, x)                                       \
+	do                                                                   \
+	{                                                                    \
+		gl_uniforms.x = ctx.glGetUniformLocation(gl_program_id, #x);     \
+		if(gl_uniforms.x < 0)                                            \
+		{                                                                \
+			slogf("%s warning: failed to find uniform: %s\n", info, #x); \
+			gl_uniforms.x = -1;                                          \
+		}                                                                \
+	} while(0)
+// this requires you to have a struct named gl_attributes
+#define SET_GL_ATTRIBUTE_ID(info, x)                                       \
+	do                                                                     \
+	{                                                                      \
+		gl_attributes.x = ctx.glGetAttribLocation(gl_program_id, #x);      \
+		if(gl_attributes.x < 0)                                            \
+		{                                                                  \
+			slogf("%s warning: failed to find attribute: %s\n", info, #x); \
+			gl_attributes.x = -1;                                          \
+		}                                                                  \
+	} while(0)
 
 #define SAFE_GL_DELETE_VBO(x)             \
 	do                                    \

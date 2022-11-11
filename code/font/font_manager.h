@@ -605,8 +605,8 @@ struct internal_font_painter_state
 
 	void set_xy(float x, float y)
 	{
-		draw_x_pos = std::floor(x);
-		draw_y_pos = std::floor(y);
+		draw_x_pos = x;
+		draw_y_pos = y;
 	}
 
 	NDSERR FONT_BASIC_RESULT load_glyph_verts(
@@ -700,7 +700,7 @@ struct font_sprite_painter
 
 	float get_lineskip() const
 	{
-		return state.font->get_lineskip(get_scale());
+		return std::ceil(state.font->get_lineskip(get_scale()));
 	}
 
 	// start drawing at a new position.
