@@ -96,6 +96,20 @@ static REGISTER_CVAR_INT(
 #include <cxxabi.h>
 #endif
 
+
+struct debug_stacktrace_info
+{
+	int index;
+	uintptr_t addr;
+	const char* module;
+	const char* function;
+	const char* file;
+	int line;
+};
+
+// return zero for success
+typedef int (*debug_stacktrace_callback)(debug_stacktrace_info* data, const char* error, void* ud);
+
 struct bt_payload
 {
 	debug_stacktrace_callback call = NULL;
@@ -245,7 +259,7 @@ struct bt_state_wrapper
 	}
 };
 
-__attribute__((noinline)) bool
+static __attribute__((noinline)) bool
 	debug_raw_stacktrace(debug_stacktrace_callback callback, void* ud, int skip)
 {
 #if defined(_WIN32)
@@ -289,7 +303,7 @@ __attribute__((noinline)) bool
 }
 
 // format: MODULE ! FUNCTION [FILE @ LINE] or MODULE ! PTR
-int raw_string_callback(debug_stacktrace_info* data, const char* error, void* ud)
+static int raw_string_callback(debug_stacktrace_info* data, const char* error, void* ud)
 {
 	ASSERT(ud != NULL);
 
@@ -358,6 +372,12 @@ err:
 	*output += '\n';
 	return -1;
 }
+
+__attribute__((noinline)) bool debug_str_stacktrace(std::string* out, int skip)
+{
+    return debug_raw_stacktrace(raw_string_callback, out, skip);
+}
+
 #else
 
 int raw_string_callback(debug_stacktrace_info*, const char*, void*)
@@ -383,4 +403,4 @@ bool debug_raw_stacktrace(debug_stacktrace_callback, void*, int)
 
 #endif
 
-#endif
+#endif // __EMSCRIPTEN__

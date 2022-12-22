@@ -139,14 +139,18 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 	(void)skip;
 	if(cv_serr_bt.data == 2 || (cv_serr_bt.data == 1 && !serr_check_error()))
 	{
-		int length;
-		std::unique_ptr<char[]> buffer;
-		buffer = unique_asprintf(
-			&length, "StackTrace (%s = %d)\n", cv_serr_bt.cvar_key, cv_serr_bt.data);
 		std::string msg;
-		if(buffer)
 		{
-			msg.assign(buffer.get(), length);
+			// this could be avoided with c++20's string allocator callback thing
+			// but I don't want to use c++20.
+			int length;
+			std::unique_ptr<char[]> buffer;
+			buffer = unique_asprintf(
+				&length, "StackTrace (%s = %d)\n", cv_serr_bt.cvar_key, cv_serr_bt.data);
+			if(buffer)
+			{
+				msg.assign(buffer.get(), length);
+			}
 		}
 		debug_str_stacktrace(&msg, skip + 1);
 		msg += '\n';
@@ -159,7 +163,7 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 #ifndef DISABLE_CONSOLE
 		// lovely, another allocation. thank god this pales in comparison
 		// to the actual cost of resolving debug information of a stacktrace.
-		buffer = std::make_unique<char[]>(msg.size() + 1);
+		std::unique_ptr<char[]> buffer = std::make_unique<char[]>(msg.size() + 1);
 		memcpy(buffer.get(), msg.c_str(), msg.size());
 		buffer[msg.size()] = '\0';
 		{

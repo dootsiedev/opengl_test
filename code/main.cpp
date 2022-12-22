@@ -209,6 +209,8 @@ int main(int argc, char** argv)
 				if(!demo.destroy())
 				{
 					success = false;
+					// I want to present a dialog window if this was rebooting
+					break;
 				}
 			} while(reboot);
 #endif
