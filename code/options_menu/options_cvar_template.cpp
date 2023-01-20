@@ -1409,7 +1409,8 @@ void option_keybind_request::resize_view()
 	// for a 16px font I would want 60px
 	float button_width = 60 * (font_painter.get_lineskip() / 16.f);
 	float button_height = font_painter.get_lineskip() + font_padding;
-	float footer_width = (button_width * 3) + element_padding;
+	float button_count = 3;
+	float footer_width = (button_width * button_count) + (element_padding * (button_count - 1));
 	float footer_height = button_height;
 
 	// for a 16px font I would want 400px

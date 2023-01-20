@@ -364,20 +364,19 @@ CONSOLE_RESULT console_state::input(SDL_Event& e)
 					break;
 				}
 				// show newer commands like a terminal
-				if(history_index == -1)
+				if(history_index != -1)
 				{
-					break;
-				}
-				if(history_index == 0)
-				{
-					prompt_cmd.replace_string(original_prompt);
-					original_prompt.clear();
-					history_index = -1;
-				}
-				else
-				{
-					history_index--;
-					prompt_cmd.replace_string(command_history.at(history_index));
+					if(history_index == 0)
+					{
+						prompt_cmd.replace_string(original_prompt);
+						original_prompt.clear();
+						history_index = -1;
+					}
+					else
+					{
+						history_index--;
+						prompt_cmd.replace_string(command_history.at(history_index));
+					}
 				}
 				// eat
 				set_event_unfocus(e);
