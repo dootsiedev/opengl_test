@@ -7,10 +7,10 @@
 // but the reason why keybind defintions are cvar strings instead of having a quake style bind
 // system is because I plan on adding a analog keybind (another cvar type) for game controllers (but
 // also supports keyboard).
-// Actually ignore the above, I wouldn't add in a analog keybind cvar, 
+// Actually ignore the above, I wouldn't add in a analog keybind cvar,
 // just a string with the controller mappings, and a bool that enables controller support.
-// Maybe what I need is a way to make cvars dependant on other cvars, so if this cvar is ==1, disable this cvar.
-// but this is tricky to handle because of static initialization order, I think.
+// Maybe what I need is a way to make cvars dependant on other cvars, so if this cvar is ==1,
+// disable this cvar. but this is tricky to handle because of static initialization order, I think.
 
 // TODO: I think allowing 2 keys for the same input would be useful, since I use ctrl and c for
 // crouching...
@@ -84,15 +84,15 @@ std::string cvar_key_bind::keybind_to_string(keybind_state& in)
 
 	if(in.mod != 0)
 	{
-        const char* mod_name = get_sdl_mod_name(in.mod);
+		const char* mod_name = get_sdl_mod_name(in.mod);
 		if(mod_name != NULL)
 		{
 			out += mod_name;
-            out += ';';
+			out += ';';
 		}
 		else
 		{
-            // probably should be an serr error, same for get_sdl_key_name.
+			// probably should be an serr error, same for get_sdl_key_name.
 			out += "UNKNOWN_MODIFIER;";
 		}
 	}
@@ -265,52 +265,282 @@ bool cvar_key_bind::convert_string_to_event(const char* buffer, size_t size)
 	return false;
 }
 
+#define MY_MOD_MAP(XX) \
+	XX(KMOD_LSHIFT)    \
+	XX(KMOD_RSHIFT)    \
+	XX(KMOD_LCTRL)     \
+	XX(KMOD_RCTRL)     \
+	XX(KMOD_LALT)      \
+	XX(KMOD_RALT)      \
+	XX(KMOD_CTRL)      \
+	XX(KMOD_SHIFT)     \
+	XX(KMOD_ALT)
+
 // returns = 0 for no modifier
 Uint16 find_sdl_mod(const char* string, size_t size)
 {
-#define XSTRNCMP(code)                                                 \
-	do                                                                 \
-	{                                                                  \
-		if(strlen(#code) == size && strncmp(string, #code, size) == 0) \
-		{                                                              \
-			return code;                                               \
-		}                                                              \
-	} while(0)
-	XSTRNCMP(KMOD_LSHIFT);
-	XSTRNCMP(KMOD_RSHIFT);
-	XSTRNCMP(KMOD_LCTRL);
-	XSTRNCMP(KMOD_RCTRL);
-	XSTRNCMP(KMOD_LALT);
-	XSTRNCMP(KMOD_RALT);
-	XSTRNCMP(KMOD_CTRL);
-	XSTRNCMP(KMOD_SHIFT);
-	XSTRNCMP(KMOD_ALT);
-#undef XSTRNCMP
+#define XX(code)                                                   \
+	if(strlen(#code) == size && strncmp(string, #code, size) == 0) \
+	{                                                              \
+		return code;                                               \
+	}
+	MY_MOD_MAP(XX)
+#undef XX
 	return 0;
 }
 
 const char* get_sdl_mod_name(Uint16 mod)
 {
-#define XSTRNCMP(code)    \
-	do                    \
-	{                     \
-		if((code) == mod) \
-		{                 \
-			return #code; \
-		}                 \
-	} while(0)
-	XSTRNCMP(KMOD_LSHIFT);
-	XSTRNCMP(KMOD_RSHIFT);
-	XSTRNCMP(KMOD_LCTRL);
-	XSTRNCMP(KMOD_RCTRL);
-	XSTRNCMP(KMOD_LALT);
-	XSTRNCMP(KMOD_RALT);
-	XSTRNCMP(KMOD_CTRL);
-	XSTRNCMP(KMOD_SHIFT);
-	XSTRNCMP(KMOD_ALT);
-#undef XSTRNCMP
+#define XX(code)      \
+	if((code) == mod) \
+	{                 \
+		return #code; \
+	}
+	MY_MOD_MAP(XX)
+#undef XX
 	return NULL;
 }
+
+#define MY_KEYCODE_MAP(XX)      \
+	XX(SDLK_RETURN)             \
+	XX(SDLK_ESCAPE)             \
+	XX(SDLK_BACKSPACE)          \
+	XX(SDLK_TAB)                \
+	XX(SDLK_SPACE)              \
+	XX(SDLK_EXCLAIM)            \
+	XX(SDLK_QUOTEDBL)           \
+	XX(SDLK_HASH)               \
+	XX(SDLK_PERCENT)            \
+	XX(SDLK_DOLLAR)             \
+	XX(SDLK_AMPERSAND)          \
+	XX(SDLK_QUOTE)              \
+	XX(SDLK_LEFTPAREN)          \
+	XX(SDLK_RIGHTPAREN)         \
+	XX(SDLK_ASTERISK)           \
+	XX(SDLK_PLUS)               \
+	XX(SDLK_COMMA)              \
+	XX(SDLK_MINUS)              \
+	XX(SDLK_PERIOD)             \
+	XX(SDLK_SLASH)              \
+	XX(SDLK_0)                  \
+	XX(SDLK_1)                  \
+	XX(SDLK_2)                  \
+	XX(SDLK_3)                  \
+	XX(SDLK_4)                  \
+	XX(SDLK_5)                  \
+	XX(SDLK_6)                  \
+	XX(SDLK_7)                  \
+	XX(SDLK_8)                  \
+	XX(SDLK_9)                  \
+	XX(SDLK_COLON)              \
+	XX(SDLK_SEMICOLON)          \
+	XX(SDLK_LESS)               \
+	XX(SDLK_EQUALS)             \
+	XX(SDLK_GREATER)            \
+	XX(SDLK_QUESTION)           \
+	XX(SDLK_AT)                 \
+	XX(SDLK_LEFTBRACKET)        \
+	XX(SDLK_BACKSLASH)          \
+	XX(SDLK_RIGHTBRACKET)       \
+	XX(SDLK_CARET)              \
+	XX(SDLK_UNDERSCORE)         \
+	XX(SDLK_BACKQUOTE)          \
+	XX(SDLK_a)                  \
+	XX(SDLK_b)                  \
+	XX(SDLK_c)                  \
+	XX(SDLK_d)                  \
+	XX(SDLK_e)                  \
+	XX(SDLK_f)                  \
+	XX(SDLK_g)                  \
+	XX(SDLK_h)                  \
+	XX(SDLK_i)                  \
+	XX(SDLK_j)                  \
+	XX(SDLK_k)                  \
+	XX(SDLK_l)                  \
+	XX(SDLK_m)                  \
+	XX(SDLK_n)                  \
+	XX(SDLK_o)                  \
+	XX(SDLK_p)                  \
+	XX(SDLK_q)                  \
+	XX(SDLK_r)                  \
+	XX(SDLK_s)                  \
+	XX(SDLK_t)                  \
+	XX(SDLK_u)                  \
+	XX(SDLK_v)                  \
+	XX(SDLK_w)                  \
+	XX(SDLK_x)                  \
+	XX(SDLK_y)                  \
+	XX(SDLK_z)                  \
+	XX(SDLK_CAPSLOCK)           \
+	XX(SDLK_F1)                 \
+	XX(SDLK_F2)                 \
+	XX(SDLK_F3)                 \
+	XX(SDLK_F4)                 \
+	XX(SDLK_F5)                 \
+	XX(SDLK_F6)                 \
+	XX(SDLK_F7)                 \
+	XX(SDLK_F8)                 \
+	XX(SDLK_F9)                 \
+	XX(SDLK_F10)                \
+	XX(SDLK_F11)                \
+	XX(SDLK_F12)                \
+	XX(SDLK_PRINTSCREEN)        \
+	XX(SDLK_SCROLLLOCK)         \
+	XX(SDLK_PAUSE)              \
+	XX(SDLK_INSERT)             \
+	XX(SDLK_HOME)               \
+	XX(SDLK_PAGEUP)             \
+	XX(SDLK_DELETE)             \
+	XX(SDLK_END)                \
+	XX(SDLK_PAGEDOWN)           \
+	XX(SDLK_RIGHT)              \
+	XX(SDLK_LEFT)               \
+	XX(SDLK_DOWN)               \
+	XX(SDLK_UP)                 \
+	XX(SDLK_NUMLOCKCLEAR)       \
+	XX(SDLK_KP_DIVIDE)          \
+	XX(SDLK_KP_MULTIPLY)        \
+	XX(SDLK_KP_MINUS)           \
+	XX(SDLK_KP_PLUS)            \
+	XX(SDLK_KP_ENTER)           \
+	XX(SDLK_KP_1)               \
+	XX(SDLK_KP_2)               \
+	XX(SDLK_KP_3)               \
+	XX(SDLK_KP_4)               \
+	XX(SDLK_KP_5)               \
+	XX(SDLK_KP_6)               \
+	XX(SDLK_KP_7)               \
+	XX(SDLK_KP_8)               \
+	XX(SDLK_KP_9)               \
+	XX(SDLK_KP_0)               \
+	XX(SDLK_KP_PERIOD)          \
+	XX(SDLK_APPLICATION)        \
+	XX(SDLK_POWER)              \
+	XX(SDLK_KP_EQUALS)          \
+	XX(SDLK_F13)                \
+	XX(SDLK_F14)                \
+	XX(SDLK_F15)                \
+	XX(SDLK_F16)                \
+	XX(SDLK_F17)                \
+	XX(SDLK_F18)                \
+	XX(SDLK_F19)                \
+	XX(SDLK_F20)                \
+	XX(SDLK_F21)                \
+	XX(SDLK_F22)                \
+	XX(SDLK_F23)                \
+	XX(SDLK_F24)                \
+	XX(SDLK_EXECUTE)            \
+	XX(SDLK_HELP)               \
+	XX(SDLK_MENU)               \
+	XX(SDLK_SELECT)             \
+	XX(SDLK_STOP)               \
+	XX(SDLK_AGAIN)              \
+	XX(SDLK_UNDO)               \
+	XX(SDLK_CUT)                \
+	XX(SDLK_COPY)               \
+	XX(SDLK_PASTE)              \
+	XX(SDLK_FIND)               \
+	XX(SDLK_MUTE)               \
+	XX(SDLK_VOLUMEUP)           \
+	XX(SDLK_VOLUMEDOWN)         \
+	XX(SDLK_KP_COMMA)           \
+	XX(SDLK_KP_EQUALSAS400)     \
+	XX(SDLK_ALTERASE)           \
+	XX(SDLK_SYSREQ)             \
+	XX(SDLK_CANCEL)             \
+	XX(SDLK_CLEAR)              \
+	XX(SDLK_PRIOR)              \
+	XX(SDLK_RETURN2)            \
+	XX(SDLK_SEPARATOR)          \
+	XX(SDLK_OUT)                \
+	XX(SDLK_OPER)               \
+	XX(SDLK_CLEARAGAIN)         \
+	XX(SDLK_CRSEL)              \
+	XX(SDLK_EXSEL)              \
+	XX(SDLK_KP_00)              \
+	XX(SDLK_KP_000)             \
+	XX(SDLK_THOUSANDSSEPARATOR) \
+	XX(SDLK_DECIMALSEPARATOR)   \
+	XX(SDLK_CURRENCYUNIT)       \
+	XX(SDLK_CURRENCYSUBUNIT)    \
+	XX(SDLK_KP_LEFTPAREN)       \
+	XX(SDLK_KP_RIGHTPAREN)      \
+	XX(SDLK_KP_LEFTBRACE)       \
+	XX(SDLK_KP_RIGHTBRACE)      \
+	XX(SDLK_KP_TAB)             \
+	XX(SDLK_KP_BACKSPACE)       \
+	XX(SDLK_KP_A)               \
+	XX(SDLK_KP_B)               \
+	XX(SDLK_KP_C)               \
+	XX(SDLK_KP_D)               \
+	XX(SDLK_KP_E)               \
+	XX(SDLK_KP_F)               \
+	XX(SDLK_KP_XOR)             \
+	XX(SDLK_KP_POWER)           \
+	XX(SDLK_KP_PERCENT)         \
+	XX(SDLK_KP_LESS)            \
+	XX(SDLK_KP_GREATER)         \
+	XX(SDLK_KP_AMPERSAND)       \
+	XX(SDLK_KP_DBLAMPERSAND)    \
+	XX(SDLK_KP_VERTICALBAR)     \
+	XX(SDLK_KP_DBLVERTICALBAR)  \
+	XX(SDLK_KP_COLON)           \
+	XX(SDLK_KP_HASH)            \
+	XX(SDLK_KP_SPACE)           \
+	XX(SDLK_KP_AT)              \
+	XX(SDLK_KP_EXCLAM)          \
+	XX(SDLK_KP_MEMSTORE)        \
+	XX(SDLK_KP_MEMRECALL)       \
+	XX(SDLK_KP_MEMCLEAR)        \
+	XX(SDLK_KP_MEMADD)          \
+	XX(SDLK_KP_MEMSUBTRACT)     \
+	XX(SDLK_KP_MEMMULTIPLY)     \
+	XX(SDLK_KP_MEMDIVIDE)       \
+	XX(SDLK_KP_PLUSMINUS)       \
+	XX(SDLK_KP_CLEAR)           \
+	XX(SDLK_KP_CLEARENTRY)      \
+	XX(SDLK_KP_BINARY)          \
+	XX(SDLK_KP_OCTAL)           \
+	XX(SDLK_KP_DECIMAL)         \
+	XX(SDLK_KP_HEXADECIMAL)     \
+	XX(SDLK_LCTRL)              \
+	XX(SDLK_LSHIFT)             \
+	XX(SDLK_LALT)               \
+	XX(SDLK_LGUI)               \
+	XX(SDLK_RCTRL)              \
+	XX(SDLK_RSHIFT)             \
+	XX(SDLK_RALT)               \
+	XX(SDLK_RGUI)               \
+	XX(SDLK_MODE)               \
+	XX(SDLK_AUDIONEXT)          \
+	XX(SDLK_AUDIOPREV)          \
+	XX(SDLK_AUDIOSTOP)          \
+	XX(SDLK_AUDIOPLAY)          \
+	XX(SDLK_AUDIOMUTE)          \
+	XX(SDLK_MEDIASELECT)        \
+	XX(SDLK_WWW)                \
+	XX(SDLK_MAIL)               \
+	XX(SDLK_CALCULATOR)         \
+	XX(SDLK_COMPUTER)           \
+	XX(SDLK_AC_SEARCH)          \
+	XX(SDLK_AC_HOME)            \
+	XX(SDLK_AC_BACK)            \
+	XX(SDLK_AC_FORWARD)         \
+	XX(SDLK_AC_STOP)            \
+	XX(SDLK_AC_REFRESH)         \
+	XX(SDLK_AC_BOOKMARKS)       \
+	XX(SDLK_BRIGHTNESSDOWN)     \
+	XX(SDLK_BRIGHTNESSUP)       \
+	XX(SDLK_DISPLAYSWITCH)      \
+	XX(SDLK_KBDILLUMTOGGLE)     \
+	XX(SDLK_KBDILLUMDOWN)       \
+	XX(SDLK_KBDILLUMUP)         \
+	XX(SDLK_EJECT)              \
+	XX(SDLK_SLEEP)              \
+	XX(SDLK_APP1)               \
+	XX(SDLK_APP2)               \
+	XX(SDLK_AUDIOREWIND)        \
+	XX(SDLK_AUDIOFASTFORWARD)
 
 // this is horrible, but because I need SDL_GetKeyName and I haven't initialized SDL
 // also technically I might stop using SDL but I would still use SDL's names.
@@ -318,255 +548,14 @@ const char* get_sdl_mod_name(Uint16 mod)
 // NOLINTNEXTLINE
 SDL_Keycode find_sdl_keycode(const char* string, size_t size)
 {
-#define XSTRNCMP(code)                                                 \
-	do                                                                 \
-	{                                                                  \
-		if(strlen(#code) == size && strncmp(string, #code, size) == 0) \
-		{                                                              \
-			return code;                                               \
-		}                                                              \
-	} while(0)
-	XSTRNCMP(SDLK_RETURN);
-	XSTRNCMP(SDLK_ESCAPE);
-	XSTRNCMP(SDLK_BACKSPACE);
-	XSTRNCMP(SDLK_TAB);
-	XSTRNCMP(SDLK_SPACE);
-	XSTRNCMP(SDLK_EXCLAIM);
-	XSTRNCMP(SDLK_QUOTEDBL);
-	XSTRNCMP(SDLK_HASH);
-	XSTRNCMP(SDLK_PERCENT);
-	XSTRNCMP(SDLK_DOLLAR);
-	XSTRNCMP(SDLK_AMPERSAND);
-	XSTRNCMP(SDLK_QUOTE);
-	XSTRNCMP(SDLK_LEFTPAREN);
-	XSTRNCMP(SDLK_RIGHTPAREN);
-	XSTRNCMP(SDLK_ASTERISK);
-	XSTRNCMP(SDLK_PLUS);
-	XSTRNCMP(SDLK_COMMA);
-	XSTRNCMP(SDLK_MINUS);
-	XSTRNCMP(SDLK_PERIOD);
-	XSTRNCMP(SDLK_SLASH);
-	XSTRNCMP(SDLK_0);
-	XSTRNCMP(SDLK_1);
-	XSTRNCMP(SDLK_2);
-	XSTRNCMP(SDLK_3);
-	XSTRNCMP(SDLK_4);
-	XSTRNCMP(SDLK_5);
-	XSTRNCMP(SDLK_6);
-	XSTRNCMP(SDLK_7);
-	XSTRNCMP(SDLK_8);
-	XSTRNCMP(SDLK_9);
-	XSTRNCMP(SDLK_COLON);
-	XSTRNCMP(SDLK_SEMICOLON);
-	XSTRNCMP(SDLK_LESS);
-	XSTRNCMP(SDLK_EQUALS);
-	XSTRNCMP(SDLK_GREATER);
-	XSTRNCMP(SDLK_QUESTION);
-	XSTRNCMP(SDLK_AT);
-	XSTRNCMP(SDLK_LEFTBRACKET);
-	XSTRNCMP(SDLK_BACKSLASH);
-	XSTRNCMP(SDLK_RIGHTBRACKET);
-	XSTRNCMP(SDLK_CARET);
-	XSTRNCMP(SDLK_UNDERSCORE);
-	XSTRNCMP(SDLK_BACKQUOTE);
-	XSTRNCMP(SDLK_a);
-	XSTRNCMP(SDLK_b);
-	XSTRNCMP(SDLK_c);
-	XSTRNCMP(SDLK_d);
-	XSTRNCMP(SDLK_e);
-	XSTRNCMP(SDLK_f);
-	XSTRNCMP(SDLK_g);
-	XSTRNCMP(SDLK_h);
-	XSTRNCMP(SDLK_i);
-	XSTRNCMP(SDLK_j);
-	XSTRNCMP(SDLK_k);
-	XSTRNCMP(SDLK_l);
-	XSTRNCMP(SDLK_m);
-	XSTRNCMP(SDLK_n);
-	XSTRNCMP(SDLK_o);
-	XSTRNCMP(SDLK_p);
-	XSTRNCMP(SDLK_q);
-	XSTRNCMP(SDLK_r);
-	XSTRNCMP(SDLK_s);
-	XSTRNCMP(SDLK_t);
-	XSTRNCMP(SDLK_u);
-	XSTRNCMP(SDLK_v);
-	XSTRNCMP(SDLK_w);
-	XSTRNCMP(SDLK_x);
-	XSTRNCMP(SDLK_y);
-	XSTRNCMP(SDLK_z);
-	XSTRNCMP(SDLK_CAPSLOCK);
-	XSTRNCMP(SDLK_F1);
-	XSTRNCMP(SDLK_F2);
-	XSTRNCMP(SDLK_F3);
-	XSTRNCMP(SDLK_F4);
-	XSTRNCMP(SDLK_F5);
-	XSTRNCMP(SDLK_F6);
-	XSTRNCMP(SDLK_F7);
-	XSTRNCMP(SDLK_F8);
-	XSTRNCMP(SDLK_F9);
-	XSTRNCMP(SDLK_F10);
-	XSTRNCMP(SDLK_F11);
-	XSTRNCMP(SDLK_F12);
-	XSTRNCMP(SDLK_PRINTSCREEN);
-	XSTRNCMP(SDLK_SCROLLLOCK);
-	XSTRNCMP(SDLK_PAUSE);
-	XSTRNCMP(SDLK_INSERT);
-	XSTRNCMP(SDLK_HOME);
-	XSTRNCMP(SDLK_PAGEUP);
-	XSTRNCMP(SDLK_DELETE);
-	XSTRNCMP(SDLK_END);
-	XSTRNCMP(SDLK_PAGEDOWN);
-	XSTRNCMP(SDLK_RIGHT);
-	XSTRNCMP(SDLK_LEFT);
-	XSTRNCMP(SDLK_DOWN);
-	XSTRNCMP(SDLK_UP);
-	XSTRNCMP(SDLK_NUMLOCKCLEAR);
-	XSTRNCMP(SDLK_KP_DIVIDE);
-	XSTRNCMP(SDLK_KP_MULTIPLY);
-	XSTRNCMP(SDLK_KP_MINUS);
-	XSTRNCMP(SDLK_KP_PLUS);
-	XSTRNCMP(SDLK_KP_ENTER);
-	XSTRNCMP(SDLK_KP_1);
-	XSTRNCMP(SDLK_KP_2);
-	XSTRNCMP(SDLK_KP_3);
-	XSTRNCMP(SDLK_KP_4);
-	XSTRNCMP(SDLK_KP_5);
-	XSTRNCMP(SDLK_KP_6);
-	XSTRNCMP(SDLK_KP_7);
-	XSTRNCMP(SDLK_KP_8);
-	XSTRNCMP(SDLK_KP_9);
-	XSTRNCMP(SDLK_KP_0);
-	XSTRNCMP(SDLK_KP_PERIOD);
-	XSTRNCMP(SDLK_APPLICATION);
-	XSTRNCMP(SDLK_POWER);
-	XSTRNCMP(SDLK_KP_EQUALS);
-	XSTRNCMP(SDLK_F13);
-	XSTRNCMP(SDLK_F14);
-	XSTRNCMP(SDLK_F15);
-	XSTRNCMP(SDLK_F16);
-	XSTRNCMP(SDLK_F17);
-	XSTRNCMP(SDLK_F18);
-	XSTRNCMP(SDLK_F19);
-	XSTRNCMP(SDLK_F20);
-	XSTRNCMP(SDLK_F21);
-	XSTRNCMP(SDLK_F22);
-	XSTRNCMP(SDLK_F23);
-	XSTRNCMP(SDLK_F24);
-	XSTRNCMP(SDLK_EXECUTE);
-	XSTRNCMP(SDLK_HELP);
-	XSTRNCMP(SDLK_MENU);
-	XSTRNCMP(SDLK_SELECT);
-	XSTRNCMP(SDLK_STOP);
-	XSTRNCMP(SDLK_AGAIN);
-	XSTRNCMP(SDLK_UNDO);
-	XSTRNCMP(SDLK_CUT);
-	XSTRNCMP(SDLK_COPY);
-	XSTRNCMP(SDLK_PASTE);
-	XSTRNCMP(SDLK_FIND);
-	XSTRNCMP(SDLK_MUTE);
-	XSTRNCMP(SDLK_VOLUMEUP);
-	XSTRNCMP(SDLK_VOLUMEDOWN);
-	XSTRNCMP(SDLK_KP_COMMA);
-	XSTRNCMP(SDLK_KP_EQUALSAS400);
-	XSTRNCMP(SDLK_ALTERASE);
-	XSTRNCMP(SDLK_SYSREQ);
-	XSTRNCMP(SDLK_CANCEL);
-	XSTRNCMP(SDLK_CLEAR);
-	XSTRNCMP(SDLK_PRIOR);
-	XSTRNCMP(SDLK_RETURN2);
-	XSTRNCMP(SDLK_SEPARATOR);
-	XSTRNCMP(SDLK_OUT);
-	XSTRNCMP(SDLK_OPER);
-	XSTRNCMP(SDLK_CLEARAGAIN);
-	XSTRNCMP(SDLK_CRSEL);
-	XSTRNCMP(SDLK_EXSEL);
-	XSTRNCMP(SDLK_KP_00);
-	XSTRNCMP(SDLK_KP_000);
-	XSTRNCMP(SDLK_THOUSANDSSEPARATOR);
-	XSTRNCMP(SDLK_DECIMALSEPARATOR);
-	XSTRNCMP(SDLK_CURRENCYUNIT);
-	XSTRNCMP(SDLK_CURRENCYSUBUNIT);
-	XSTRNCMP(SDLK_KP_LEFTPAREN);
-	XSTRNCMP(SDLK_KP_RIGHTPAREN);
-	XSTRNCMP(SDLK_KP_LEFTBRACE);
-	XSTRNCMP(SDLK_KP_RIGHTBRACE);
-	XSTRNCMP(SDLK_KP_TAB);
-	XSTRNCMP(SDLK_KP_BACKSPACE);
-	XSTRNCMP(SDLK_KP_A);
-	XSTRNCMP(SDLK_KP_B);
-	XSTRNCMP(SDLK_KP_C);
-	XSTRNCMP(SDLK_KP_D);
-	XSTRNCMP(SDLK_KP_E);
-	XSTRNCMP(SDLK_KP_F);
-	XSTRNCMP(SDLK_KP_XOR);
-	XSTRNCMP(SDLK_KP_POWER);
-	XSTRNCMP(SDLK_KP_PERCENT);
-	XSTRNCMP(SDLK_KP_LESS);
-	XSTRNCMP(SDLK_KP_GREATER);
-	XSTRNCMP(SDLK_KP_AMPERSAND);
-	XSTRNCMP(SDLK_KP_DBLAMPERSAND);
-	XSTRNCMP(SDLK_KP_VERTICALBAR);
-	XSTRNCMP(SDLK_KP_DBLVERTICALBAR);
-	XSTRNCMP(SDLK_KP_COLON);
-	XSTRNCMP(SDLK_KP_HASH);
-	XSTRNCMP(SDLK_KP_SPACE);
-	XSTRNCMP(SDLK_KP_AT);
-	XSTRNCMP(SDLK_KP_EXCLAM);
-	XSTRNCMP(SDLK_KP_MEMSTORE);
-	XSTRNCMP(SDLK_KP_MEMRECALL);
-	XSTRNCMP(SDLK_KP_MEMCLEAR);
-	XSTRNCMP(SDLK_KP_MEMADD);
-	XSTRNCMP(SDLK_KP_MEMSUBTRACT);
-	XSTRNCMP(SDLK_KP_MEMMULTIPLY);
-	XSTRNCMP(SDLK_KP_MEMDIVIDE);
-	XSTRNCMP(SDLK_KP_PLUSMINUS);
-	XSTRNCMP(SDLK_KP_CLEAR);
-	XSTRNCMP(SDLK_KP_CLEARENTRY);
-	XSTRNCMP(SDLK_KP_BINARY);
-	XSTRNCMP(SDLK_KP_OCTAL);
-	XSTRNCMP(SDLK_KP_DECIMAL);
-	XSTRNCMP(SDLK_KP_HEXADECIMAL);
-	XSTRNCMP(SDLK_LCTRL);
-	XSTRNCMP(SDLK_LSHIFT);
-	XSTRNCMP(SDLK_LALT);
-	XSTRNCMP(SDLK_LGUI);
-	XSTRNCMP(SDLK_RCTRL);
-	XSTRNCMP(SDLK_RSHIFT);
-	XSTRNCMP(SDLK_RALT);
-	XSTRNCMP(SDLK_RGUI);
-	XSTRNCMP(SDLK_MODE);
-	XSTRNCMP(SDLK_AUDIONEXT);
-	XSTRNCMP(SDLK_AUDIOPREV);
-	XSTRNCMP(SDLK_AUDIOSTOP);
-	XSTRNCMP(SDLK_AUDIOPLAY);
-	XSTRNCMP(SDLK_AUDIOMUTE);
-	XSTRNCMP(SDLK_MEDIASELECT);
-	XSTRNCMP(SDLK_WWW);
-	XSTRNCMP(SDLK_MAIL);
-	XSTRNCMP(SDLK_CALCULATOR);
-	XSTRNCMP(SDLK_COMPUTER);
-	XSTRNCMP(SDLK_AC_SEARCH);
-	XSTRNCMP(SDLK_AC_HOME);
-	XSTRNCMP(SDLK_AC_BACK);
-	XSTRNCMP(SDLK_AC_FORWARD);
-	XSTRNCMP(SDLK_AC_STOP);
-	XSTRNCMP(SDLK_AC_REFRESH);
-	XSTRNCMP(SDLK_AC_BOOKMARKS);
-	XSTRNCMP(SDLK_BRIGHTNESSDOWN);
-	XSTRNCMP(SDLK_BRIGHTNESSUP);
-	XSTRNCMP(SDLK_DISPLAYSWITCH);
-	XSTRNCMP(SDLK_KBDILLUMTOGGLE);
-	XSTRNCMP(SDLK_KBDILLUMDOWN);
-	XSTRNCMP(SDLK_KBDILLUMUP);
-	XSTRNCMP(SDLK_EJECT);
-	XSTRNCMP(SDLK_SLEEP);
-	XSTRNCMP(SDLK_APP1);
-	XSTRNCMP(SDLK_APP2);
-	XSTRNCMP(SDLK_AUDIOREWIND);
-	XSTRNCMP(SDLK_AUDIOFASTFORWARD);
+#define XX(code)                                                   \
+	if(strlen(#code) == size && strncmp(string, #code, size) == 0) \
+	{                                                              \
+		return code;                                               \
+	}
+	MY_KEYCODE_MAP(XX)
 	return -1;
-#undef XSTRNCMP
+#undef XX
 }
 
 // I know I don't need to copy-paste this if I used the X macro
@@ -574,253 +563,12 @@ SDL_Keycode find_sdl_keycode(const char* string, size_t size)
 // NOLINTNEXTLINE
 const char* get_sdl_key_name(SDL_Keycode key)
 {
-#define XSTRNCMP(code)    \
-	do                    \
-	{                     \
-		if((code) == key) \
-		{                 \
-			return #code; \
-		}                 \
-	} while(0)
-	XSTRNCMP(SDLK_RETURN);
-	XSTRNCMP(SDLK_ESCAPE);
-	XSTRNCMP(SDLK_BACKSPACE);
-	XSTRNCMP(SDLK_TAB);
-	XSTRNCMP(SDLK_SPACE);
-	XSTRNCMP(SDLK_EXCLAIM);
-	XSTRNCMP(SDLK_QUOTEDBL);
-	XSTRNCMP(SDLK_HASH);
-	XSTRNCMP(SDLK_PERCENT);
-	XSTRNCMP(SDLK_DOLLAR);
-	XSTRNCMP(SDLK_AMPERSAND);
-	XSTRNCMP(SDLK_QUOTE);
-	XSTRNCMP(SDLK_LEFTPAREN);
-	XSTRNCMP(SDLK_RIGHTPAREN);
-	XSTRNCMP(SDLK_ASTERISK);
-	XSTRNCMP(SDLK_PLUS);
-	XSTRNCMP(SDLK_COMMA);
-	XSTRNCMP(SDLK_MINUS);
-	XSTRNCMP(SDLK_PERIOD);
-	XSTRNCMP(SDLK_SLASH);
-	XSTRNCMP(SDLK_0);
-	XSTRNCMP(SDLK_1);
-	XSTRNCMP(SDLK_2);
-	XSTRNCMP(SDLK_3);
-	XSTRNCMP(SDLK_4);
-	XSTRNCMP(SDLK_5);
-	XSTRNCMP(SDLK_6);
-	XSTRNCMP(SDLK_7);
-	XSTRNCMP(SDLK_8);
-	XSTRNCMP(SDLK_9);
-	XSTRNCMP(SDLK_COLON);
-	XSTRNCMP(SDLK_SEMICOLON);
-	XSTRNCMP(SDLK_LESS);
-	XSTRNCMP(SDLK_EQUALS);
-	XSTRNCMP(SDLK_GREATER);
-	XSTRNCMP(SDLK_QUESTION);
-	XSTRNCMP(SDLK_AT);
-	XSTRNCMP(SDLK_LEFTBRACKET);
-	XSTRNCMP(SDLK_BACKSLASH);
-	XSTRNCMP(SDLK_RIGHTBRACKET);
-	XSTRNCMP(SDLK_CARET);
-	XSTRNCMP(SDLK_UNDERSCORE);
-	XSTRNCMP(SDLK_BACKQUOTE);
-	XSTRNCMP(SDLK_a);
-	XSTRNCMP(SDLK_b);
-	XSTRNCMP(SDLK_c);
-	XSTRNCMP(SDLK_d);
-	XSTRNCMP(SDLK_e);
-	XSTRNCMP(SDLK_f);
-	XSTRNCMP(SDLK_g);
-	XSTRNCMP(SDLK_h);
-	XSTRNCMP(SDLK_i);
-	XSTRNCMP(SDLK_j);
-	XSTRNCMP(SDLK_k);
-	XSTRNCMP(SDLK_l);
-	XSTRNCMP(SDLK_m);
-	XSTRNCMP(SDLK_n);
-	XSTRNCMP(SDLK_o);
-	XSTRNCMP(SDLK_p);
-	XSTRNCMP(SDLK_q);
-	XSTRNCMP(SDLK_r);
-	XSTRNCMP(SDLK_s);
-	XSTRNCMP(SDLK_t);
-	XSTRNCMP(SDLK_u);
-	XSTRNCMP(SDLK_v);
-	XSTRNCMP(SDLK_w);
-	XSTRNCMP(SDLK_x);
-	XSTRNCMP(SDLK_y);
-	XSTRNCMP(SDLK_z);
-	XSTRNCMP(SDLK_CAPSLOCK);
-	XSTRNCMP(SDLK_F1);
-	XSTRNCMP(SDLK_F2);
-	XSTRNCMP(SDLK_F3);
-	XSTRNCMP(SDLK_F4);
-	XSTRNCMP(SDLK_F5);
-	XSTRNCMP(SDLK_F6);
-	XSTRNCMP(SDLK_F7);
-	XSTRNCMP(SDLK_F8);
-	XSTRNCMP(SDLK_F9);
-	XSTRNCMP(SDLK_F10);
-	XSTRNCMP(SDLK_F11);
-	XSTRNCMP(SDLK_F12);
-	XSTRNCMP(SDLK_PRINTSCREEN);
-	XSTRNCMP(SDLK_SCROLLLOCK);
-	XSTRNCMP(SDLK_PAUSE);
-	XSTRNCMP(SDLK_INSERT);
-	XSTRNCMP(SDLK_HOME);
-	XSTRNCMP(SDLK_PAGEUP);
-	XSTRNCMP(SDLK_DELETE);
-	XSTRNCMP(SDLK_END);
-	XSTRNCMP(SDLK_PAGEDOWN);
-	XSTRNCMP(SDLK_RIGHT);
-	XSTRNCMP(SDLK_LEFT);
-	XSTRNCMP(SDLK_DOWN);
-	XSTRNCMP(SDLK_UP);
-	XSTRNCMP(SDLK_NUMLOCKCLEAR);
-	XSTRNCMP(SDLK_KP_DIVIDE);
-	XSTRNCMP(SDLK_KP_MULTIPLY);
-	XSTRNCMP(SDLK_KP_MINUS);
-	XSTRNCMP(SDLK_KP_PLUS);
-	XSTRNCMP(SDLK_KP_ENTER);
-	XSTRNCMP(SDLK_KP_1);
-	XSTRNCMP(SDLK_KP_2);
-	XSTRNCMP(SDLK_KP_3);
-	XSTRNCMP(SDLK_KP_4);
-	XSTRNCMP(SDLK_KP_5);
-	XSTRNCMP(SDLK_KP_6);
-	XSTRNCMP(SDLK_KP_7);
-	XSTRNCMP(SDLK_KP_8);
-	XSTRNCMP(SDLK_KP_9);
-	XSTRNCMP(SDLK_KP_0);
-	XSTRNCMP(SDLK_KP_PERIOD);
-	XSTRNCMP(SDLK_APPLICATION);
-	XSTRNCMP(SDLK_POWER);
-	XSTRNCMP(SDLK_KP_EQUALS);
-	XSTRNCMP(SDLK_F13);
-	XSTRNCMP(SDLK_F14);
-	XSTRNCMP(SDLK_F15);
-	XSTRNCMP(SDLK_F16);
-	XSTRNCMP(SDLK_F17);
-	XSTRNCMP(SDLK_F18);
-	XSTRNCMP(SDLK_F19);
-	XSTRNCMP(SDLK_F20);
-	XSTRNCMP(SDLK_F21);
-	XSTRNCMP(SDLK_F22);
-	XSTRNCMP(SDLK_F23);
-	XSTRNCMP(SDLK_F24);
-	XSTRNCMP(SDLK_EXECUTE);
-	XSTRNCMP(SDLK_HELP);
-	XSTRNCMP(SDLK_MENU);
-	XSTRNCMP(SDLK_SELECT);
-	XSTRNCMP(SDLK_STOP);
-	XSTRNCMP(SDLK_AGAIN);
-	XSTRNCMP(SDLK_UNDO);
-	XSTRNCMP(SDLK_CUT);
-	XSTRNCMP(SDLK_COPY);
-	XSTRNCMP(SDLK_PASTE);
-	XSTRNCMP(SDLK_FIND);
-	XSTRNCMP(SDLK_MUTE);
-	XSTRNCMP(SDLK_VOLUMEUP);
-	XSTRNCMP(SDLK_VOLUMEDOWN);
-	XSTRNCMP(SDLK_KP_COMMA);
-	XSTRNCMP(SDLK_KP_EQUALSAS400);
-	XSTRNCMP(SDLK_ALTERASE);
-	XSTRNCMP(SDLK_SYSREQ);
-	XSTRNCMP(SDLK_CANCEL);
-	XSTRNCMP(SDLK_CLEAR);
-	XSTRNCMP(SDLK_PRIOR);
-	XSTRNCMP(SDLK_RETURN2);
-	XSTRNCMP(SDLK_SEPARATOR);
-	XSTRNCMP(SDLK_OUT);
-	XSTRNCMP(SDLK_OPER);
-	XSTRNCMP(SDLK_CLEARAGAIN);
-	XSTRNCMP(SDLK_CRSEL);
-	XSTRNCMP(SDLK_EXSEL);
-	XSTRNCMP(SDLK_KP_00);
-	XSTRNCMP(SDLK_KP_000);
-	XSTRNCMP(SDLK_THOUSANDSSEPARATOR);
-	XSTRNCMP(SDLK_DECIMALSEPARATOR);
-	XSTRNCMP(SDLK_CURRENCYUNIT);
-	XSTRNCMP(SDLK_CURRENCYSUBUNIT);
-	XSTRNCMP(SDLK_KP_LEFTPAREN);
-	XSTRNCMP(SDLK_KP_RIGHTPAREN);
-	XSTRNCMP(SDLK_KP_LEFTBRACE);
-	XSTRNCMP(SDLK_KP_RIGHTBRACE);
-	XSTRNCMP(SDLK_KP_TAB);
-	XSTRNCMP(SDLK_KP_BACKSPACE);
-	XSTRNCMP(SDLK_KP_A);
-	XSTRNCMP(SDLK_KP_B);
-	XSTRNCMP(SDLK_KP_C);
-	XSTRNCMP(SDLK_KP_D);
-	XSTRNCMP(SDLK_KP_E);
-	XSTRNCMP(SDLK_KP_F);
-	XSTRNCMP(SDLK_KP_XOR);
-	XSTRNCMP(SDLK_KP_POWER);
-	XSTRNCMP(SDLK_KP_PERCENT);
-	XSTRNCMP(SDLK_KP_LESS);
-	XSTRNCMP(SDLK_KP_GREATER);
-	XSTRNCMP(SDLK_KP_AMPERSAND);
-	XSTRNCMP(SDLK_KP_DBLAMPERSAND);
-	XSTRNCMP(SDLK_KP_VERTICALBAR);
-	XSTRNCMP(SDLK_KP_DBLVERTICALBAR);
-	XSTRNCMP(SDLK_KP_COLON);
-	XSTRNCMP(SDLK_KP_HASH);
-	XSTRNCMP(SDLK_KP_SPACE);
-	XSTRNCMP(SDLK_KP_AT);
-	XSTRNCMP(SDLK_KP_EXCLAM);
-	XSTRNCMP(SDLK_KP_MEMSTORE);
-	XSTRNCMP(SDLK_KP_MEMRECALL);
-	XSTRNCMP(SDLK_KP_MEMCLEAR);
-	XSTRNCMP(SDLK_KP_MEMADD);
-	XSTRNCMP(SDLK_KP_MEMSUBTRACT);
-	XSTRNCMP(SDLK_KP_MEMMULTIPLY);
-	XSTRNCMP(SDLK_KP_MEMDIVIDE);
-	XSTRNCMP(SDLK_KP_PLUSMINUS);
-	XSTRNCMP(SDLK_KP_CLEAR);
-	XSTRNCMP(SDLK_KP_CLEARENTRY);
-	XSTRNCMP(SDLK_KP_BINARY);
-	XSTRNCMP(SDLK_KP_OCTAL);
-	XSTRNCMP(SDLK_KP_DECIMAL);
-	XSTRNCMP(SDLK_KP_HEXADECIMAL);
-	XSTRNCMP(SDLK_LCTRL);
-	XSTRNCMP(SDLK_LSHIFT);
-	XSTRNCMP(SDLK_LALT);
-	XSTRNCMP(SDLK_LGUI);
-	XSTRNCMP(SDLK_RCTRL);
-	XSTRNCMP(SDLK_RSHIFT);
-	XSTRNCMP(SDLK_RALT);
-	XSTRNCMP(SDLK_RGUI);
-	XSTRNCMP(SDLK_MODE);
-	XSTRNCMP(SDLK_AUDIONEXT);
-	XSTRNCMP(SDLK_AUDIOPREV);
-	XSTRNCMP(SDLK_AUDIOSTOP);
-	XSTRNCMP(SDLK_AUDIOPLAY);
-	XSTRNCMP(SDLK_AUDIOMUTE);
-	XSTRNCMP(SDLK_MEDIASELECT);
-	XSTRNCMP(SDLK_WWW);
-	XSTRNCMP(SDLK_MAIL);
-	XSTRNCMP(SDLK_CALCULATOR);
-	XSTRNCMP(SDLK_COMPUTER);
-	XSTRNCMP(SDLK_AC_SEARCH);
-	XSTRNCMP(SDLK_AC_HOME);
-	XSTRNCMP(SDLK_AC_BACK);
-	XSTRNCMP(SDLK_AC_FORWARD);
-	XSTRNCMP(SDLK_AC_STOP);
-	XSTRNCMP(SDLK_AC_REFRESH);
-	XSTRNCMP(SDLK_AC_BOOKMARKS);
-	XSTRNCMP(SDLK_BRIGHTNESSDOWN);
-	XSTRNCMP(SDLK_BRIGHTNESSUP);
-	XSTRNCMP(SDLK_DISPLAYSWITCH);
-	XSTRNCMP(SDLK_KBDILLUMTOGGLE);
-	XSTRNCMP(SDLK_KBDILLUMDOWN);
-	XSTRNCMP(SDLK_KBDILLUMUP);
-	XSTRNCMP(SDLK_EJECT);
-	XSTRNCMP(SDLK_SLEEP);
-	XSTRNCMP(SDLK_APP1);
-	XSTRNCMP(SDLK_APP2);
-	XSTRNCMP(SDLK_AUDIOREWIND);
-	XSTRNCMP(SDLK_AUDIOFASTFORWARD);
-#undef XSTRNCMP
+#define XX(code) \
+	case(code): return #code;
+	switch(key)
+	{
+		MY_KEYCODE_MAP(XX)
+	}
+#undef XX
 	return "UNKNOWN_KEY_CODE????";
 }
