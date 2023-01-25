@@ -124,26 +124,17 @@ static void ErrorCallback(
 	(void)source;
 	(void)id;
 
-	if(type != GL_DEBUG_TYPE_ERROR_KHR && type != GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_KHR)
-	{
-		slogf(
-			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
-			GetGLDebugTypeKHR(type),
-			type,
-			GetGLDebugSeverityKHR(severity),
-			severity,
-			message);
-	}
-	else
-	{
-		serrf(
-			"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
-			GetGLDebugTypeKHR(type),
-			type,
-			GetGLDebugSeverityKHR(severity),
-			severity,
-			message);
+	bool use_serr = (type == GL_DEBUG_TYPE_ERROR_KHR || type == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_KHR);
 
+	(use_serr ? serrf : slogf)(
+		"\nGL CALLBACK: type = %s (0x%x), severity = %s (0x%x), message = %s\n",
+		GetGLDebugTypeKHR(type),
+		type,
+		GetGLDebugSeverityKHR(severity),
+		severity,
+		message);
+	if(use_serr)
+	{
 		static bool only_once = false;
 		if(!only_once || cv_debug_opengl.data == 2.0)
 		{

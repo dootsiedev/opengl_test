@@ -252,6 +252,13 @@ bool option_error_prompt::draw_requested()
 
 	return ok_button.draw_requested() || prompt.draw_requested();
 }
+bool option_error_prompt::close()
+{
+	gl_batch_buffer_offset = 0;
+	gl_batch_vertex_count = 0;
+	gl_batch_vertex_scroll_count = 0;
+	return true;
+}
 
 // this is mainly for on or off buttons, but you can have more than 2 states to cycle.
 struct cvar_button_multi_option : public abstract_option_element

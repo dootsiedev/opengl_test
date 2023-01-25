@@ -154,7 +154,7 @@ bool font_manager_state::create()
 		return false;
 	}
 
-	int gl_max_texture_size;
+	int gl_max_texture_size = 0;
 	ctx.glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_max_texture_size);
 
 	atlas.atlas_size = std::min(cv_font_atlas_size.data, gl_max_texture_size);
@@ -1029,12 +1029,6 @@ FONT_BASIC_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance,
 	ASSERT(advance != NULL);
 
 	if(!hex_font_file)
-	{
-		// TODO: make this an error
-		return FONT_BASIC_RESULT::NOT_FOUND;
-	}
-
-	if(hex_block_chunks.empty())
 	{
 		return FONT_BASIC_RESULT::NOT_FOUND;
 	}
@@ -1985,10 +1979,10 @@ bool font_sprite_painter::measure_text_bounds(
 					float padding = 1.f * (16.f / state.font->get_point_size());
 					float width = (state.font->get_point_size() / 2.f);
 					current_line_width += std::ceil(width + padding * 2.f) * get_scale();
-					continue;
+					break;
 				}
 			case FONT_BASIC_RESULT::ERROR: return false;
-			case FONT_BASIC_RESULT::SUCCESS: current_line_width += advance; continue;
+			case FONT_BASIC_RESULT::SUCCESS: current_line_width += advance; break;
 			}
 		}
 	}

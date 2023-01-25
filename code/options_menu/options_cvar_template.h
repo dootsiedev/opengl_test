@@ -115,12 +115,7 @@ struct option_error_prompt : public abstract_focus_element
 	NDSERR bool draw_buffer() override;
 	NDSERR bool render() override;
 	bool draw_requested() override;
-	NDSERR bool close() override
-	{
-		gl_batch_buffer_offset = 0;
-		gl_batch_vertex_count = 0;
-		return true;
-	}
+	NDSERR bool close() override;
 };
 
 // forward declaration
