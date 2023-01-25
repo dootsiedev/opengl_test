@@ -236,30 +236,37 @@ NDSERR static GLuint gl_compile_shader(
 	ASSERT(shader_script != NULL);
 	ASSERT(type == GL_VERTEX_SHADER || type == GL_FRAGMENT_SHADER);
 
+	const char* file_type = "???";
+	switch(type)
+	{
+	case GL_VERTEX_SHADER: file_type = "vert"; break;
+	case GL_FRAGMENT_SHADER: file_type = "frag"; break;
+	}
+
 	GLuint shader_id;
 	shader_id = ctx.glCreateShader(type);
 	if(shader_id == 0)
 	{
-		serrf("<%s> error: glCreateShader returned 0\n", file_info);
+		serrf("<%s:%s> error: glCreateShader returned 0\n", file_type, file_info);
 		return 0;
 	}
 
 	ctx.glShaderSource(shader_id, shader_count, shader_script, NULL);
 	ctx.glCompileShader(shader_id);
 
-	GLint compile_status;
+	GLint compile_status = 0;
 	ctx.glGetShaderiv(shader_id, GL_COMPILE_STATUS, &compile_status);
 
-	GLint log_length;
-	GLint infoLogLength;
-
+	GLint log_length = 0;
 	ctx.glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &log_length);
-	if(log_length > 1)
+
+	if(log_length > 0)
 	{
 		std::unique_ptr<char[]> message(new char[log_length]);
-		ctx.glGetShaderInfoLog(shader_id, log_length, &infoLogLength, message.get());
-		serrf(
-			"<%s> %s: %s\n",
+		ctx.glGetShaderInfoLog(shader_id, log_length, NULL, message.get());
+		((compile_status != GL_TRUE) ? serrf : slogf)(
+			"<%s:%s> %s: %s\n",
+			file_type,
 			file_info,
 			(compile_status != GL_TRUE ? "error" : "warn"),
 			message.get());
@@ -321,18 +328,17 @@ GLuint gl_create_program2(
 
 		ctx.glLinkProgram(program_id);
 
-		GLint link_status;
+		GLint link_status = 0;
 		ctx.glGetProgramiv(program_id, GL_LINK_STATUS, &link_status);
 
-		GLint log_length;
-		GLint infoLogLength;
-
+		GLint log_length = 0;
 		ctx.glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &log_length);
-		if(log_length > 1)
+
+		if(log_length > 0)
 		{
 			std::unique_ptr<char[]> message(new char[log_length]);
-			ctx.glGetProgramInfoLog(program_id, log_length, &infoLogLength, message.get());
-			serrf(
+			ctx.glGetProgramInfoLog(program_id, log_length, NULL, message.get());
+			((link_status != GL_TRUE) ? serrf : slogf)(
 				"<vert:%s><frag:%s> %s: %s\n",
 				vert_info,
 				frag_info,
