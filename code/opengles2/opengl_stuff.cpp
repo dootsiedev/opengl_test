@@ -325,7 +325,8 @@ GLuint gl_create_program2(
 		GLint log_length = 0;
 		ctx.glGetProgramiv(program_id, GL_INFO_LOG_LENGTH, &log_length);
 
-		if(log_length > 0)
+        // on desktop opengl, 0 == no message, but on emscripten webgl2, it returns 1
+		if(log_length > 1)
 		{
 			std::unique_ptr<char[]> message(new char[log_length]);
 			ctx.glGetProgramInfoLog(program_id, log_length, NULL, message.get());

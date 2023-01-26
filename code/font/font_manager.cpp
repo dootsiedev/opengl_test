@@ -154,6 +154,22 @@ bool font_manager_state::create()
 		return false;
 	}
 
+	FT_Int major_ver = 0;
+	FT_Int minor_ver = 0;
+	FT_Int patch_ver = 0;
+	FT_Library_Version(FTLibrary, &major_ver, &minor_ver, &patch_ver);
+	if(FREETYPE_MAJOR != major_ver || FREETYPE_MINOR != minor_ver || FREETYPE_PATCH != patch_ver)
+	{
+		slogf(
+			"mismatching freetype version, got: %d.%d.%d expected: %d.%d.%d\n",
+			major_ver,
+			minor_ver,
+			patch_ver,
+			FREETYPE_MAJOR,
+			FREETYPE_MINOR,
+			FREETYPE_PATCH);
+	}
+
 	int gl_max_texture_size = 0;
 	ctx.glGetIntegerv(GL_MAX_TEXTURE_SIZE, &gl_max_texture_size);
 

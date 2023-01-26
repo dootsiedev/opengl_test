@@ -256,6 +256,21 @@ static int on_fullscreen_button_click(
 
 bool app_init(App_Info& app)
 {
+	SDL_version ver;
+	SDL_GetVersion(&ver);
+	if(SDL_MAJOR_VERSION != ver.major || SDL_MINOR_VERSION != ver.minor ||
+	   SDL_PATCHLEVEL != ver.patch)
+	{
+		slogf(
+			"mismatching sdl version, got: %u.%u.%u expected: %d.%d.%d\n",
+			ver.major,
+			ver.minor,
+			ver.patch,
+			SDL_MAJOR_VERSION,
+			SDL_MINOR_VERSION,
+			SDL_PATCHLEVEL);
+	}
+
 	if(SDL_Init(SDL_INIT_VIDEO) != 0)
 	{
 		serrf("SDL_Init Error: %s", SDL_GetError());

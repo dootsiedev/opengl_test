@@ -140,6 +140,7 @@ bool cvar_key_bind::bind_sdl_event(keybind_state& value, SDL_Event& e)
 			value.mod = SDL_GetModState() & MY_ALLOWED_KMODS;
 			return true;
 		}
+        break;
 	}
 	return false;
 }

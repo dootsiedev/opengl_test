@@ -380,12 +380,7 @@ __attribute__((noinline)) bool debug_str_stacktrace(std::string* out, int skip)
 
 #else
 
-int raw_string_callback(debug_stacktrace_info*, const char*, void*)
-{
-	return 0;
-}
-
-bool debug_raw_stacktrace(debug_stacktrace_callback, void*, int)
+__attribute__((noinline)) bool debug_str_stacktrace(std::string*, int)
 {
 #if defined(_WIN32)
 	if(cv_bt_trap.data == 1 || (cv_bt_trap.data == 2 && IsDebuggerPresent()))
@@ -400,7 +395,6 @@ bool debug_raw_stacktrace(debug_stacktrace_callback, void*, int)
 #endif
 	return false;
 }
-
 #endif
 
 #endif // __EMSCRIPTEN__
