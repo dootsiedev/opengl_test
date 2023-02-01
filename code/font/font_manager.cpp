@@ -844,12 +844,12 @@ hex_font_data::get_glyph(
 	// there might be more space characters, but only these really matter.
 	if(codepoint == ' ')
 	{
-		glyph->advance = HEX_HALF_WIDTH * font_scale;
+		glyph->advance = static_cast<int>(HEX_HALF_WIDTH) * font_scale;
 		return FONT_RESULT::SPACE;
 	}
 	if(codepoint == 0x3000)
 	{
-		glyph->advance = HEX_FULL_WIDTH * font_scale;
+		glyph->advance = static_cast<int>(HEX_FULL_WIDTH) * font_scale;
 		return FONT_RESULT::SPACE;
 	}
 
@@ -1090,11 +1090,11 @@ FONT_BASIC_RESULT hex_font_data::get_advance(char32_t codepoint, float* advance,
 
 	if(current.hex_full)
 	{
-		*advance = HEX_FULL_WIDTH * font_scale;
+		*advance = static_cast<int>(HEX_FULL_WIDTH) * font_scale;
 	}
 	else
 	{
-		*advance = HEX_HALF_WIDTH * font_scale;
+		*advance = static_cast<int>(HEX_HALF_WIDTH) * font_scale;
 	}
 	return FONT_BASIC_RESULT::SUCCESS;
 }

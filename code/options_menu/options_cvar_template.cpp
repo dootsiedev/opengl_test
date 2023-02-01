@@ -1475,19 +1475,6 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 {
 	ASSERT(state != NULL);
 
-	switch(e.type)
-	{
-	case SDL_WINDOWEVENT:
-		switch(e.window.event)
-		{
-		case SDL_WINDOWEVENT_HIDDEN:
-		case SDL_WINDOWEVENT_FOCUS_LOST:
-			// some event was eaten (like opening up the console),
-			// or click'd out, so lets just cancel the keybind.
-			return FOCUS_ELEMENT_RESULT::CLOSE;
-		}
-	}
-
 	switch(unbind_button.input(e))
 	{
 	case BUTTON_RESULT::CONTINUE: break;
@@ -1584,6 +1571,19 @@ FOCUS_ELEMENT_RESULT option_keybind_request::input(SDL_Event& e)
 			}
 		}
 		break;
+	}
+
+    switch(e.type)
+	{
+	case SDL_WINDOWEVENT:
+		switch(e.window.event)
+		{
+		case SDL_WINDOWEVENT_HIDDEN:
+		case SDL_WINDOWEVENT_FOCUS_LOST:
+			// some event was eaten (like opening up the console),
+			// or click'd out, so lets just cancel the keybind.
+			return FOCUS_ELEMENT_RESULT::CLOSE;
+		}
 	}
 
 	return FOCUS_ELEMENT_RESULT::CONTINUE;

@@ -164,9 +164,11 @@ else()
     #flags that I found from -Wconversion but -Wconversion is too overzealous
     #and ruins undefined behavior sanitizer analysis because static_cast's will skip checks.
     ADD_CHECK_CXX_COMPILER_FLAG(MY_COMPILER_FLAGS CXX_WARN_IMPLICIT_FLOAT_CONVERSION -Wimplicit-float-conversion)
-    ADD_CHECK_CXX_COMPILER_FLAG(MY_COMPILER_FLAGS CXX_WARN_IMPLICIT_INT_FLOAT_CONVERSION -Wimplicit-int-float-conversion)
+    # because undefined behavior sanitizer can detect NAN float casted to int as an error,
+    # I need a way to supress the warning, and because I think it's easier to remove clang-tidy warnings,
+    # so I remove -Wimplicit-float-conversion (which is enabled by clang)
+    ADD_CHECK_CXX_COMPILER_FLAG(MY_COMPILER_FLAGS CXX_NO_WARN_IMPLICIT_INT_FLOAT_CONVERSION -Wno-implicit-int-float-conversion)
 
-    
 
     ADD_CHECK_CXX_COMPILER_FLAG(MY_COMPILER_FLAGS CXX_WARN_SHADOW_ALL -Wshadow-all)
 

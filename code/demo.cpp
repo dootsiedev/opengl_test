@@ -1326,7 +1326,7 @@ bool demo_state::render()
 	ctx.glUseProgram(mono_shader.gl_program_id);
 
 	if(update_screen_resize)
-	{
+	{ 
 		update_screen_resize = false;
 		glm::mat4 mvp = glm::ortho<float>(
 			0,

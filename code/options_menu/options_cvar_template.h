@@ -210,9 +210,18 @@ struct shared_cvar_option_state
 
 	NDSERR bool set_focus(abstract_focus_element* element)
 	{
-		if(focus_element != NULL && !focus_element->close())
+		if(focus_element != NULL)
 		{
-			return false;
+			SDL_Event fake_event;
+			set_event_hidden(fake_event);
+			if(focus_element->input(fake_event) == FOCUS_ELEMENT_RESULT::ERROR)
+			{
+				return false;
+			}
+			if(!focus_element->close())
+			{
+				return false;
+			}
 		}
 		focus_element = element;
 		return true;
