@@ -1134,10 +1134,10 @@ bool text_prompt_wrapper::internal_draw_marked(float x, float y)
 
 	// the location for the IME text
 	SDL_Rect r;
-	r.x = static_cast<int>(pos_x);
-	r.w = static_cast<int>(pos_w - pos_x);
-	r.y = static_cast<int>(pos_y);
-	r.h = static_cast<int>(pos_h - pos_y);
+	r.x = pos_x; // NOLINT(bugprone-narrowing-conversions)
+	r.w = pos_w - pos_x; // NOLINT(bugprone-narrowing-conversions)
+	r.y = pos_y; // NOLINT(bugprone-narrowing-conversions)
+	r.h = pos_h - pos_y; // NOLINT(bugprone-narrowing-conversions)
 	SDL_SetTextInputRect(&r);
 	return true;
 }

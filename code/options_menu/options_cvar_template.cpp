@@ -229,10 +229,12 @@ bool option_error_prompt::render()
 		vertex_count -= vertex_offset;
 
 		// the scroll box
-		GLint scissor_x = static_cast<GLint>(prompt.box_xmin);
-		GLint scissor_y = static_cast<GLint>(prompt.box_ymin);
-		GLint scissor_w = static_cast<GLint>(prompt.box_xmax - prompt.box_xmin);
-		GLint scissor_h = static_cast<GLint>(prompt.box_ymax - prompt.box_ymin);
+		GLint scissor_x = prompt.box_xmin; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_y = prompt.box_ymin; // NOLINT(bugprone-narrowing-conversions)
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		GLint scissor_w = prompt.box_xmax - prompt.box_xmin;
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		GLint scissor_h = prompt.box_ymax - prompt.box_ymin;
 		if(scissor_w > 0 && scissor_h > 0)
 		{
 			ctx.glEnable(GL_SCISSOR_TEST);

@@ -447,8 +447,8 @@ bool font_ttf_rasterizer::set_face_settings(const font_ttf_face_settings* settin
 		// freetype2
 		// note that height isn't an accurate representation of point size, but close enough.
 		int best_match = 0;
-		int diff =
-			std::abs(static_cast<int>(settings->point_size) - face->available_sizes[0].height);
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		int diff = std::abs(settings->point_size - face->available_sizes[0].height);
 		for(int i = 0; i < face->num_fixed_sizes; ++i)
 		{
 			int ndiff =
@@ -763,7 +763,7 @@ bool hex_font_data::init(Unique_RWops file, font_atlas* atlas_)
 		{
 			if((codepoint / HEX_CHUNK_GLYPHS) >= hex_block_chunks.size())
 			{
-				//slogf("block: %zu, offset %ld\n", hex_block_chunks.size(), stream_cursor);
+				// slogf("block: %zu, offset %ld\n", hex_block_chunks.size(), stream_cursor);
 				hex_block_chunks.resize(codepoint / HEX_CHUNK_GLYPHS + 1);
 				hex_block_chunks.back().offset = stream_cursor;
 			}
@@ -1961,16 +1961,16 @@ bool font_sprite_painter::measure_text_bounds(
 		if(err_code != utf8::internal::UTF8_OK)
 		{
 			// this will render some invalid glyph,
-            // unifont makes it very descriptive.
+			// unifont makes it very descriptive.
 			codepoint = static_cast<unsigned char>(*str_cur++);
 		}
-        #if 0
+#if 0
 		if(err_code != utf8::internal::UTF8_OK)
 		{
 			serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
 			return false;
 		}
-         #endif
+#endif
 
 		if((current_flags & TEXT_FLAGS::NEWLINE) != 0 && codepoint == '\n')
 		{
@@ -2032,16 +2032,16 @@ bool font_sprite_painter::draw_text(const char* text, size_t size)
 		if(err_code != utf8::internal::UTF8_OK)
 		{
 			// this will render some invalid glyph,
-            // unifont makes it very descriptive.
+			// unifont makes it very descriptive.
 			codepoint = static_cast<unsigned char>(*str_cur++);
 		}
-        #if 0
+#if 0
 		if(err_code != utf8::internal::UTF8_OK)
 		{
 			serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
 			return false;
 		}
-         #endif
+#endif
 
 		if((current_flags & TEXT_FLAGS::NEWLINE) != 0 && codepoint == '\n')
 		{

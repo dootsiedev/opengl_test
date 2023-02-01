@@ -81,7 +81,8 @@ bool options_tree_state::init(
 		back.add_option(create_bool_option(&shared_menu_state, "font mono*", &cv_string_mono));
 		back.add_option(create_bool_option(
 			&shared_menu_state, "font bitmap outline*", &cv_string_force_bitmap));
-		back.add_option(create_prompt_option(&shared_menu_state, "font alpha test (0~1)*", &cv_string_alpha_test));
+		back.add_option(create_prompt_option(
+			&shared_menu_state, "font alpha test (0~1)*", &cv_string_alpha_test));
 
 		back.menu_state.show_footer_text = true;
 		back.menu_state.footer_text = "(*) restart required";

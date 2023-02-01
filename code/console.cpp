@@ -682,10 +682,11 @@ bool console_state::render()
 		float w;
 		float h;
 		log_box.get_bbox(&x, &y, &w, &h);
-		GLint scissor_x = static_cast<GLint>(x);
-		GLint scissor_y = static_cast<GLint>(y);
-		GLint scissor_w = static_cast<GLint>(w);
-		GLint scissor_h = static_cast<GLint>(h);
+
+		GLint scissor_x = x; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_y = y; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_w = w; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_h = h; // NOLINT(bugprone-narrowing-conversions)
 		if(scissor_w > 0 && scissor_h > 0)
 		{
 			ctx.glEnable(GL_SCISSOR_TEST);
@@ -706,10 +707,10 @@ bool console_state::render()
 		float w;
 		float h;
 		prompt_cmd.get_bbox(&x, &y, &w, &h);
-		GLint scissor_x = static_cast<GLint>(x);
-		GLint scissor_y = static_cast<GLint>(y);
-		GLint scissor_w = static_cast<GLint>(w);
-		GLint scissor_h = static_cast<GLint>(h);
+		GLint scissor_x = x; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_y = y; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_w = w; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_h = h; // NOLINT(bugprone-narrowing-conversions)
 		if(scissor_w > 0 && scissor_h > 0)
 		{
 			ctx.glEnable(GL_SCISSOR_TEST);
@@ -730,10 +731,10 @@ bool console_state::render()
 		float w;
 		float h;
 		error_text.get_bbox(&x, &y, &w, &h);
-		GLint scissor_x = static_cast<GLint>(x);
-		GLint scissor_y = static_cast<GLint>(y);
-		GLint scissor_w = static_cast<GLint>(w);
-		GLint scissor_h = static_cast<GLint>(h);
+		GLint scissor_x = x; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_y = y; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_w = w; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_h = h; // NOLINT(bugprone-narrowing-conversions)
 		if(scissor_w > 0 && scissor_h > 0)
 		{
 			ctx.glEnable(GL_SCISSOR_TEST);

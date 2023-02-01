@@ -548,10 +548,13 @@ bool options_list_state::render()
 	if(vertex_count != 0)
 	{
 		// the scroll box
-		GLint scissor_x = static_cast<GLint>(scroll_state.box_xmin);
-		GLint scissor_y = static_cast<GLint>(scroll_state.box_ymin);
-		GLint scissor_w = static_cast<GLint>(scroll_state.box_xmax - scroll_state.box_xmin);
-		GLint scissor_h = static_cast<GLint>(scroll_state.box_ymax - scroll_state.box_ymin);
+
+		GLint scissor_x = scroll_state.box_xmin; // NOLINT(bugprone-narrowing-conversions)
+		GLint scissor_y = scroll_state.box_ymin; // NOLINT(bugprone-narrowing-conversions)
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		GLint scissor_w = scroll_state.box_xmax - scroll_state.box_xmin;
+		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+		GLint scissor_h = scroll_state.box_ymax - scroll_state.box_ymin;
 		if(scissor_w > 0 && scissor_h > 0)
 		{
 			ctx.glEnable(GL_SCISSOR_TEST);
