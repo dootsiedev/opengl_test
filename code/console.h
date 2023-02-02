@@ -15,8 +15,8 @@
 // I don't use threads on emscripten.
 #ifndef __EMSCRIPTEN__
 #include <mutex>
+#include <atomic>
 #endif
-
 
 enum class CONSOLE_MESSAGE_TYPE
 {
@@ -26,6 +26,7 @@ enum class CONSOLE_MESSAGE_TYPE
 
 struct log_queue
 {
+#if 0
     struct log_message
 	{
 		// the reason I use a unique_ptr is because
@@ -44,15 +45,32 @@ struct log_queue
 		std::unique_ptr<char[]> message;
 		// probably could add in time if I wanted.
 	};
+    // you are supposed to just access this member .emplace_back to add a log.
+	// I could also try to replace this with a circular buffer (or whatever),
+	// since I want to remove old messages anyways.
+	std::deque<log_message> message_queue;
+#endif
 
 #ifndef __EMSCRIPTEN__
 	// the queue's mutex
 	std::mutex mut;
 #endif
 
-    // you are supposed to just access this member .emplace_back to add a log.
-	// I could also try to replace this with a circular buffer (or whatever),
-	// since I want to remove old messages anyways.
+	// I use the log file as the buffer that holds the unrendered log contents.
+	// Ideally I should use fseeko and _fseeki64 but I just want to get this working.
+	long read_file_pos = 0; // NOLINT(google-runtime-int)
+
+	struct log_message
+	{
+		log_message() = default;
+		log_message(int _count, CONSOLE_MESSAGE_TYPE _type)
+		: count(_count)
+		, type(_type)
+		{
+		}
+		int count; // the number of characters written (the return value of fprintf)
+		CONSOLE_MESSAGE_TYPE type;
+	};
 	std::deque<log_message> message_queue;
 };
 
@@ -62,15 +80,13 @@ enum class CONSOLE_RESULT
 	ERROR
 };
 
-
 struct console_state
 {
-
 	// keep track of how many newlines are drawn
 	// to cut lines from the top when the limit is reached.
 	int log_line_count = 0;
 
-	std::array<text_prompt_wrapper::color_pair, 3> log_color_table = {
+	std::array<text_prompt_wrapper::color_pair, 2> log_color_table = {
 		text_prompt_wrapper::color_pair{{255, 255, 255, 255}, RGBA8_PREMULT(255, 0, 0, 200)}};
 
 	// it's possible to use one VBO at the expense of

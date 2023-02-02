@@ -116,6 +116,46 @@ implement_CHECK(bool cond, const char* expr, const char* file, int line)
 	return true;
 }
 
+FILE* get_global_log_file()
+{
+	static struct log_file_wrapper
+	{
+		FILE* fp;
+		const char* path;
+
+		explicit log_file_wrapper(const char* _path = NULL)
+		: path(_path != NULL ? _path : "log.txt")
+		{
+#ifdef DISABLE_CONSOLE
+			fp = fopen(path, "w");
+#else
+			// I need the w+ because I read in the in game console
+			fp = fopen(path, "w+");
+#endif
+			if(fp == NULL)
+			{
+				printf("Failed to open log: `%s`, reason: %s\n", path, strerror(errno));
+			}
+		}
+
+		~log_file_wrapper()
+		{
+			int prev_error = ferror(fp);
+			int ret = fclose(fp);
+			fp = NULL;
+			if(ret != 0 && prev_error != 0)
+			{
+				printf(
+					"Failed to close log: `%s`, reason: %s (return: %d)\n",
+					path,
+					strerror(errno),
+					ret);
+			}
+		}
+	} log;
+	return log.fp;
+}
+
 // serr buffer lazy initialized.
 std::shared_ptr<std::string> internal_get_serr_buffer()
 {
@@ -157,23 +197,14 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 
 		internal_get_serr_buffer()->append(msg);
 		fwrite(msg.c_str(), 1, msg.size(), stdout);
-// TODO(dootsie): would be better if I could combine this with the serr message
-// because other threads could print something inbetween in stdout/console,
-// but serr_get_error wont be mangled, so it isn't a priority.
-#ifndef DISABLE_CONSOLE
-		// lovely, another allocation. thank god this pales in comparison
-		// to the actual cost of resolving debug information of a stacktrace.
-		std::unique_ptr<char[]> buffer = std::make_unique<char[]>(msg.size() + 1);
-		memcpy(buffer.get(), msg.c_str(), msg.size());
-		buffer[msg.size()] = '\0';
+
 		{
 #ifndef __EMSCRIPTEN__
 			std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-			g_log.message_queue.emplace_back(
-				CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), msg.size());
+			fwrite(msg.c_str(), 1, msg.size(), get_global_log_file());
+			g_log.message_queue.emplace_back(msg.size(), CONSOLE_MESSAGE_TYPE::ERROR);
 		}
-#endif
 	}
 }
 
@@ -207,17 +238,13 @@ void slog_raw(const char* msg, size_t len)
 	// on win32, if did a /subsystem:windows, I would probably
 	// replace stdout with OutputDebugString on the debug build.
 	fwrite(msg, 1, len, stdout);
-#ifndef DISABLE_CONSOLE
-	std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len + 1);
-	memcpy(buffer.get(), msg, len);
-	buffer[len] = '\0';
 	{
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_log.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), len);
+		fwrite(msg, 1, len, get_global_log_file());
+		g_log.message_queue.emplace_back(len, CONSOLE_MESSAGE_TYPE::INFO);
 	}
-#endif
 }
 void serr_raw(const char* msg, size_t len)
 {
@@ -234,17 +261,14 @@ void serr_raw(const char* msg, size_t len)
 
 	internal_get_serr_buffer()->append(msg, msg + len);
 	fwrite(msg, 1, len, stdout);
-#ifndef DISABLE_CONSOLE
-	std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len + 1);
-	memcpy(buffer.get(), msg, len);
-	buffer[len] = '\0';
+
 	{
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_log.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
+		fwrite(msg, 1, len, get_global_log_file());
+		g_log.message_queue.emplace_back(len, CONSOLE_MESSAGE_TYPE::ERROR);
 	}
-#endif
 }
 
 void slog(const char* msg)
@@ -277,17 +301,13 @@ void serr(const char* msg)
 	size_t len = strlen(msg);
 	internal_get_serr_buffer()->append(msg, len);
 	fwrite(msg, 1, len, stdout);
-#ifndef DISABLE_CONSOLE
-	std::unique_ptr<char[]> buffer = std::make_unique<char[]>(len + 1);
-	memcpy(buffer.get(), msg, len);
-	buffer[len] = '\0';
 	{
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_log.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), len);
+		fwrite(msg, 1, len, get_global_log_file());
+		g_log.message_queue.emplace_back(len, CONSOLE_MESSAGE_TYPE::ERROR);
 	}
-#endif
 }
 
 void slogf(const char* fmt, ...)
@@ -297,9 +317,11 @@ void slogf(const char* fmt, ...)
 	{
 		return;
 	}
-#ifdef DISABLE_CONSOLE
 	va_list args;
+	va_list temp_args;
 	va_start(args, fmt);
+	va_copy(temp_args, args);
+
 #ifdef WIN32
 	// win32 has a compatible C standard library, but annex k prevents exploits or something.
 	vfprintf_s(stdout, fmt, args);
@@ -307,20 +329,22 @@ void slogf(const char* fmt, ...)
 	vfprintf(stdout, fmt, args);
 #endif
 	va_end(args);
-#else
-	int length;
-	va_list args;
-	va_start(args, fmt);
-	std::unique_ptr<char[]> buffer = unique_vasprintf(&length, fmt, args);
-	va_end(args);
-	fwrite(buffer.get(), 1, length, stdout);
+	va_start(temp_args, fmt);
+
 	{
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_log.message_queue.emplace_back(CONSOLE_MESSAGE_TYPE::INFO, std::move(buffer), length);
-	}
+		int ret;
+#ifdef WIN32
+		// win32 has a compatible C standard library, but annex k prevents exploits or something.
+		ret = vfprintf_s(get_global_log_file(), fmt, temp_args);
+#else
+		ret = vfprintf(get_global_log_file(), fmt, temp_args);
 #endif
+		g_log.message_queue.emplace_back(ret, CONSOLE_MESSAGE_TYPE::INFO);
+	}
+	va_end(temp_args);
 }
 
 void serrf(const char* fmt, ...)
@@ -336,25 +360,34 @@ void serrf(const char* fmt, ...)
 
 	serr_safe_stacktrace(1);
 
-	int length;
 	va_list args;
-
+	va_list temp_args;
 	va_start(args, fmt);
-	std::unique_ptr<char[]> buffer = unique_vasprintf(&length, fmt, args);
+	va_copy(temp_args, args);
+
+#ifdef WIN32
+	// win32 has a compatible C standard library, but annex k prevents exploits or something.
+	vfprintf_s(stdout, fmt, args);
+#else
+	vfprintf(stdout, fmt, args);
+#endif
 	va_end(args);
+	va_start(temp_args, fmt);
 
-	internal_get_serr_buffer()->append(buffer.get(), buffer.get() + length);
-
-	fwrite(buffer.get(), 1, length, stdout);
-#ifndef DISABLE_CONSOLE
 	{
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		g_log.message_queue.emplace_back(
-			CONSOLE_MESSAGE_TYPE::ERROR, std::move(buffer), length);
-	}
+		int ret;
+#ifdef WIN32
+		// win32 has a compatible C standard library, but annex k prevents exploits or something.
+		ret = vfprintf_s(get_global_log_file(), fmt, temp_args);
+#else
+		ret = vfprintf(get_global_log_file(), fmt, temp_args);
 #endif
+		g_log.message_queue.emplace_back(ret, CONSOLE_MESSAGE_TYPE::ERROR);
+	}
+	va_end(temp_args);
 }
 
 std::unique_ptr<char[]> unique_vasprintf(int* length, const char* fmt, va_list args)

@@ -40,7 +40,7 @@ std::wstring WIN_UTF8ToWide(const char* buffer, int size);
 #endif
 
 // for SDL_TEXTEDITING_EXT which is better than SDL_TEXTEDITING
-// this is also might be used for SDL_IsTextInputShown 
+// this is also might be used for SDL_IsTextInputShown
 #ifndef HAS_IME_TEXTEDIT_EXT
 #if SDL_VERSION_ATLEAST(2, 23, 0)
 #define HAS_IME_TEXTEDIT_EXT
@@ -95,7 +95,8 @@ typedef double TIMER_RESULT;
 
 #include <chrono>
 
-#define TIMER_NULL std::chrono::steady_clock::time_point{}
+#define TIMER_NULL \
+	std::chrono::steady_clock::time_point {}
 
 typedef std::chrono::steady_clock::time_point TIMER_U;
 
@@ -114,7 +115,6 @@ TIMER_RESULT timer_delta(TIMER_U start, TIMER_U end)
 }
 
 #else
-
 
 typedef Uint64 TIMER_U;
 
@@ -135,6 +135,9 @@ inline TIMER_RESULT timer_delta(TIMER_U start, TIMER_U end)
 		   static_cast<TIMER_RESULT>(frequency);
 }
 #endif
+
+// this is used by the in game console to read the messages sent to slog.
+FILE* get_global_log_file();
 
 // the main purpose of this logging system is
 // to redirect the logs into both stdout and a log file,

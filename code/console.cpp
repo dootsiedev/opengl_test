@@ -473,28 +473,85 @@ bool console_state::parse_input()
 
 bool console_state::update(double delta_sec)
 {
+	// TODO(dootsie): these could be cvars.
 	log_queue::log_message message_buffer[100];
+	char text_buffer[10000];
 	size_t message_count = 0;
+	size_t bytes_to_read = 0;
 	int queue_size = 0;
+	// TIMER_U tick1;
+	// TIMER_U tick2;
 	{
+		// tick1 = timer_now();
 #ifndef __EMSCRIPTEN__
+		// YOU CANNOT PRINT TO SLOG OR SERR IN THIS LOCK!!!
 		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
 		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 		queue_size = g_log.message_queue.size();
+
+		if(queue_size != 0)
+		{
+			int ret = fseek(get_global_log_file(), g_log.read_file_pos, SEEK_SET);
+			(void)ret;
+			ASSERT(ret == 0);
+		}
+		// since culling is based on newlines, I can assume every message has one line.
 		if(queue_size > cv_console_log_max_row_count.data)
 		{
-			// since culling is based on newlines, I can assume every message has one line.
-			g_log.message_queue.erase(
-				g_log.message_queue.begin(),
-				g_log.message_queue.begin() + (queue_size - cv_console_log_max_row_count.data));
+			long seek_offset = 0; // NOLINT(google-runtime-int)
+			auto erase_begin = g_log.message_queue.begin();
+			auto erase_end = erase_begin + (queue_size - cv_console_log_max_row_count.data);
+			for(auto it = erase_begin; it != erase_end; ++it)
+			{
+				seek_offset += it->count;
+			}
+			g_log.message_queue.erase(erase_begin, erase_end);
+			int ret = fseek(get_global_log_file(), seek_offset, SEEK_CUR);
+			(void)ret;
+			ASSERT(ret == 0);
 		}
 		while(!g_log.message_queue.empty() && message_count < std::size(message_buffer))
 		{
+			// if there is no space, print what you can
+			if(bytes_to_read + g_log.message_queue.front().count > std::size(text_buffer) - 1)
+			{
+				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
+				int space_remaining = (std::size(text_buffer) - 1) - bytes_to_read;
+				if(space_remaining == 0)
+				{
+					// don't add a message with zero data
+					break;
+				}
+				message_buffer[message_count++] = g_log.message_queue.front();
+				message_buffer[message_count - 1].count = space_remaining;
+				g_log.message_queue.front().count -= space_remaining;
+				bytes_to_read = std::size(text_buffer) - 1;
+				break;
+			}
+			bytes_to_read += g_log.message_queue.front().count;
 			message_buffer[message_count++] = std::move(g_log.message_queue.front());
 			g_log.message_queue.pop_front();
 		}
+		if(bytes_to_read > 0)
+		{
+			size_t nread = fread(text_buffer, 1, bytes_to_read, get_global_log_file());
+			ASSERT(bytes_to_read == nread);
+		}
+
+		// I don't need the null, but I prefer keeping it for the debugger.
+		text_buffer[bytes_to_read] = '\0';
+
+		// set the steam to write at the end
+		g_log.read_file_pos = ftell(get_global_log_file());
+		ASSERT(g_log.read_file_pos != -1);
+		long ret = fseek(get_global_log_file(), 0, SEEK_END); // NOLINT(google-runtime-int)
+		(void)ret;
+		ASSERT(ret == 0);
+
+		// tick2 = timer_now();
 	}
+	// slogf("console time: %g\n",timer_delta_ms(tick1, tick2));
 	// can't print inside mutex because it would cause a deadlock.
 	if(queue_size > cv_console_log_max_row_count.data)
 	{
@@ -507,13 +564,12 @@ bool console_state::update(double delta_sec)
 
 	if(message_count != 0)
 	{
-		STB_TEXTEDIT_CHARTYPE text_data[10000];
+		STB_TEXTEDIT_CHARTYPE codepoint_buffer[std::size(text_buffer)];
+		const char* str_cur = text_buffer;
 		for(size_t i = 0; i < message_count; ++i)
 		{
-			size_t char_count = 0;
-			const char* str_cur = message_buffer[i].message.get();
-			const char* str_end =
-				message_buffer[i].message.get() + message_buffer[i].message_length;
+			size_t codepoint_count = 0;
+			const char* str_end = str_cur + message_buffer[i].count;
 			while(str_cur != str_end)
 			{
 				uint32_t codepoint;
@@ -531,12 +587,12 @@ bool console_state::update(double delta_sec)
 					post_error(serr_get_error());
 					break;
 				}
-				if(char_count >= std::size(text_data) - 1)
+				if(codepoint_count >= std::size(codepoint_buffer) - 1)
 				{
 					slogf("%s info: trunc log\n", __func__);
 					break;
 				}
-				text_data[char_count++] = codepoint;
+				codepoint_buffer[codepoint_count++] = codepoint;
 
 				if(codepoint == '\n')
 				{
@@ -550,11 +606,11 @@ bool console_state::update(double delta_sec)
 			}
 			// printf("char_count: %zu\n", char_count);
 			// TODO(dootsie): I should probably include a newline before truncation...
-			text_data[char_count] = '\0';
+			codepoint_buffer[codepoint_count] = '\0';
 
 			log_box.set_readonly(false);
 			// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-			log_box.stb_insert_chars(log_box.text_data.size(), text_data, char_count);
+			log_box.stb_insert_chars(log_box.text_data.size(), codepoint_buffer, codepoint_count);
 			log_box.set_readonly(true);
 		}
 		log_box.current_color_index = 0;
