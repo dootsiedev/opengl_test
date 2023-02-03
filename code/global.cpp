@@ -29,19 +29,8 @@ static REGISTER_CVAR_INT(
 	"0 = nothing, 1 = stacktrace (once per capture), 2 = always stacktrace (spam)",
 	CVAR_T::RUNTIME);
 
-static CVAR_T has_console =
-#if defined(DISABLE_CONSOLE)
-	CVAR_T::DISABLED;
-#else
-	CVAR_T::RUNTIME;
-#endif
-
 // I would use this if I was profiling, or if the logs were spamming.
-static REGISTER_CVAR_INT(
-	cv_disable_log,
-	0,
-	"0 = keep log, 1 = disable info logs except errors, 2 = disable info and error logs",
-	has_console);
+static REGISTER_CVAR_INT(cv_disable_log, 0, "0 = keep log, 2 = disable all logs", CVAR_T::RUNTIME);
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -116,44 +105,53 @@ implement_CHECK(bool cond, const char* expr, const char* file, int line)
 	return true;
 }
 
+#ifndef LOG_FILENAME
+#define LOG_FILENAME "log_null.txt"
+#endif
+
+struct log_wrapper : nocopy
+{
+	FILE* fp = NULL;
+
+	log_wrapper()
+	{
+#ifdef DISABLE_CONSOLE
+		fp = fopen(LOG_FILENAME, "w");
+#else
+		// I need the w+ because I read in the in game console
+		fp = fopen(LOG_FILENAME, "w+");
+#endif
+		if(fp == NULL)
+		{
+			printf("Failed to open log: `%s`, reason: %s\n", LOG_FILENAME, strerror(errno));
+			return;
+		}
+	}
+
+	~log_wrapper()
+	{
+		ASSERT(fp != NULL);
+		int prev_error = ferror(fp);
+		int ret = fclose(fp);
+		fp = NULL;
+		if(ret != 0 && prev_error != 0)
+		{
+			printf(
+				"Failed to close log: `%s`, reason: %s (return: %d)\n",
+				LOG_FILENAME,
+				strerror(errno),
+				ret);
+		}
+	}
+};
 FILE* get_global_log_file()
 {
-	static struct log_file_wrapper
-	{
-		FILE* fp;
-		const char* path;
-
-		explicit log_file_wrapper(const char* _path = NULL)
-		: path(_path != NULL ? _path : "log.txt")
-		{
-#ifdef DISABLE_CONSOLE
-			fp = fopen(path, "w");
+#ifdef DISABLE_LOG_FILE
+	return NULL;
 #else
-			// I need the w+ because I read in the in game console
-			fp = fopen(path, "w+");
-#endif
-			if(fp == NULL)
-			{
-				printf("Failed to open log: `%s`, reason: %s\n", path, strerror(errno));
-			}
-		}
-
-		~log_file_wrapper()
-		{
-			int prev_error = ferror(fp);
-			int ret = fclose(fp);
-			fp = NULL;
-			if(ret != 0 && prev_error != 0)
-			{
-				printf(
-					"Failed to close log: `%s`, reason: %s (return: %d)\n",
-					path,
-					strerror(errno),
-					ret);
-			}
-		}
-	} log;
+	static log_wrapper log;
 	return log.fp;
+#endif
 }
 
 // serr buffer lazy initialized.
@@ -199,11 +197,16 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 		fwrite(msg.c_str(), 1, msg.size(), stdout);
 
 		{
+#ifndef DISABLE_LOG_FILE
 #ifndef __EMSCRIPTEN__
 			std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-			fwrite(msg.c_str(), 1, msg.size(), get_global_log_file());
-			g_log.message_queue.emplace_back(msg.size(), CONSOLE_MESSAGE_TYPE::ERROR);
+			size_t nbwrite =
+#endif
+				fwrite(msg.c_str(), 1, msg.size(), get_global_log_file());
+#ifndef DISABLE_LOG_FILE
+			g_log.message_queue.emplace_back(nbwrite, CONSOLE_MESSAGE_TYPE::ERROR);
+#endif
 		}
 	}
 }
@@ -239,18 +242,23 @@ void slog_raw(const char* msg, size_t len)
 	// replace stdout with OutputDebugString on the debug build.
 	fwrite(msg, 1, len, stdout);
 	{
+#ifndef DISABLE_LOG_FILE
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		fwrite(msg, 1, len, get_global_log_file());
-		g_log.message_queue.emplace_back(len, CONSOLE_MESSAGE_TYPE::INFO);
+		size_t nbwrite =
+#endif
+			fwrite(msg, 1, len, get_global_log_file());
+#ifndef DISABLE_LOG_FILE
+		g_log.message_queue.emplace_back(nbwrite, CONSOLE_MESSAGE_TYPE::INFO);
+#endif
 	}
 }
 void serr_raw(const char* msg, size_t len)
 {
 	ASSERT(msg != NULL);
 	ASSERT(len != 0);
-	if(cv_disable_log.data == 2)
+	if(cv_disable_log.data != 0)
 	{
 		// if I didn't do this, there would be side effects
 		// since I sometimes depend on serr_check_error for checking.
@@ -263,51 +271,27 @@ void serr_raw(const char* msg, size_t len)
 	fwrite(msg, 1, len, stdout);
 
 	{
+#ifndef DISABLE_LOG_FILE
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log.mut);
 #endif
-		fwrite(msg, 1, len, get_global_log_file());
-		g_log.message_queue.emplace_back(len, CONSOLE_MESSAGE_TYPE::ERROR);
+		size_t nbwrite =
+#endif
+			fwrite(msg, 1, len, get_global_log_file());
+#ifndef DISABLE_LOG_FILE
+		g_log.message_queue.emplace_back(nbwrite, CONSOLE_MESSAGE_TYPE::ERROR);
+#endif
 	}
 }
 
 void slog(const char* msg)
 {
-	ASSERT(msg != NULL);
-	if(cv_disable_log.data != 0)
-	{
-		return;
-	}
-#ifdef DISABLE_CONSOLE
-	// don't use puts because it inserts a newline.
-	fputs(msg, stdout);
-#else
 	slog_raw(msg, strlen(msg));
-#endif
 }
 
 void serr(const char* msg)
 {
-	ASSERT(msg != NULL);
-	if(cv_disable_log.data == 2)
-	{
-		// if I didn't do this, there would be side effects
-		// since I sometimes depend on serr_check_error for checking.
-		*internal_get_serr_buffer() = '!';
-		return;
-	}
-	serr_safe_stacktrace(1);
-
-	size_t len = strlen(msg);
-	internal_get_serr_buffer()->append(msg, len);
-	fwrite(msg, 1, len, stdout);
-	{
-#ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_log.mut);
-#endif
-		fwrite(msg, 1, len, get_global_log_file());
-		g_log.message_queue.emplace_back(len, CONSOLE_MESSAGE_TYPE::ERROR);
-	}
+	serr_raw(msg, strlen(msg));
 }
 
 void slogf(const char* fmt, ...)
@@ -332,8 +316,10 @@ void slogf(const char* fmt, ...)
 	va_start(temp_args, fmt);
 
 	{
+#ifndef DISABLE_LOG_FILE
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log.mut);
+#endif
 #endif
 		int ret;
 #ifdef WIN32
@@ -342,7 +328,9 @@ void slogf(const char* fmt, ...)
 #else
 		ret = vfprintf(get_global_log_file(), fmt, temp_args);
 #endif
+#ifndef DISABLE_LOG_FILE
 		g_log.message_queue.emplace_back(ret, CONSOLE_MESSAGE_TYPE::INFO);
+#endif
 	}
 	va_end(temp_args);
 }
@@ -350,7 +338,7 @@ void slogf(const char* fmt, ...)
 void serrf(const char* fmt, ...)
 {
 	ASSERT(fmt != NULL);
-	if(cv_disable_log.data == 2)
+	if(cv_disable_log.data != 0)
 	{
 		// if I didn't do this, there would be side effects
 		// since I sometimes depend on serr_check_error for checking.

@@ -516,6 +516,11 @@ bool console_state::update(double delta_sec)
 			// if there is no space, print what you can
 			if(bytes_to_read + g_log.message_queue.front().count > std::size(text_buffer) - 1)
 			{
+				if(message_count > 0)
+				{
+                    // next pass you will get the whole message.
+                    break;
+                }
 				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
 				int space_remaining = (std::size(text_buffer) - 1) - bytes_to_read;
 				if(space_remaining == 0)
@@ -536,18 +541,33 @@ bool console_state::update(double delta_sec)
 		if(bytes_to_read > 0)
 		{
 			size_t nread = fread(text_buffer, 1, bytes_to_read, get_global_log_file());
+            (void)nread;
 			ASSERT(bytes_to_read == nread);
+
+			// I don't need the null, but I prefer keeping it for the debugger.
+			text_buffer[bytes_to_read] = '\0';
+
+			long prev_pos = g_log.read_file_pos; // NOLINT(google-runtime-int)
+			(void)prev_pos;
+			g_log.read_file_pos = ftell(get_global_log_file());
+			ASSERT(g_log.read_file_pos != -1);
+
+			// set the steam to write at the end
+			long ret = fseek(get_global_log_file(), 0, SEEK_END); // NOLINT(google-runtime-int)
+			(void)ret;
+			ASSERT(ret == 0);
+
+#ifndef NDEBUG
+			if(g_log.message_queue.empty())
+			{
+				long real_end_pos = ftell(get_global_log_file()); // NOLINT(google-runtime-int)
+				ASSERT(real_end_pos != -1);
+				// this means something go written into the log file without a properly notifying
+				// the console.
+				ASSERT(real_end_pos == g_log.read_file_pos);
+			}
+#endif
 		}
-
-		// I don't need the null, but I prefer keeping it for the debugger.
-		text_buffer[bytes_to_read] = '\0';
-
-		// set the steam to write at the end
-		g_log.read_file_pos = ftell(get_global_log_file());
-		ASSERT(g_log.read_file_pos != -1);
-		long ret = fseek(get_global_log_file(), 0, SEEK_END); // NOLINT(google-runtime-int)
-		(void)ret;
-		ASSERT(ret == 0);
 
 		// tick2 = timer_now();
 	}
@@ -575,12 +595,19 @@ bool console_state::update(double delta_sec)
 				uint32_t codepoint;
 				utf8::internal::utf_error err_code =
 					utf8::internal::validate_next(str_cur, str_end, codepoint);
-				if(err_code == utf8::internal::NOT_ENOUGH_ROOM)
+				if(err_code == utf8::internal::NOT_ENOUGH_ROOM ||
+				   err_code == utf8::internal::INVALID_LEAD)
 				{
-					slogf("%s info: trunc log\n", __func__);
-					break;
+					// this will happen when you use have a very large single message
+                    // with unicode characters, and it overflows text_buffer.
+					// this could solved by just using a VLA or alloca,
+					// but only if you are happy with the possibility of a stack overflow.
+					codepoint = static_cast<unsigned char>(*str_cur);
+					++str_cur;
+					// slogf("%s info: trunc log\n", __func__);
+					// break;
 				}
-				if(err_code != utf8::internal::UTF8_OK)
+				else if(err_code != utf8::internal::UTF8_OK)
 				{
 					serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
 					// put the message into the console instead
