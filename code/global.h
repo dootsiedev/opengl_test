@@ -136,9 +136,6 @@ inline TIMER_RESULT timer_delta(TIMER_U start, TIMER_U end)
 }
 #endif
 
-// this is used by the in game console to read the messages sent to slog.
-FILE* get_global_log_file();
-
 // the main purpose of this logging system is
 // to redirect the logs into both stdout and a log file,
 // and for being a thread safe logging system,

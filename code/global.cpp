@@ -105,8 +105,9 @@ implement_CHECK(bool cond, const char* expr, const char* file, int line)
 	return true;
 }
 
+#if 0
 #ifndef LOG_FILENAME
-#define LOG_FILENAME "log_null.txt"
+#define LOG_FILENAME "log.txt"
 #endif
 
 struct log_wrapper : nocopy
@@ -153,6 +154,7 @@ FILE* get_global_log_file()
 	return log.fp;
 #endif
 }
+#endif
 
 // serr buffer lazy initialized.
 std::shared_ptr<std::string> internal_get_serr_buffer()
@@ -197,16 +199,10 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 		fwrite(msg.c_str(), 1, msg.size(), stdout);
 
 		{
-#ifndef DISABLE_LOG_FILE
 #ifndef __EMSCRIPTEN__
-			std::lock_guard<std::mutex> lk(g_log.mut);
+			std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-			size_t nbwrite =
-#endif
-				fwrite(msg.c_str(), 1, msg.size(), get_global_log_file());
-#ifndef DISABLE_LOG_FILE
-			g_log.message_queue.emplace_back(nbwrite, CONSOLE_MESSAGE_TYPE::ERROR);
-#endif
+            g_log.push_raw(CONSOLE_MESSAGE_TYPE::ERROR, msg.c_str(), msg.size());
 		}
 	}
 }
@@ -242,16 +238,10 @@ void slog_raw(const char* msg, size_t len)
 	// replace stdout with OutputDebugString on the debug build.
 	fwrite(msg, 1, len, stdout);
 	{
-#ifndef DISABLE_LOG_FILE
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_log.mut);
+		std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-		size_t nbwrite =
-#endif
-			fwrite(msg, 1, len, get_global_log_file());
-#ifndef DISABLE_LOG_FILE
-		g_log.message_queue.emplace_back(nbwrite, CONSOLE_MESSAGE_TYPE::INFO);
-#endif
+        g_log.push_raw(CONSOLE_MESSAGE_TYPE::INFO, msg, len);
 	}
 }
 void serr_raw(const char* msg, size_t len)
@@ -271,16 +261,10 @@ void serr_raw(const char* msg, size_t len)
 	fwrite(msg, 1, len, stdout);
 
 	{
-#ifndef DISABLE_LOG_FILE
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_log.mut);
+		std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-		size_t nbwrite =
-#endif
-			fwrite(msg, 1, len, get_global_log_file());
-#ifndef DISABLE_LOG_FILE
-		g_log.message_queue.emplace_back(nbwrite, CONSOLE_MESSAGE_TYPE::ERROR);
-#endif
+        g_log.push_raw(CONSOLE_MESSAGE_TYPE::ERROR, msg, len);
 	}
 }
 
@@ -316,21 +300,10 @@ void slogf(const char* fmt, ...)
 	va_start(temp_args, fmt);
 
 	{
-#ifndef DISABLE_LOG_FILE
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_log.mut);
+		std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-#endif
-		int ret;
-#ifdef WIN32
-		// win32 has a compatible C standard library, but annex k prevents exploits or something.
-		ret = vfprintf_s(get_global_log_file(), fmt, temp_args);
-#else
-		ret = vfprintf(get_global_log_file(), fmt, temp_args);
-#endif
-#ifndef DISABLE_LOG_FILE
-		g_log.message_queue.emplace_back(ret, CONSOLE_MESSAGE_TYPE::INFO);
-#endif
+		g_log.push_vargs(CONSOLE_MESSAGE_TYPE::INFO, fmt, temp_args);
 	}
 	va_end(temp_args);
 }
@@ -360,12 +333,21 @@ void serrf(const char* fmt, ...)
 	vfprintf(stdout, fmt, args);
 #endif
 	va_end(args);
-	va_start(temp_args, fmt);
 
+    int len;
+	va_start(temp_args, fmt);
+    std::unique_ptr<char[]> buffer = unique_vasprintf(&len, fmt, temp_args);
+	va_end(temp_args);
+	internal_get_serr_buffer()->append(buffer.get(), buffer.get() + len);
 	{
 #ifndef __EMSCRIPTEN__
-		std::lock_guard<std::mutex> lk(g_log.mut);
+		std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
+		g_log.push_raw(CONSOLE_MESSAGE_TYPE::ERROR, buffer.get(), len);
+	}
+
+
+#if 0
 		int ret;
 #ifdef WIN32
 		// win32 has a compatible C standard library, but annex k prevents exploits or something.
@@ -373,9 +355,7 @@ void serrf(const char* fmt, ...)
 #else
 		ret = vfprintf(get_global_log_file(), fmt, temp_args);
 #endif
-		g_log.message_queue.emplace_back(ret, CONSOLE_MESSAGE_TYPE::ERROR);
-	}
-	va_end(temp_args);
+#endif
 }
 
 std::unique_ptr<char[]> unique_vasprintf(int* length, const char* fmt, va_list args)

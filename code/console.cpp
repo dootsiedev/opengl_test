@@ -19,6 +19,7 @@
 // and maybe make it so that "console handled errors" will be shown in the "error box",
 // and "handled" errors (like a error manully presented through some UI) will not overwrite the box.
 
+std::mutex g_log_mut;
 log_queue g_log;
 
 static CVAR_T history_enabled
@@ -38,6 +39,108 @@ static REGISTER_CVAR_INT(
 	500,
 	"the maximum number of rows shown in the log",
 	CVAR_T::RUNTIME);
+
+void log_queue::push_raw(CONSOLE_MESSAGE_TYPE type, const char* str, size_t len)
+{
+	ASSERT(str != NULL);
+	if(buffers[buf_write_id].message_count == MESSAGE_COUNT_SIZE ||
+	   buffers[buf_write_id].write_cursor + len + 1 > MESSAGE_BUFFER_SIZE)
+	{
+		++buf_write_id;
+		buf_write_id %= std::size(buffers);
+		if(buf_read_id == buf_write_id)
+		{
+			++buf_read_id;
+			buf_read_id %= std::size(buffers);
+		}
+		buffers[buf_write_id].message_count = 0;
+		buffers[buf_write_id].messages_read = 0;
+		buffers[buf_write_id].write_cursor = 0;
+		buffers[buf_write_id].read_cursor = 0;
+	}
+
+	log_message& entry = buffers[buf_write_id].entries[buffers[buf_write_id].message_count++];
+	entry.count = std::min<size_t>(len, MESSAGE_BUFFER_SIZE - 1);
+	entry.type = type;
+
+	char* cur = buffers[buf_write_id].data + buffers[buf_write_id].write_cursor;
+	memcpy(cur, str, entry.count);
+	if(entry.count != 0 && len > MESSAGE_BUFFER_SIZE - 1)
+	{
+		cur[entry.count - 1] = '\n';
+	}
+	cur[entry.count] = '\0';
+	buffers[buf_write_id].write_cursor += entry.count + 1;
+}
+void log_queue::push_vargs(CONSOLE_MESSAGE_TYPE type, const char* fmt, va_list args)
+{
+	ASSERT(fmt != NULL);
+	int ret;
+	va_list temp_args;
+	va_copy(temp_args, args);
+#ifdef WIN32
+	// win32 has a compatible C standard library, but annex k prevents exploits or something.
+	ret = _vscprintf(fmt, temp_args);
+#else
+	ret = vsnprintf(NULL, 0, fmt, temp_args);
+#endif
+	ASSERT(ret != -1);
+	va_end(temp_args);
+
+	size_t len = ret;
+
+	if(buffers[buf_write_id].message_count == MESSAGE_COUNT_SIZE ||
+	   buffers[buf_write_id].write_cursor + len + 1 > MESSAGE_BUFFER_SIZE)
+	{
+		++buf_write_id;
+		buf_write_id %= std::size(buffers);
+		if(buf_read_id == buf_write_id)
+		{
+			++buf_read_id;
+			buf_read_id %= std::size(buffers);
+		}
+		buffers[buf_write_id].message_count = 0;
+		buffers[buf_write_id].messages_read = 0;
+		buffers[buf_write_id].write_cursor = 0;
+		buffers[buf_write_id].read_cursor = 0;
+	}
+
+	log_message& entry = buffers[buf_write_id].entries[buffers[buf_write_id].message_count++];
+	entry.count = std::min<size_t>(len, MESSAGE_BUFFER_SIZE - 1);
+	entry.type = type;
+
+	char* cur = buffers[buf_write_id].data + buffers[buf_write_id].write_cursor;
+
+#ifdef WIN32
+	ret = vsprintf_s(cur, entry.count + 1, fmt, args);
+#else
+	ret = vsnprintf(cur, entry.count + 1, fmt, args);
+#endif
+	if(entry.count != 0 && len > MESSAGE_BUFFER_SIZE - 1)
+	{
+		cur[entry.count - 1] = '\n';
+	}
+	cur[entry.count] = '\0';
+	buffers[buf_write_id].write_cursor += entry.count + 1;
+}
+const char* log_queue::pop(log_message* message)
+{
+	if(buf_read_id != buf_write_id &&
+	   (buffers[buf_read_id].messages_read == MESSAGE_COUNT_SIZE ||
+		buffers[buf_read_id].messages_read == buffers[buf_read_id].message_count))
+	{
+		++buf_read_id;
+		buf_read_id %= std::size(buffers);
+	}
+	if(buffers[buf_read_id].messages_read == buffers[buf_read_id].message_count)
+	{
+		return NULL;
+	}
+	*message = buffers[buf_read_id].entries[buffers[buf_read_id].messages_read++];
+	const char* str = buffers[buf_read_id].data + buffers[buf_read_id].read_cursor;
+	buffers[buf_read_id].read_cursor += message->count + 1;
+	return str;
+}
 
 bool console_state::init(
 	font_style_interface* console_font_,
@@ -473,121 +576,38 @@ bool console_state::parse_input()
 
 bool console_state::update(double delta_sec)
 {
-	// TODO(dootsie): these could be cvars.
-	log_queue::log_message message_buffer[100];
-	char text_buffer[10000];
 	size_t message_count = 0;
-	size_t bytes_to_read = 0;
-	int queue_size = 0;
+	char text_buffer[log_queue::MESSAGE_BUFFER_SIZE * 2];
+	log_queue::log_message message_buffer[log_queue::MESSAGE_COUNT_SIZE * 2];
 	// TIMER_U tick1;
 	// TIMER_U tick2;
 	{
 		// tick1 = timer_now();
 #ifndef __EMSCRIPTEN__
 		// YOU CANNOT PRINT TO SLOG OR SERR IN THIS LOCK!!!
-		std::lock_guard<std::mutex> lk(g_log.mut);
+		std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-		// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-		queue_size = g_log.message_queue.size();
-
-		if(queue_size != 0)
+		const char* msg;
+		size_t start_index = 0;
+		while((msg = g_log.pop(&message_buffer[message_count])) != NULL)
 		{
-			int ret = fseek(get_global_log_file(), g_log.read_file_pos, SEEK_SET);
-			(void)ret;
-			ASSERT(ret == 0);
+			ASSERT(message_count < std::size(message_buffer));
+			ASSERT(start_index + message_buffer[message_count].count < std::size(text_buffer));
+			memcpy(text_buffer + start_index, msg, message_buffer[message_count].count);
+			start_index += message_buffer[message_count].count;
+			message_count++;
 		}
-		// since culling is based on newlines, I can assume every message has one line.
-		if(queue_size > cv_console_log_max_row_count.data)
-		{
-			long seek_offset = 0; // NOLINT(google-runtime-int)
-			auto erase_begin = g_log.message_queue.begin();
-			auto erase_end = erase_begin + (queue_size - cv_console_log_max_row_count.data);
-			for(auto it = erase_begin; it != erase_end; ++it)
-			{
-				seek_offset += it->count;
-			}
-			g_log.message_queue.erase(erase_begin, erase_end);
-			int ret = fseek(get_global_log_file(), seek_offset, SEEK_CUR);
-			(void)ret;
-			ASSERT(ret == 0);
-		}
-		while(!g_log.message_queue.empty() && message_count < std::size(message_buffer))
-		{
-			// if there is no space, print what you can
-			if(bytes_to_read + g_log.message_queue.front().count > std::size(text_buffer) - 1)
-			{
-				if(message_count > 0)
-				{
-                    // next pass you will get the whole message.
-                    break;
-                }
-				// NOLINTNEXTLINE(bugprone-narrowing-conversions)
-				int space_remaining = (std::size(text_buffer) - 1) - bytes_to_read;
-				if(space_remaining == 0)
-				{
-					// don't add a message with zero data
-					break;
-				}
-				message_buffer[message_count++] = g_log.message_queue.front();
-				message_buffer[message_count - 1].count = space_remaining;
-				g_log.message_queue.front().count -= space_remaining;
-				bytes_to_read = std::size(text_buffer) - 1;
-				break;
-			}
-			bytes_to_read += g_log.message_queue.front().count;
-			message_buffer[message_count++] = std::move(g_log.message_queue.front());
-			g_log.message_queue.pop_front();
-		}
-		if(bytes_to_read > 0)
-		{
-			size_t nread = fread(text_buffer, 1, bytes_to_read, get_global_log_file());
-            (void)nread;
-			ASSERT(bytes_to_read == nread);
-
-			// I don't need the null, but I prefer keeping it for the debugger.
-			text_buffer[bytes_to_read] = '\0';
-
-			long prev_pos = g_log.read_file_pos; // NOLINT(google-runtime-int)
-			(void)prev_pos;
-			g_log.read_file_pos = ftell(get_global_log_file());
-			ASSERT(g_log.read_file_pos != -1);
-
-			// set the steam to write at the end
-			long ret = fseek(get_global_log_file(), 0, SEEK_END); // NOLINT(google-runtime-int)
-			(void)ret;
-			ASSERT(ret == 0);
-
-#ifndef NDEBUG
-			if(g_log.message_queue.empty())
-			{
-				long real_end_pos = ftell(get_global_log_file()); // NOLINT(google-runtime-int)
-				ASSERT(real_end_pos != -1);
-				// this means something go written into the log file without a properly notifying
-				// the console.
-				ASSERT(real_end_pos == g_log.read_file_pos);
-			}
-#endif
-		}
-
+		text_buffer[start_index] = '\0';
 		// tick2 = timer_now();
 	}
 	// slogf("console time: %g\n",timer_delta_ms(tick1, tick2));
-	// can't print inside mutex because it would cause a deadlock.
-	if(queue_size > cv_console_log_max_row_count.data)
-	{
-		// this is not an accurate representation of culling,
-		// since there is a second culling pass that scans the newlines.
-		slogf(
-			"info: console culled messages: %d\n",
-			(queue_size - cv_console_log_max_row_count.data));
-	}
 
 	if(message_count != 0)
 	{
-		STB_TEXTEDIT_CHARTYPE codepoint_buffer[std::size(text_buffer)];
 		const char* str_cur = text_buffer;
 		for(size_t i = 0; i < message_count; ++i)
 		{
+			STB_TEXTEDIT_CHARTYPE codepoint_buffer[std::size(text_buffer)];
 			size_t codepoint_count = 0;
 			const char* str_end = str_cur + message_buffer[i].count;
 			while(str_cur != str_end)
@@ -595,28 +615,17 @@ bool console_state::update(double delta_sec)
 				uint32_t codepoint;
 				utf8::internal::utf_error err_code =
 					utf8::internal::validate_next(str_cur, str_end, codepoint);
-				if(err_code == utf8::internal::NOT_ENOUGH_ROOM ||
-				   err_code == utf8::internal::INVALID_LEAD)
+				if(err_code != utf8::internal::UTF8_OK)
 				{
 					// this will happen when you use have a very large single message
-                    // with unicode characters, and it overflows text_buffer.
-					// this could solved by just using a VLA or alloca,
-					// but only if you are happy with the possibility of a stack overflow.
+					// with unicode characters, and it overflows text_buffer.
+					slogf("console_state::%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
 					codepoint = static_cast<unsigned char>(*str_cur);
 					++str_cur;
-					// slogf("%s info: trunc log\n", __func__);
-					// break;
-				}
-				else if(err_code != utf8::internal::UTF8_OK)
-				{
-					serrf("%s bad utf8: %s\n", __func__, cpputf_get_error(err_code));
-					// put the message into the console instead
-					post_error(serr_get_error());
-					break;
 				}
 				if(codepoint_count >= std::size(codepoint_buffer) - 1)
 				{
-					slogf("%s info: trunc log\n", __func__);
+					slogf("console_state::%s info: trunc log\n", __func__);
 					break;
 				}
 				codepoint_buffer[codepoint_count++] = codepoint;

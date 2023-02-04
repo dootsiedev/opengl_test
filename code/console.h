@@ -26,53 +26,46 @@ enum class CONSOLE_MESSAGE_TYPE
 
 struct log_queue
 {
-#if 0
-    struct log_message
+	enum
 	{
-		// the reason I use a unique_ptr is because
-		// my log system "slog" allocates one from my unique_asprintf
-		// so I can just move it in easily (maybe I should use C++20's std::string feature)
-		log_message() = default;
-		log_message(
-			CONSOLE_MESSAGE_TYPE type_, std::unique_ptr<char[]> message_, int message_length_)
-		: type(type_)
-		, message_length(message_length_)
-		, message(std::move(message_))
-		{
-		}
-		CONSOLE_MESSAGE_TYPE type;
-		int message_length;
-		std::unique_ptr<char[]> message;
-		// probably could add in time if I wanted.
+		MESSAGE_COUNT_SIZE = 100,
+		MESSAGE_BUFFER_SIZE = 10000,
 	};
-    // you are supposed to just access this member .emplace_back to add a log.
-	// I could also try to replace this with a circular buffer (or whatever),
-	// since I want to remove old messages anyways.
-	std::deque<log_message> message_queue;
-#endif
-
-#ifndef __EMSCRIPTEN__
-	// the queue's mutex
-	std::mutex mut;
-#endif
-
-	// I use the log file as the buffer that holds the unrendered log contents.
-	// Ideally I should use fseeko and _fseeki64 but I just want to get this working.
-	long read_file_pos = 0; // NOLINT(google-runtime-int)
-
 	struct log_message
 	{
-		log_message() = default;
-		log_message(int _count, CONSOLE_MESSAGE_TYPE _type)
-		: count(_count)
-		, type(_type)
-		{
-		}
-		int count; // the number of characters written (the return value of fprintf)
+		size_t count; // the number of characters written (the return value of fprintf)
 		CONSOLE_MESSAGE_TYPE type;
 	};
-	std::deque<log_message> message_queue;
+
+	// there are 2 buffers, which get swapped when filled.
+	// if a buffer cannot swap because the other buffer has messages,
+	// the buffer's messages will be erased.
+	// the reason why I did this is not for multithreading
+	// but because this implementation is more simple than a circular buffer.
+	struct log_buffer
+	{
+		size_t message_count = 0;
+		size_t messages_read = 0;
+		size_t write_cursor = 0;
+		size_t read_cursor = 0;
+		log_message entries[MESSAGE_COUNT_SIZE];
+		char data[MESSAGE_BUFFER_SIZE];
+	};
+
+	size_t buf_write_id = 0;
+	size_t buf_read_id = 0;
+	log_buffer buffers[2];
+
+	void push_raw(CONSOLE_MESSAGE_TYPE type, const char* str, size_t len);
+	void push_vargs(CONSOLE_MESSAGE_TYPE type, const char* fmt, va_list args);
+	const char* pop(log_message* message);
 };
+
+#ifndef __EMSCRIPTEN__
+// the queue's mutex
+extern std::mutex g_log_mut;
+#endif
+extern log_queue g_log;
 
 enum class CONSOLE_RESULT
 {
@@ -86,7 +79,7 @@ struct console_state
 	// to cut lines from the top when the limit is reached.
 	int log_line_count = 0;
 
-	std::array<text_prompt_wrapper::color_pair, 2> log_color_table = {
+	std::array<text_prompt_wrapper::color_pair, 1> log_color_table = {
 		text_prompt_wrapper::color_pair{{255, 255, 255, 255}, RGBA8_PREMULT(255, 0, 0, 200)}};
 
 	// it's possible to use one VBO at the expense of
@@ -143,5 +136,3 @@ struct console_state
 
 	void serialize_history(BS_Archive& ar);
 };
-
-extern log_queue g_log;
