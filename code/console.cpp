@@ -40,37 +40,39 @@ static REGISTER_CVAR_INT(
 	"the maximum number of rows shown in the log",
 	CVAR_T::RUNTIME);
 
-void log_queue::push_raw(CONSOLE_MESSAGE_TYPE type, const char* str, size_t len)
+void log_queue::push(CONSOLE_MESSAGE_TYPE type, const char* str, size_t len)
 {
 	ASSERT(str != NULL);
-	if(buffers[buf_write_id].message_count == MESSAGE_COUNT_SIZE ||
-	   buffers[buf_write_id].write_cursor + len + 1 > MESSAGE_BUFFER_SIZE)
+	log_buffer* write_buf = &buffers[buf_write_id];
+	if(write_buf->message_count == MESSAGE_COUNT_SIZE ||
+	   write_buf->write_cursor + len + 1 > MESSAGE_BUFFER_SIZE)
 	{
 		++buf_write_id;
 		buf_write_id %= std::size(buffers);
+		write_buf = &buffers[buf_write_id];
 		if(buf_read_id == buf_write_id)
 		{
 			++buf_read_id;
 			buf_read_id %= std::size(buffers);
 		}
-		buffers[buf_write_id].message_count = 0;
-		buffers[buf_write_id].messages_read = 0;
-		buffers[buf_write_id].write_cursor = 0;
-		buffers[buf_write_id].read_cursor = 0;
+		write_buf->message_count = 0;
+		write_buf->messages_read = 0;
+		write_buf->write_cursor = 0;
+		write_buf->read_cursor = 0;
 	}
 
-	log_message& entry = buffers[buf_write_id].entries[buffers[buf_write_id].message_count++];
+	log_message& entry = write_buf->entries[write_buf->message_count++];
 	entry.count = std::min<size_t>(len, MESSAGE_BUFFER_SIZE - 1);
 	entry.type = type;
 
-	char* cur = buffers[buf_write_id].data + buffers[buf_write_id].write_cursor;
+	char* cur = write_buf->data + write_buf->write_cursor;
 	memcpy(cur, str, entry.count);
 	if(entry.count != 0 && len > MESSAGE_BUFFER_SIZE - 1)
 	{
 		cur[entry.count - 1] = '\n';
 	}
 	cur[entry.count] = '\0';
-	buffers[buf_write_id].write_cursor += entry.count + 1;
+	write_buf->write_cursor += entry.count + 1;
 }
 void log_queue::push_vargs(CONSOLE_MESSAGE_TYPE type, const char* fmt, va_list args)
 {
@@ -89,27 +91,29 @@ void log_queue::push_vargs(CONSOLE_MESSAGE_TYPE type, const char* fmt, va_list a
 
 	size_t len = ret;
 
-	if(buffers[buf_write_id].message_count == MESSAGE_COUNT_SIZE ||
-	   buffers[buf_write_id].write_cursor + len + 1 > MESSAGE_BUFFER_SIZE)
+	log_buffer* write_buf = &buffers[buf_write_id];
+	if(write_buf->message_count == MESSAGE_COUNT_SIZE ||
+	   write_buf->write_cursor + len + 1 > MESSAGE_BUFFER_SIZE)
 	{
 		++buf_write_id;
 		buf_write_id %= std::size(buffers);
+		write_buf = &buffers[buf_write_id];
 		if(buf_read_id == buf_write_id)
 		{
 			++buf_read_id;
 			buf_read_id %= std::size(buffers);
 		}
-		buffers[buf_write_id].message_count = 0;
-		buffers[buf_write_id].messages_read = 0;
-		buffers[buf_write_id].write_cursor = 0;
-		buffers[buf_write_id].read_cursor = 0;
+		write_buf->message_count = 0;
+		write_buf->messages_read = 0;
+		write_buf->write_cursor = 0;
+		write_buf->read_cursor = 0;
 	}
 
-	log_message& entry = buffers[buf_write_id].entries[buffers[buf_write_id].message_count++];
+	log_message& entry = write_buf->entries[write_buf->message_count++];
 	entry.count = std::min<size_t>(len, MESSAGE_BUFFER_SIZE - 1);
 	entry.type = type;
 
-	char* cur = buffers[buf_write_id].data + buffers[buf_write_id].write_cursor;
+	char* cur = write_buf->data + write_buf->write_cursor;
 
 #ifdef WIN32
 	ret = vsprintf_s(cur, entry.count + 1, fmt, args);
@@ -121,24 +125,28 @@ void log_queue::push_vargs(CONSOLE_MESSAGE_TYPE type, const char* fmt, va_list a
 		cur[entry.count - 1] = '\n';
 	}
 	cur[entry.count] = '\0';
-	buffers[buf_write_id].write_cursor += entry.count + 1;
+	write_buf->write_cursor += entry.count + 1;
 }
 const char* log_queue::pop(log_message* message)
 {
-	if(buf_read_id != buf_write_id &&
-	   (buffers[buf_read_id].messages_read == MESSAGE_COUNT_SIZE ||
-		buffers[buf_read_id].messages_read == buffers[buf_read_id].message_count))
+	log_buffer* read_buf = &buffers[buf_read_id];
+	if(read_buf->messages_read == MESSAGE_COUNT_SIZE ||
+	   read_buf->messages_read == read_buf->message_count)
 	{
-		++buf_read_id;
-		buf_read_id %= std::size(buffers);
+		if(buf_read_id != buf_write_id)
+		{
+			++buf_read_id;
+			buf_read_id %= std::size(buffers);
+			read_buf = &buffers[buf_read_id];
+		}
 	}
-	if(buffers[buf_read_id].messages_read == buffers[buf_read_id].message_count)
+	if(read_buf->messages_read == read_buf->message_count)
 	{
 		return NULL;
 	}
-	*message = buffers[buf_read_id].entries[buffers[buf_read_id].messages_read++];
-	const char* str = buffers[buf_read_id].data + buffers[buf_read_id].read_cursor;
-	buffers[buf_read_id].read_cursor += message->count + 1;
+	*message = read_buf->entries[read_buf->messages_read++];
+	const char* str = read_buf->data + read_buf->read_cursor;
+	read_buf->read_cursor += message->count + 1;
 	return str;
 }
 

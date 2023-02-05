@@ -202,7 +202,7 @@ static void __attribute__((noinline)) serr_safe_stacktrace(int skip = 0)
 #ifndef __EMSCRIPTEN__
 			std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-            g_log.push_raw(CONSOLE_MESSAGE_TYPE::ERROR, msg.c_str(), msg.size());
+            g_log.push(CONSOLE_MESSAGE_TYPE::ERROR, msg.c_str(), msg.size());
 		}
 	}
 }
@@ -241,7 +241,7 @@ void slog_raw(const char* msg, size_t len)
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-        g_log.push_raw(CONSOLE_MESSAGE_TYPE::INFO, msg, len);
+        g_log.push(CONSOLE_MESSAGE_TYPE::INFO, msg, len);
 	}
 }
 void serr_raw(const char* msg, size_t len)
@@ -264,7 +264,7 @@ void serr_raw(const char* msg, size_t len)
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-        g_log.push_raw(CONSOLE_MESSAGE_TYPE::ERROR, msg, len);
+        g_log.push(CONSOLE_MESSAGE_TYPE::ERROR, msg, len);
 	}
 }
 
@@ -343,7 +343,7 @@ void serrf(const char* fmt, ...)
 #ifndef __EMSCRIPTEN__
 		std::lock_guard<std::mutex> lk(g_log_mut);
 #endif
-		g_log.push_raw(CONSOLE_MESSAGE_TYPE::ERROR, buffer.get(), len);
+		g_log.push(CONSOLE_MESSAGE_TYPE::ERROR, buffer.get(), len);
 	}
 
 

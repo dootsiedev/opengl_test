@@ -56,7 +56,7 @@ struct log_queue
 	size_t buf_read_id = 0;
 	log_buffer buffers[2];
 
-	void push_raw(CONSOLE_MESSAGE_TYPE type, const char* str, size_t len);
+	void push(CONSOLE_MESSAGE_TYPE type, const char* str, size_t len);
 	void push_vargs(CONSOLE_MESSAGE_TYPE type, const char* fmt, va_list args);
 	const char* pop(log_message* message);
 };
