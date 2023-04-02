@@ -1,0 +1,4 @@
+docs/gltest.js filter=lfs diff=lfs merge=lfs -text
+docs/gltest.wasm filter=lfs diff=lfs merge=lfs -text
+docs/index.html filter=lfs diff=lfs merge=lfs -text
+docs/gltest.data filter=lfs diff=lfs merge=lfs -text
