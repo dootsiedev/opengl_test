@@ -1154,7 +1154,7 @@ FONT_BASIC_RESULT hex_font_data::load_hex_block(size_t block_index)
 						"%s: unexpected end or null (block: %zu, offset: %ld)\n",
 						hex_font_file->name(),
 						block_index,
-						chunk->offset);
+						temp_offset);
 					return FONT_BASIC_RESULT::ERROR;
 				}
 				if(codepoint_hex[i] == ':')
@@ -1176,7 +1176,7 @@ FONT_BASIC_RESULT hex_font_data::load_hex_block(size_t block_index)
 					"%s: out of range (block: %zu, offset: %ld)\n",
 					hex_font_file->name(),
 					block_index,
-					chunk->offset);
+					temp_offset);
 				return FONT_BASIC_RESULT::ERROR;
 			}
 
@@ -1186,7 +1186,7 @@ FONT_BASIC_RESULT hex_font_data::load_hex_block(size_t block_index)
 					"%s: failed to convert hex (block: %zu, offset: %ld)\n",
 					hex_font_file->name(),
 					block_index,
-					chunk->offset);
+					temp_offset);
 				return FONT_BASIC_RESULT::ERROR;
 			}
 		}
@@ -1203,7 +1203,7 @@ FONT_BASIC_RESULT hex_font_data::load_hex_block(size_t block_index)
 					hex_font_file->name(),
 					codepoint,
 					block_index,
-					chunk->offset);
+					temp_offset);
 				return FONT_BASIC_RESULT::ERROR;
 			}
 
@@ -1221,7 +1221,7 @@ FONT_BASIC_RESULT hex_font_data::load_hex_block(size_t block_index)
 						"%s: line too long (block: %zu, offset: %ld)\n",
 						hex_font_file->name(),
 						block_index,
-						chunk->offset);
+						temp_offset);
 					return FONT_BASIC_RESULT::ERROR;
 				}
 				unsigned char temp;
@@ -1246,7 +1246,7 @@ FONT_BASIC_RESULT hex_font_data::load_hex_block(size_t block_index)
 						"%s: bad hex (block: %zu, offset: %ld)\n",
 						hex_font_file->name(),
 						block_index,
-						chunk->offset);
+						temp_offset);
 					return FONT_BASIC_RESULT::ERROR;
 				}
 				if((i % 2) == 0)
@@ -1265,7 +1265,7 @@ FONT_BASIC_RESULT hex_font_data::load_hex_block(size_t block_index)
 					"%s: bad size (block: %zu, offset: %ld)\n",
 					hex_font_file->name(),
 					block_index,
-					chunk->offset);
+					temp_offset);
 				return FONT_BASIC_RESULT::ERROR;
 			}
 
