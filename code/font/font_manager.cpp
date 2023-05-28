@@ -955,6 +955,8 @@ hex_font_data::get_glyph(
 	uint32_t padding = 1;
 	int32_t offset = 0;
 
+	// you will still get atlas bleed if you use nearest neighbor
+	// but nearest neighbor looks like shit with non pixel perfect scaling.
 	if(cv_font_linear_filtering.data == 1)
 	{
 		padding = 2;
